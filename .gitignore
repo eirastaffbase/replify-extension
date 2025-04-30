@@ -1,0 +1,24 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/replify/node_modules
+/replify/.pnp
+.pnp.js
+
+# testing
+/replify/coverage
+
+# production
+/replify/build
+
+# misc
+/replify/.DS_Store
+/replify/.env.local
+/replify/.env.development.local
+/replify/.env.test.local
+/replify/.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store

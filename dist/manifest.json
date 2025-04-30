@@ -1,0 +1,23 @@
+{
+  "name": "Replify for Staffbase",
+  "description": "...",
+  "version": "1.2",
+  "manifest_version": 3,
+
+  "permissions": ["scripting", "activeTab", "sidePanel"],
+  "host_permissions": [
+    "https://app.staffbase.com/*",
+    "https://sb-news-generator.uc.r.appspot.com/*"
+  ],
+
+  "action": {                  
+    "default_title": "Replify for Staffbase"
+  },
+
+  "side_panel": {
+    "default_path": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
