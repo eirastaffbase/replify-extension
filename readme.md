@@ -6,7 +6,7 @@ This Chrome extension allows you to automatically brand demo environments.
 
 1.  **Clone the repository:**
     ```bash
-    git clone replify
+    git clone replify-extension
     cd replify-extension
     ```
 
