@@ -1,6 +1,4 @@
 // components/EnvironmentSetupForm.jsx
-// Appears when you click Set Up
-
 import React from "react";
 import {
   inputStyle,
@@ -15,36 +13,31 @@ import MobileQuickLinks from "./MobileQuickLinks";
 
 export default function EnvironmentSetupForm({
   /* toggles */
-  chatEnabled,
-  setChatEnabled,
-  microsoftEnabled,
-  setMicrosoftEnabled,
-  campaignsEnabled,
-  setCampaignsEnabled,
+  chatEnabled, setChatEnabled,
+  microsoftEnabled, setMicrosoftEnabled,
+  campaignsEnabled, setCampaignsEnabled,
 
   /* launchpad */
-  launchpadSel,
-  items,
-  openLaunchpad,
-  onToggleLaunchpadOpen,
+  launchpadSel, items,
+  openLaunchpad, onToggleLaunchpadOpen,
   onToggleLaunchpadItem,
 
-  /* quick links */
+
+  /* quick links  */
+  quickLinksEnabled, setQuickLinksEnabled,
+
   mobileQuickLinks,
-  onUpdateQuickLink,
-  onSwapQuickLink,
+  onQuickLinkChange,   // (idx, field, value)
+  onQuickLinkSwap,     // (aIdx, bIdx)
+  onQuickLinkDelete,   // (idx)
+  onQuickLinkAdd,      // ()
 
   /* widgets / merge */
-  customWidgetsChecked,
-  setCustomWidgetsChecked,
-  mergeIntegrationsChecked,
-  setMergeIntegrationsChecked,
-  sbEmail,
-  setSbEmail,
-  sbPassword,
-  setSbPassword,
-  mergeField,
-  setMergeField,
+  customWidgetsChecked, setCustomWidgetsChecked,
+  mergeIntegrationsChecked, setMergeIntegrationsChecked,
+  sbEmail, setSbEmail,
+  sbPassword, setSbPassword,
+  mergeField, setMergeField,
 
   /* submit */
   onSetup,
@@ -84,15 +77,31 @@ export default function EnvironmentSetupForm({
         />
       </div>
 
-      {/* Mobile quick links */}
-      <h4>Mobile Quick Links</h4>
-      <MobileQuickLinks
-        links={mobileQuickLinks}
-        onChangeTitle={(k, t) =>
-          onUpdateQuickLink(k, { ...mobileQuickLinks[k], title: t })
-        }
-        onSwap={onSwapQuickLink}
-      />
+      {/* Quick‑links master checkbox */}
+      <div style={formGroupStyle}>
+        <label style={checkboxLabelStyle}>
+          <input
+            type="checkbox"
+            style={checkboxStyle}
+            checked={quickLinksEnabled}
+            onChange={(e) => setQuickLinksEnabled(e.target.checked)}
+          />
+          Quick Links
+        </label>
+      </div>
+
+      {quickLinksEnabled && (
+        <>
+          <h4>Mobile Quick Links</h4>
+          <MobileQuickLinks
+            links={mobileQuickLinks}
+            onChange={onQuickLinkChange}
+            onSwap={onQuickLinkSwap}
+            onDelete={onQuickLinkDelete}
+            onAdd={onQuickLinkAdd}
+          />
+        </>
+      )}
 
       {/* Custom widgets / merge */}
       {[

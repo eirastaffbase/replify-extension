@@ -28,16 +28,22 @@ export default function BrandingForm({
   /* helper */
   getCreateLabel,
 
+  /* delete */
+  onDeleteBranding,
+
+  /* pull */
+  onPullBranding,
+
   /* state + setters (prospect / colours / padding / bg) */
   prospectName, setProspectName,
-  logoUrl,      setLogoUrl,
-  bgUrl,        setBgURL,
+  logoUrl, setLogoUrl,
+  bgUrl, setBgURL,
   primaryColor, setPrimaryColor,
-  textColor,    setTextColor,
+  textColor, setTextColor,
   backgroundColor, setBackgroundColor,
   logoPadWidth, setLogoPadWidth,
-  logoPadHeight,setLogoPadHeight,
-  bgVertical,   setBgVertical,
+  logoPadHeight, setLogoPadHeight,
+  bgVertical, setBgVertical,
   prospectLinkedInUrl, setProspectLinkedInUrl,
 
   /* submit */
@@ -53,11 +59,51 @@ export default function BrandingForm({
     <>
       {/* ───────── existing-branding notice ───────── */}
       {brandingExists && (
-        <div style={{ marginTop: 10, padding: 10, background: "#C4E2ED", borderRadius: 4, marginBottom: 10 }}>
-          This environment is already branded with Replify.<br />
+        <div
+          style={{
+            marginTop: 10,
+            padding: 16,
+            background: "#C4E2ED",
+            borderRadius: 4,
+            marginBottom: 10,
+          }}
+        >
+          This environment is already branded with Replify.
+          <br />
           <strong>Adding branding will replace the existing branding.</strong>
+          <div style={{ margin: "10px 0", display: "flex", gap: 12 }}> {/* Adjusted gap for spacing */}
+            <button
+              style={{
+                ...brandingButtonStyle,
+                background: "crimson",
+                color: "white",
+                fontSize: "12px",
+                display: "flex",        // Enable flex layout for icon and text
+                alignItems: "center",   // Vertically align items
+                justifyContent: "center" // Center content horizontally
+              }}
+              onClick={onDeleteBranding}
+            >
+              <span style={{ fontSize: "24px", marginRight: 6 }}>✖︎</span> {/* Bigger icon with some spacing */}
+              Delete branding
+            </button>
+            <button
+              onClick={onPullBranding}
+              style={{
+                ...brandingButtonStyle,
+                fontSize: "12px",
+                display: "flex",        // Enable flex layout for icon and text
+                alignItems: "center",   // Vertically align items
+                justifyContent: "center" // Center content horizontally
+              }}
+            >
+              <span style={{ fontSize: "24px", marginRight: 6 }}>⟳</span> {/* Bigger icon with some spacing */}
+              Pull current
+            </button>
+          </div>
         </div>
       )}
+
 
       {/* ───────── Add-branding toggle ───────── */}
       <div style={formGroupStyle}>
@@ -78,9 +124,9 @@ export default function BrandingForm({
           {/*  name / logo / bg URLs  */}
           {[
             ["Prospect Name", prospectName, withPreview(setProspectName), "Vandelay Industries"],
-            ["Logo URL",      logoUrl,      withPreview(setLogoUrl),      ""],
-            ["Background Image URL", bgUrl,  withPreview(setBgURL),        ""],
-          ].map(([lbl,val,onChange,ph]) => (
+            ["Logo URL", logoUrl, withPreview(setLogoUrl), ""],
+            ["Background Image URL", bgUrl, withPreview(setBgURL), ""],
+          ].map(([lbl, val, onChange, ph]) => (
             <div key={lbl} style={formGroupStyle}>
               <label style={labelStyle}>{lbl}:</label>
               <input
@@ -95,10 +141,10 @@ export default function BrandingForm({
 
           {/*  colour pickers  */}
           {[
-            ["Primary Branding Color",  primaryColor,  withPreview(setPrimaryColor)],
-            ["Text Branding Color",     textColor,     withPreview(setTextColor)],
+            ["Primary Branding Color", primaryColor, withPreview(setPrimaryColor)],
+            ["Text Branding Color", textColor, withPreview(setTextColor)],
             ["Background Color (Neutral)", backgroundColor, withPreview(setBackgroundColor)],
-          ].map(([lbl,val,onChange]) => (
+          ].map(([lbl, val, onChange]) => (
             <div key={lbl} style={formGroupStyle}>
               <label style={labelStyle}>{lbl}:</label>
               <input
@@ -115,9 +161,9 @@ export default function BrandingForm({
             <label style={labelStyle}>Logo padding (width × height px)</label>
             <div style={{ display: "flex", gap: 6 }}>
               {[
-                [logoPadWidth,  withPreview(setLogoPadWidth)],
+                [logoPadWidth, withPreview(setLogoPadWidth)],
                 [logoPadHeight, withPreview(setLogoPadHeight)],
-              ].map(([val,onChange], i) => (
+              ].map(([val, onChange], i) => (
                 <input
                   key={i}
                   type="number"

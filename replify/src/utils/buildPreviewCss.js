@@ -32,6 +32,13 @@ export default function buildPreviewCss(o) {
     return 0.299 * r + 0.587 * g + 0.114 * b < 128;
   };
 
+  /* --------------------------------------------------
+    Persist the prospect name so we can read it later
+    -------------------------------------------------- */
+    const prospectComment = o.prospectName
+    ? `/* prospect:${o.prospectName.trim()} */\n`
+    : "";
+
   /* ════════════════════════════════════════════
      2.  Derived colours
      ════════════════════════════════════════════ */
@@ -47,6 +54,7 @@ export default function buildPreviewCss(o) {
      3.  Base CSS (root tokens, header, widgets…)
      ════════════════════════════════════════════ */
   let css = `
+      ${prospectComment} 
       /* ================= root tokens ================= */
       :root{
         --color-client-primary : ${o.primary} !important;
