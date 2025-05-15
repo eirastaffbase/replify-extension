@@ -17,16 +17,16 @@
     @returns {String} – fully-formed CSS ready for <style> injection
 */
 
-export default function buildPreviewCss(o) {
+export default function buildPreviewCss(o: { primary: any; text: any; background: any; bg: any; logo: any; padW: any; padH: any; bgVert: any; prospectName?: any; logoH?: any; }) {
   /* ════════════════════════════════════════════
      1.  Helper functions
      ════════════════════════════════════════════ */
-  const hexToRgba = (hex, alpha) =>
+  const hexToRgba = (hex: string, alpha: number) =>
     `rgba(${parseInt(hex.slice(1, 3), 16)},` +
     `${parseInt(hex.slice(3, 5), 16)},` +
     `${parseInt(hex.slice(5, 7), 16)},${alpha})`;
 
-  const isDarkColor = (hex) => {
+  const isDarkColor = (hex: string) => {
     const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
     /* ITU-R BT.601 luma formula */
     return 0.299 * r + 0.587 * g + 0.114 * b < 128;

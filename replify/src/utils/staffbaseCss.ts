@@ -8,7 +8,7 @@
     @returns {Promise<string>} - Fetched CSS text
 */
 
-export async function fetchCurrentCSS( token ) {
+export async function fetchCurrentCSS( token: string ) {
   if (!token) throw new Error("No token provided.");
     const url = `https://app.staffbase.com/api/custom.css`;  
     const res = await fetch(url, {
@@ -30,7 +30,7 @@ export async function fetchCurrentCSS( token ) {
     return css;
   }
 
-export async function postUpdatedCSS( token, branchId, cssText ) {
+export async function postUpdatedCSS( token: string, branchId: string, cssText: string ) {
   if (!token) throw new Error("API token error.");
   if (!branchId) throw new Error("Branch ID error.");
   if (!cssText) throw new Error("CSS error.");

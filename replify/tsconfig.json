@@ -1,0 +1,19 @@
+{
+    "compilerOptions": {
+      "allowJs": true,             // let the compiler digest .js for now
+      "checkJs": false,            // don’t yell at legacy files yet
+      /* project basics */
+      "target": "ES2020",
+      "module": "ESNext",
+      "moduleResolution": "Node",
+      "jsx": "react-jsx",
+      "strict": true,              // you can relax this after the first run if it’s too noisy
+      /* paths / aliases – tweak if you use webpack-aliases or ts-paths */
+      "baseUrl": ".",
+      "paths": { "*": ["types/*"] },
+      /* output */
+      "noEmit": true               // purely type-checking; CRA/Vite will still handle builds
+    },
+    "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.js", "src/**/*.jsx"],
+    "exclude": ["node_modules"]
+  }  

@@ -5,7 +5,7 @@ export const loadTokensFromStorage = () => {
     try {
       const raw = localStorage.getItem("staffbaseTokens");
       if (!raw) return [];
-      return JSON.parse(raw).map(t => ({
+      return JSON.parse(raw).map((t: { slug: any; token: any; branchId: any; hasNewUI: any; }) => ({
         ...t,
         slug:      t.slug      || "unknown-slug",
         token:     t.token     || "[invalid token]",
@@ -18,7 +18,7 @@ export const loadTokensFromStorage = () => {
     }
   };
   
-  export const saveTokensToStorage = tokens => {
+  export const saveTokensToStorage = (tokens: any) => {
     try   { localStorage.setItem("staffbaseTokens", JSON.stringify(tokens)); }
     catch (err) { console.error("Failed to save tokens", err); }
   };
