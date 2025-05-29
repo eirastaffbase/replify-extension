@@ -139,7 +139,7 @@ export default function BrandingForm({
             </div>
           ))}
 
-          {/*  colour pickers  */}
+          {/*  color pickers  */}
           {[
             ["Primary Branding Color", primaryColor, withPreview(setPrimaryColor)],
             ["Text Branding Color", textColor, withPreview(setTextColor)],

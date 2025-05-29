@@ -1,11 +1,9 @@
-/* eslint-disable no-undef */
-import React, { useState } from "react";
+import { useState } from "react";
 
 /* ───── Hooks & utils ───── */
 import useStaffbaseTab from "./hooks/useStaffbaseTab";
 import useSavedTokens from "./hooks/useSavedTokens";
 import buildPreviewCss from "./utils/buildPreviewCss";
-// @ts-ignore:next-line
 import { fetchCurrentCSS, postUpdatedCSS } from "./utils/staffbaseCss";
 import {
   loadTokensFromStorage,
@@ -121,7 +119,7 @@ function App() {
 
       setBrandingExists(false);
       setResponse("✅ Replify branding deleted");
-    } catch (err) {
+    } catch (err: any) {
       setResponse(`❌ ${err.message}`);
     }
   }
@@ -139,7 +137,7 @@ function App() {
       const nameMatch = block.match(/\/\*\s*prospect:(.*?)\*\//i);
       if (nameMatch) setProspectName(nameMatch[1].trim());
       // helper utilities -------------------------------------------------
-      const grabRaw = (v) =>
+      const grabRaw = (v: string) =>
         (block.match(new RegExp(`--${v}\\s*:\\s*([^;]+);`, "i")) ||
           [])[1]?.trim();
       const clean = (
@@ -174,7 +172,7 @@ function App() {
       );
 
       setResponse("✅ Pulled current branding into the form.");
-    } catch (err) {
+    } catch (err: any) {
       setResponse(`❌ ${err.message}`);
     }
   };
@@ -188,7 +186,7 @@ function App() {
       });
 
       await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
+        target: { tabId: tab.id ?? 0 },
         func: (styleId) => {
           const el = document.getElementById(styleId);
           if (el) el.remove();
@@ -198,7 +196,7 @@ function App() {
 
       setPreviewActive(false);
       setResponse("Preview cancelled.");
-    } catch (err) {
+    } catch (err: any) {
       setResponse(`Failed to cancel preview: ${err.message}`);
     }
   }
@@ -208,7 +206,7 @@ function App() {
    ────────────────────────────────────────────────────────────── */
 
   /** Toggle an item in the Launchpad multiselect. */
-  const handleLaunchpadSelect = (option) => {
+  const handleLaunchpadSelect = (option: string) => {
     if (option === "all") {
       setLaunchpadSel(["all"]);
       return;
@@ -274,7 +272,7 @@ function App() {
       setResponse(
         `Authentication successful! Stored token for slug “${slug}”.`
       );
-    } catch (err) {
+    } catch (err: any) {
       setResponse(`Authentication failed: ${err.message}`);
     }
   };
@@ -452,7 +450,7 @@ function App() {
 
         setResponse("Complete! Refresh for your branded demo!");
       }
-    } catch (err) {
+    } catch (err: any) {
       setResponse(`❌ ${err.message}`);
     }
   }
@@ -497,7 +495,7 @@ function App() {
       });
 
       setResponse("Preview applied. Refresh the tab to clear it");
-    } catch (err) {
+    } catch (err: any) {
       setResponse(`Preview failed: ${err.message}`);
     }
   }
@@ -542,7 +540,7 @@ function App() {
       );
       if (!r.ok) throw new Error(`${r.status}`);
       setResponse("Environment created!");
-    } catch (err) {
+    } catch (err: any) {
       setResponse(`Error: ${err.message}`);
     } finally {
       setIsLoading(false);
