@@ -1,16 +1,25 @@
+//App.js
 /* eslint-disable no-undef */
+/* global chrome */
+
 import React, { useState } from "react";
 
 /* ───── Hooks & utils ───── */
 import useStaffbaseTab from "./hooks/useStaffbaseTab";
 import useSavedTokens from "./hooks/useSavedTokens";
+import useAnalyticsRedirects from "./hooks/useAnalyticsRedirects";
 import buildPreviewCss from "./utils/buildPreviewCss";
-// @ts-ignore:next-line
 import { fetchCurrentCSS, postUpdatedCSS } from "./utils/staffbaseCss";
 import {
   loadTokensFromStorage,
   saveTokensToStorage,
 } from "./utils/tokenStorage";
+import {
+  getInitialAnalyticsStateFromStorage,
+  manageAnalyticsScriptInPage,
+  handleToggleAnalyticsChange,
+} from "./utils/analyticsManager"; 
+
 
 /* ───── Constants & styles ───── */
 import { LAUNCHPAD_DICT, blockRegex } from "./constants/appConstants";
@@ -22,6 +31,8 @@ import ApiKeyForm from "./components/ApiKeyForm";
 import BrandingForm from "./components/BrandingForm";
 import EnvironmentSetupForm from "./components/EnvironmentSetupForm";
 import UseEnvironmentOptions from "./components/UseEnvironmentOptions";
+import RedirectAnalyticsForm from "./components/RedirectAnalyticsForm";
+
 
 function App() {
   // --------------------------------------------------
@@ -53,6 +64,14 @@ function App() {
   const [includeArticles, setIncludeArticles] = useState(false);
   const [prospectLinkedInUrl, setProspectLinkedInUrl] = useState("");
   const [linkedInPostsCount, setLinkedInPostsCount] = useState(10);
+
+  /* 📈  Analytics / redirect toggles ---- */
+  const [redirectOpen, setRedirectOpen] = useState(false);
+  const {
+    redirectState,          // State for checkboxes from the hook
+    analyticsResponse,      // Response messages from analytics operations
+    handleToggleRedirect,   // Handler function from the hook
+  } = useAnalyticsRedirects();
 
   /* ⚙️  Prospect / misc branding inputs ----------------------------------- */
   const [prospectName, setProspectName] = useState("");
@@ -547,7 +566,7 @@ function App() {
     } finally {
       setIsLoading(false);
     }
-  }
+  }  
 
   /* ──────────────────────────────────────────────────────────────
    UI UTILS
@@ -621,6 +640,13 @@ function App() {
         onToggle={handleShowFullToken}
         onDelete={handleDeleteToken}
         onAdd={() => setShowApiKeyInput((prev) => !prev)}
+      />
+
+      <RedirectAnalyticsForm
+        open={redirectOpen}
+        onToggleOpen={() => setRedirectOpen((o) => !o)}
+        state={redirectState}
+        onToggleType={handleToggleRedirect} 
       />
 
       {useOption?.type && renderBreadcrumbs()}

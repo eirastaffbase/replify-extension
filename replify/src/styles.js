@@ -85,3 +85,8 @@ export const buttonTinyStyle = {
   cursor: "pointer",
   padding: 0,
 };
+export const dropdownHeaderStyle = {
+  fontWeight: 600,
+  cursor: "pointer",
+  marginTop: 24,
+};

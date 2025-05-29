@@ -24,3 +24,12 @@ export const LAUNCHPAD_DICT = [
   ];
 
   export const blockRegex = /\/\*\s*⇢\s*REPLIFY START[\s\S]*?REPLIFY END\s*⇠\s*\*\//g;
+
+  export const ANALYTICS_TYPES = [
+    { id: "news",       label: "News"       },
+    { id: "hashtags",   label: "Hashtags"   },
+    { id: "search",     label: "Search"     },
+    { id: "campaigns",  label: "Campaigns"  },
+    { id: "posts",      label: "Posts"      },
+    { id: "email",      label: "Email"      },
+  ];
