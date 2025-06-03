@@ -3,8 +3,12 @@
   "description": "...",
   "version": "1.4",
   "manifest_version": 3,
-
-  "permissions": ["scripting", "activeTab", "sidePanel", "storage"],
+  "permissions": [
+    "scripting",
+    "activeTab",
+    "sidePanel",
+    "storage"
+  ],
   "host_permissions": [
     "https://app.staffbase.com/*",
     "https://sb-news-generator.uc.r.appspot.com/*"
@@ -12,24 +16,19 @@
   "content_scripts": [
     {
       "matches": [
-        "https://app.staffbase.com/admin/analytics/*",
-        "https://app.staffbase.com/studio/analytics/*",
-        "https://app.staffbase.com/content/news/article/*"
+        "https://app.staffbase.com/*"
       ],
-      "js": ["content/loader.js"],
-      "run_at": "document_idle"
+      "js": ["content/analytics.js"],
+      "run_at": "document_start"
     }
   ],
-  "action": {                  
+  "action": {
     "default_title": "Replify for Staffbase"
   },
-
   "side_panel": {
     "default_path": "popup.html"
   },
   "background": {
     "service_worker": "background.js"
   }
-
-  
 }

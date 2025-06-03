@@ -68,9 +68,9 @@ function App() {
   /* 📈  Analytics / redirect toggles ---- */
   const [redirectOpen, setRedirectOpen] = useState(false);
   const {
-    redirectState,          // State for checkboxes from the hook
-    analyticsResponse,      // Response messages from analytics operations
-    handleToggleRedirect,   // Handler function from the hook
+    redirectState,
+    analyticsResponse, // if needed for display
+    handleToggleRedirect,
   } = useAnalyticsRedirects();
 
   /* ⚙️  Prospect / misc branding inputs ----------------------------------- */
@@ -643,13 +643,14 @@ function App() {
       />
 
       <RedirectAnalyticsForm
-        open={redirectOpen}
-        onToggleOpen={() => setRedirectOpen((o) => !o)}
+        open={redirectOpen} // This state should be managed in App.js
+        onToggleOpen={() => setRedirectOpen((o) => !o)} // This should be managed in App.js
         state={redirectState}
-        onToggleType={handleToggleRedirect} 
+        onToggleType={handleToggleRedirect}
       />
 
-      {useOption?.type && renderBreadcrumbs()}
+    {useOption?.type && renderBreadcrumbs()}
+
 
       {/* ─────────── ENTER API-KEY FIRST TIME ─────────── */}
       {!useOption?.type && !isAuthenticated && showApiKeyInput && (
