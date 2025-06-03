@@ -22,6 +22,12 @@
       "run_at": "document_start"
     }
   ],
+  "web_accessible_resources": [  // <--- ADD THIS SECTION
+    {
+      "resources": ["content/main_world_script.js"],
+      "matches": ["https://app.staffbase.com/*"]
+    }
+  ],
   "action": {
     "default_title": "Replify for Staffbase"
   },
