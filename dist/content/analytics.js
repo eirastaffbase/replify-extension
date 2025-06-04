@@ -135,6 +135,7 @@ function cleanupEmailPatch() {
 function applyNewsPatch() {
     // console.log(REPLIFY_NEWS_LOG_PREFIX, "Attempting to apply News Patch. Path:", window.location.pathname);
     // User specified: /admin/analytics/news
+    
     if (!window.location.pathname.startsWith("/admin/analytics/news")) { 
         if (newsPatchCurrentlyActive) cleanupNewsPatch();
         return;

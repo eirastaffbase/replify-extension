@@ -2,7 +2,7 @@
 /* eslint-disable no-undef */
 /* global chrome */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 /* ───── Hooks & utils ───── */
 import useStaffbaseTab from "./hooks/useStaffbaseTab";
@@ -32,6 +32,7 @@ import BrandingForm from "./components/BrandingForm";
 import EnvironmentSetupForm from "./components/EnvironmentSetupForm";
 import UseEnvironmentOptions from "./components/UseEnvironmentOptions";
 import RedirectAnalyticsForm from "./components/RedirectAnalyticsForm";
+import FeedbackBanner from "./components/FeedbackBanner";
 
 
 function App() {
@@ -629,6 +630,8 @@ function App() {
   return (
     <div style={containerStyle}>
       <h1 style={headingStyle}>Replify for Staffbase</h1>
+
+      <FeedbackBanner />
 
       {/* ─────────── SAVED ENVIRONMENTS ─────────── */}
       <SavedEnvironments

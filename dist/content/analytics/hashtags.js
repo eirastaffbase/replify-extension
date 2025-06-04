@@ -23,6 +23,13 @@
         return Math.floor(Math.random() * (max - min + 1)) + min;
     };
 
+    // --- ADDED MISSING randFloat FUNCTION ---
+    const randFloat = (min, max, decimals = 2) => {
+        const str = (Math.random() * (max - min) + min).toFixed(decimals);
+        return parseFloat(str);
+    };
+    // --- END OF ADDITION ---
+
     const TARGET_HASHTAG_API_URL = '/api/branch/analytics/hashtags/contentsVisitsClicks';
 
     const injectedHashtagsCustomFetch = async function(...args) {
@@ -46,7 +53,7 @@
             
             try {
                 const response = await pageContextOriginalFetch.apply(this, args);
-                let originalJsonData = []; // Default to empty array
+                let originalJsonData = []; 
 
                 if (response.ok && response.headers.get("content-type")?.includes("application/json")) {
                     originalJsonData = await response.clone().json();
@@ -56,58 +63,45 @@
                         status: 200, statusText: "OK", headers: {'Content-Type': 'application/json'}
                     });
                 }
-                 // Ensure originalJsonData is an array
                 if (!Array.isArray(originalJsonData)) {
                     console.warn(INJECTED_LOG_PREFIX, `Original data for ${TARGET_HASHTAG_API_URL} is not an array. Returning empty array.`);
                     originalJsonData = [];
                 }
 
-
                 let modifiedData = [];
 
                 if (originalJsonData.length > 0) {
-                    // console.log(INJECTED_LOG_PREFIX, "Augmenting existing hashtags.");
                     modifiedData = originalJsonData.map(item => {
-                        const newItem = { ...item }; // Clone the item
+                        const newItem = { ...item }; 
 
-                        // Add more clicks
-                        // More clicks if there are posts/pages, or a base amount if not many posts
                         const baseClicksToAdd = rand(item.posts > 0 || item.pages > 0 ? 3 : 1, item.posts > 0 || item.pages > 0 ? 15 : 5);
-                        const clicksFromPosts = Math.floor(item.posts * randFloat(0.5, 2.5));
-                        const clicksFromPages = Math.floor(item.pages * randFloat(0.5, 2.5));
-                        newItem.clicks += baseClicksToAdd + clicksFromPosts + clicksFromPages;
+                        const clicksFromPosts = item.posts > 0 ? Math.floor(item.posts * randFloat(0.5, 2.5)) : 0;
+                        const clicksFromPages = item.pages > 0 ? Math.floor(item.pages * randFloat(0.5, 2.5)) : 0;
+                        newItem.clicks = (newItem.clicks || 0) + baseClicksToAdd + clicksFromPosts + clicksFromPages;
                         
-                        // Add more visits ("users")
-                        // Ensure visits increase at least by the number of new clicks, plus some general increase
                         const baseVisitsToAdd = rand(item.posts > 0 || item.pages > 0 ? 5 : 2, item.posts > 0 || item.pages > 0 ? 25 : 10);
-                        const visitsFromPosts = Math.floor(item.posts * randFloat(1, 5));
-                        const visitsFromPages = Math.floor(item.pages * randFloat(1, 5));
-                        newItem.visits += baseVisitsToAdd + visitsFromPosts + visitsFromPages;
+                        const visitsFromPosts = item.posts > 0 ? Math.floor(item.posts * randFloat(1, 5)) : 0;
+                        const visitsFromPages = item.pages > 0 ? Math.floor(item.pages * randFloat(1, 5)) : 0;
+                        newItem.visits = (newItem.visits || 0) + baseVisitsToAdd + visitsFromPosts + visitsFromPages;
 
-                        // Ensure visits >= clicks
                         if (newItem.visits < newItem.clicks) {
-                            newItem.visits = newItem.clicks + rand(0, Math.floor(newItem.clicks * 0.2) + 1); // Add 0-20% more visits than clicks
+                            newItem.visits = newItem.clicks + rand(0, Math.floor(newItem.clicks * 0.2) + 1);
                         }
                         
-                        // Ensure stats are non-negative
                         newItem.clicks = Math.max(0, newItem.clicks);
                         newItem.visits = Math.max(0, newItem.visits);
                         
                         return newItem;
                     });
-                } else {
-                    // console.log(INJECTED_LOG_PREFIX, "Original hashtags list is empty. Returning empty list.");
-                    // As per requirement, if original is empty, modified is also empty.
                 }
                 
-                // console.log(INJECTED_LOG_PREFIX + ` Modified hashtags data:`, JSON.parse(JSON.stringify(modifiedData)));
                 return new Response(JSON.stringify(modifiedData), {
                     status: 200, statusText: "OK", headers: {'Content-Type': 'application/json'}
                 });
 
             } catch (err) {
                 console.error(INJECTED_LOG_PREFIX + ` Error during fetch interception for ${requestFullUrl}:`, err);
-                return new Response(JSON.stringify([]), {status: 200, headers: {'Content-Type': 'application/json'}}); // Return empty array on error
+                return new Response(JSON.stringify([]), {status: 200, headers: {'Content-Type': 'application/json'}});
             }
         }
         return pageContextOriginalFetch.apply(this, args);
