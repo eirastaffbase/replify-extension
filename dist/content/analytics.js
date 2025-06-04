@@ -1,26 +1,27 @@
 /* dist/content/analytics.js */
 console.log("[Replify] Analytics Content Script Loader Executed. Path:", window.location.pathname);
 
-// --- Global state for CAMPAIGNS Patch (Content Script side) ---
+// --- Global state variables for each patch ---
 let campaignsMutationObserver = null;
 let campaignsPatchCurrentlyActive = false;
 const REPLIFY_CAMPAIGNS_LOG_PREFIX = '[Replify CampaignsPatchCS]:';
 const REPLIFY_CAMPAIGNS_INJECTED_SCRIPT_ID = 'replify-campaigns-fetch-override-script';
 
-// --- Global state for POSTS Patch (Content Script side) ---
 let postsPatchCurrentlyActive = false;
 const REPLIFY_POSTS_LOG_PREFIX = '[Replify PostsPatchCS]:';
 const REPLIFY_POSTS_INJECTED_SCRIPT_ID = 'replify-posts-fetch-override-script';
 
-// --- Global state for EMAIL Patch (Content Script side) ---
 let emailPatchCurrentlyActive = false;
 const REPLIFY_EMAIL_LOG_PREFIX = '[Replify EmailPatchCS]:';
 const REPLIFY_EMAIL_INJECTED_SCRIPT_ID = 'replify-email-fetch-override-script';
 
-// --- Global state for NEWS Patch (Content Script side) --- // NEW
 let newsPatchCurrentlyActive = false;
 const REPLIFY_NEWS_LOG_PREFIX = '[Replify NewsPatchCS]:';
 const REPLIFY_NEWS_INJECTED_SCRIPT_ID = 'replify-news-fetch-override-script';
+
+let hashtagsPatchCurrentlyActive = false; // NEW
+const REPLIFY_HASHTAGS_LOG_PREFIX = '[Replify HashtagsPatchCS]:'; // NEW
+const REPLIFY_HASHTAGS_INJECTED_SCRIPT_ID = 'replify-hashtags-fetch-override-script'; // NEW
 
 
 // --- CAMPAIGNS PATCH ---
@@ -164,9 +165,39 @@ function cleanupNewsPatch() {
     newsPatchCurrentlyActive = false;
 }
 
+// --- HASHTAGS PATCH --- 
+function applyHashtagsPatch() {
+    // console.log(REPLIFY_HASHTAGS_LOG_PREFIX, "Attempting to apply Hashtags Patch. Path:", window.location.pathname);
+    // URL check from existing PATCH_INFO example: /studio/analytics/hashtags
+    if (!window.location.pathname.includes("/studio/analytics/hashtags")) { 
+        if (hashtagsPatchCurrentlyActive) cleanupHashtagsPatch();
+        return;
+    }
+    if (hashtagsPatchCurrentlyActive) return;
 
-// --- Your other patch functions (if any) ---
-function applyHashtagsPatch() { /* console.log("[Replify HashtagsPatchCS]: Apply (Not Implemented)"); */ }
+    console.log(REPLIFY_HASHTAGS_LOG_PREFIX, "Applying Hashtags Patch via SCRIPT SRC INJECTION...");
+    const oldScriptElement = document.getElementById(REPLIFY_HASHTAGS_INJECTED_SCRIPT_ID);
+    if (oldScriptElement) oldScriptElement.remove();
+
+    const scriptElement = document.createElement('script');
+    scriptElement.id = REPLIFY_HASHTAGS_INJECTED_SCRIPT_ID;
+    scriptElement.src = chrome.runtime.getURL('content/analytics/hashtags.js'); 
+    scriptElement.onload = () => console.log(REPLIFY_HASHTAGS_LOG_PREFIX, "Injected hashtags.js loaded.");
+    scriptElement.onerror = () => console.error(REPLIFY_HASHTAGS_LOG_PREFIX, "ERROR loading injected hashtags.js.");
+    (document.head || document.documentElement).appendChild(scriptElement);
+    hashtagsPatchCurrentlyActive = true;
+}
+
+function cleanupHashtagsPatch() {
+    console.log(REPLIFY_HASHTAGS_LOG_PREFIX, "Cleaning up Hashtags Patch...");
+    const revertScriptCode = `if (typeof window.__REPLIFY_REVERT_HASHTAGS_FETCH__ === 'function') { window.__REPLIFY_REVERT_HASHTAGS_FETCH__(); } else { console.warn('${REPLIFY_HASHTAGS_LOG_PREFIX}', 'Hashtags revert function not found.'); }`;
+    try {
+        const scriptElement = document.createElement('script');
+        scriptElement.textContent = revertScriptCode;
+        (document.head || document.documentElement).appendChild(scriptElement).remove();
+    } catch (e) { console.error(REPLIFY_HASHTAGS_LOG_PREFIX, "Error injecting hashtags cleanup script:", e); }
+    hashtagsPatchCurrentlyActive = false;
+}
 
 // --- PATCH MANAGEMENT ---
 const PATCH_INFO = {
