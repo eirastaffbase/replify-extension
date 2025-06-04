@@ -17,20 +17,22 @@ let emailPatchCurrentlyActive = false;
 const REPLIFY_EMAIL_LOG_PREFIX = '[Replify EmailPatchCS]:';
 const REPLIFY_EMAIL_INJECTED_SCRIPT_ID = 'replify-email-fetch-override-script';
 
+// --- Global state for NEWS Patch (Content Script side) --- // NEW
+let newsPatchCurrentlyActive = false;
+const REPLIFY_NEWS_LOG_PREFIX = '[Replify NewsPatchCS]:';
+const REPLIFY_NEWS_INJECTED_SCRIPT_ID = 'replify-news-fetch-override-script';
+
 
 // --- CAMPAIGNS PATCH ---
 function applyCampaignsPatch() {
-    // console.log(REPLIFY_CAMPAIGNS_LOG_PREFIX, "Attempting to apply Campaigns Patch. Path:", window.location.pathname);
     if (!window.location.pathname.includes("/studio/analytics/campaigns")) {
         if (campaignsPatchCurrentlyActive) cleanupCampaignsPatch();
         return;
     }
     if (campaignsPatchCurrentlyActive) return;
-    
     console.log(REPLIFY_CAMPAIGNS_LOG_PREFIX, "Applying Campaigns Patch via SCRIPT SRC INJECTION...");
     const oldScriptElement = document.getElementById(REPLIFY_CAMPAIGNS_INJECTED_SCRIPT_ID);
     if (oldScriptElement) oldScriptElement.remove();
-
     const scriptElement = document.createElement('script');
     scriptElement.id = REPLIFY_CAMPAIGNS_INJECTED_SCRIPT_ID;
     scriptElement.src = chrome.runtime.getURL('content/analytics/campaigns.js');
@@ -38,7 +40,6 @@ function applyCampaignsPatch() {
     scriptElement.onerror = () => console.error(REPLIFY_CAMPAIGNS_LOG_PREFIX, "ERROR loading injected campaigns.js.");
     (document.head || document.documentElement).appendChild(scriptElement);
     campaignsPatchCurrentlyActive = true;
-
     if (campaignsMutationObserver) campaignsMutationObserver.disconnect();
     function removeYearFromAxisDates_CS() { 
         document.querySelectorAll('g.visx-axis-bottom text > tspan, g.visx-axis-left text > tspan').forEach(tspan => {
@@ -65,24 +66,20 @@ function cleanupCampaignsPatch() {
         scriptElement.textContent = revertScriptCode;
         (document.head || document.documentElement).appendChild(scriptElement).remove();
     } catch (e) { console.error(REPLIFY_CAMPAIGNS_LOG_PREFIX, "Error injecting campaigns cleanup script:", e); }
-
     if (campaignsMutationObserver) campaignsMutationObserver.disconnect();
     campaignsPatchCurrentlyActive = false;
 }
 
 // --- POSTS PATCH ---
 function applyPostsPatch() {
-    // console.log(REPLIFY_POSTS_LOG_PREFIX, "Attempting to apply Posts Patch. Path:", window.location.pathname);
     if (!window.location.pathname.startsWith("/content/news/article/")) {
         if (postsPatchCurrentlyActive) cleanupPostsPatch();
         return;
     }
     if (postsPatchCurrentlyActive) return;
-
     console.log(REPLIFY_POSTS_LOG_PREFIX, "Applying Posts Patch via SCRIPT SRC INJECTION...");
     const oldScriptElement = document.getElementById(REPLIFY_POSTS_INJECTED_SCRIPT_ID);
     if (oldScriptElement) oldScriptElement.remove();
-
     const scriptElement = document.createElement('script');
     scriptElement.id = REPLIFY_POSTS_INJECTED_SCRIPT_ID;
     scriptElement.src = chrome.runtime.getURL('content/analytics/posts.js');
@@ -103,20 +100,16 @@ function cleanupPostsPatch() {
     postsPatchCurrentlyActive = false;
 }
 
-// --- EMAIL PATCH --- // NEW
+// --- EMAIL PATCH ---
 function applyEmailPatch() {
-    // console.log(REPLIFY_EMAIL_LOG_PREFIX, "Attempting to apply Email Patch. Path:", window.location.pathname);
-    // TODO: Determine the correct URL pattern for email analytics pages
     if (!window.location.pathname.includes("/studio/analytics/email")) { // Example URL pattern
         if (emailPatchCurrentlyActive) cleanupEmailPatch();
         return;
     }
     if (emailPatchCurrentlyActive) return;
-
     console.log(REPLIFY_EMAIL_LOG_PREFIX, "Applying Email Patch via SCRIPT SRC INJECTION...");
     const oldScriptElement = document.getElementById(REPLIFY_EMAIL_INJECTED_SCRIPT_ID);
     if (oldScriptElement) oldScriptElement.remove();
-
     const scriptElement = document.createElement('script');
     scriptElement.id = REPLIFY_EMAIL_INJECTED_SCRIPT_ID;
     scriptElement.src = chrome.runtime.getURL('content/analytics/email.js'); 
@@ -137,9 +130,42 @@ function cleanupEmailPatch() {
     emailPatchCurrentlyActive = false;
 }
 
+// --- NEWS PATCH ---
+function applyNewsPatch() {
+    // console.log(REPLIFY_NEWS_LOG_PREFIX, "Attempting to apply News Patch. Path:", window.location.pathname);
+    // User specified: /admin/analytics/news
+    if (!window.location.pathname.startsWith("/admin/analytics/news")) { 
+        if (newsPatchCurrentlyActive) cleanupNewsPatch();
+        return;
+    }
+    if (newsPatchCurrentlyActive) return;
+
+    console.log(REPLIFY_NEWS_LOG_PREFIX, "Applying News Patch via SCRIPT SRC INJECTION...");
+    const oldScriptElement = document.getElementById(REPLIFY_NEWS_INJECTED_SCRIPT_ID);
+    if (oldScriptElement) oldScriptElement.remove();
+
+    const scriptElement = document.createElement('script');
+    scriptElement.id = REPLIFY_NEWS_INJECTED_SCRIPT_ID;
+    scriptElement.src = chrome.runtime.getURL('content/analytics/news.js'); 
+    scriptElement.onload = () => console.log(REPLIFY_NEWS_LOG_PREFIX, "Injected news.js loaded.");
+    scriptElement.onerror = () => console.error(REPLIFY_NEWS_LOG_PREFIX, "ERROR loading injected news.js.");
+    (document.head || document.documentElement).appendChild(scriptElement);
+    newsPatchCurrentlyActive = true;
+}
+
+function cleanupNewsPatch() {
+    console.log(REPLIFY_NEWS_LOG_PREFIX, "Cleaning up News Patch...");
+    const revertScriptCode = `if (typeof window.__REPLIFY_REVERT_NEWS_FETCH__ === 'function') { window.__REPLIFY_REVERT_NEWS_FETCH__(); } else { console.warn('${REPLIFY_NEWS_LOG_PREFIX}', 'News revert function not found.'); }`;
+    try {
+        const scriptElement = document.createElement('script');
+        scriptElement.textContent = revertScriptCode;
+        (document.head || document.documentElement).appendChild(scriptElement).remove();
+    } catch (e) { console.error(REPLIFY_NEWS_LOG_PREFIX, "Error injecting news cleanup script:", e); }
+    newsPatchCurrentlyActive = false;
+}
+
 
 // --- Your other patch functions (if any) ---
-function applyNewsPatch() { /* console.log("[Replify NewsPatchCS]: Apply (Not Implemented)"); */ }
 function applyHashtagsPatch() { /* console.log("[Replify HashtagsPatchCS]: Apply (Not Implemented)"); */ }
 
 // --- PATCH MANAGEMENT ---
@@ -149,7 +175,6 @@ const PATCH_INFO = {
         apply: applyCampaignsPatch,
         cleanup: cleanupCampaignsPatch,
         logPrefix: REPLIFY_CAMPAIGNS_LOG_PREFIX,
-        // Example: /studio/analytics/campaigns OR /studio/analytics/campaigns/some-id
         urlCheck: (pathname) => pathname.startsWith("/studio/analytics/campaigns") 
     },
     posts: {
@@ -159,20 +184,19 @@ const PATCH_INFO = {
         logPrefix: REPLIFY_POSTS_LOG_PREFIX,
         urlCheck: (pathname) => pathname.startsWith("/content/news/article/")
     },
-    email: { // NEW
+    email: { 
         isActive: () => emailPatchCurrentlyActive,
         apply: applyEmailPatch,
         cleanup: cleanupEmailPatch,
         logPrefix: REPLIFY_EMAIL_LOG_PREFIX,
-        // TODO: Update this with the correct URL pattern(s) for email analytics
         urlCheck: (pathname) => pathname.includes("/studio/analytics/email") 
     },
-    news: {
-        isActive: () => false, 
+    news: { 
+        isActive: () => newsPatchCurrentlyActive,
         apply: applyNewsPatch,
-        cleanup: () => console.log("[Replify NewsPatchCS]: Cleanup (Not Implemented)"),
-        logPrefix: "[Replify NewsPatchCS]:",
-        urlCheck: (pathname) => pathname.includes("/studio/analytics/news") // Example
+        cleanup: cleanupNewsPatch,
+        logPrefix: REPLIFY_NEWS_LOG_PREFIX,
+        urlCheck: (pathname) => pathname.startsWith("/admin/analytics/news") // As specified by user
     },
     hashtags: {
         isActive: () => false, 
@@ -184,7 +208,7 @@ const PATCH_INFO = {
 };
 
 function executeEnabledPatches() {
-    console.log("[Replify] executeEnabledPatches. Path:", window.location.pathname);
+    // console.log("[Replify] executeEnabledPatches. Path:", window.location.pathname); // Less verbose
     if (!(chrome.storage && chrome.storage.local)) {
         console.error("[Replify] Chrome storage API not available.");
         return;
@@ -192,11 +216,11 @@ function executeEnabledPatches() {
 
     chrome.storage.local.get("redirectAnalyticsState", (result) => {
         const state = result.redirectAnalyticsState || {};
-        // console.log("[Replify] Current redirectAnalyticsState from storage:", state);
+        // console.log("[Replify] Current redirectAnalyticsState from storage:", state); // Less verbose
 
         for (const type in PATCH_INFO) {
             const patch = PATCH_INFO[type];
-            if (!patch) { // Should not happen if PATCH_INFO is defined correctly
+            if (!patch) { 
                 console.warn(`[Replify] No patch info found for type: ${type}`);
                 continue;
             }
@@ -206,7 +230,6 @@ function executeEnabledPatches() {
 
             if (shouldBeActiveBasedOnStorage && isOnCorrectPage) {
                 if (!isCurrentlyActive) {
-                    // console.log(`[Replify] '${type}' enabled and on correct page. Applying.`);
                     try {
                         patch.apply();
                     } catch (e) {
@@ -215,7 +238,7 @@ function executeEnabledPatches() {
                 }
             } else { 
                 if (isCurrentlyActive) { 
-                    console.log(patch.logPrefix, `Patch '${type}' should NOT be active (Storage: ${shouldBeActiveBasedOnStorage}, PageMatch: ${isOnCorrectPage}). Cleaning up.`);
+                    // console.log(patch.logPrefix, `Patch '${type}' should NOT be active (Storage: ${shouldBeActiveBasedOnStorage}, PageMatch: ${isOnCorrectPage}). Cleaning up.`); // More verbose
                     patch.cleanup();
                 }
             }
@@ -229,16 +252,15 @@ executeEnabledPatches();
 if (chrome.storage && chrome.storage.onChanged) {
     chrome.storage.onChanged.addListener((changes, namespace) => {
         if (namespace === 'local' && changes.redirectAnalyticsState) {
-            console.log("[Replify] redirectAnalyticsState changed in storage. Re-evaluating patches.");
+            // console.log("[Replify] redirectAnalyticsState changed in storage. Re-evaluating patches."); // Less verbose
             executeEnabledPatches();
         }
     });
 }
 
 if (window.navigation) {
-    // console.log("[Replify] Navigation API supported. Adding 'navigatesuccess' event listener."); // Less verbose
     navigation.addEventListener('navigatesuccess', (event) => {
-        console.log("[Replify] SPA 'navigatesuccess' event. New Path:", window.location.pathname);
+        // console.log("[Replify] SPA 'navigatesuccess' event. New Path:", window.location.pathname); // Less verbose
         executeEnabledPatches();
     });
     navigation.addEventListener('navigateerror', (event) => { 
@@ -246,17 +268,13 @@ if (window.navigation) {
         executeEnabledPatches();
     });
 } else {
-    console.warn("[Replify] Navigation API not supported. Using MutationObserver fallback for SPA navigation.");
+    // Fallback for SPA navigation
     let oldHref = document.location.href;
-    const bodyObserver = new MutationObserver((mutations) => {
-        mutations.forEach(() => {
-            if (oldHref !== document.location.href) {
-                // console.log("[Replify] Fallback MutationObserver detected URL change from", oldHref, "to", document.location.href); // Less verbose
-                oldHref = document.location.href;
-                executeEnabledPatches();
-            }
-        });
+    const bodyObserver = new MutationObserver(() => {
+        if (oldHref !== document.location.href) {
+            oldHref = document.location.href;
+            executeEnabledPatches();
+        }
     });
     bodyObserver.observe(document.body, { childList: true, subtree: true });
-    // console.log("[Replify] Fallback MutationObserver for URL changes initiated on document.body."); // Less verbose
 }
