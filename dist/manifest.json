@@ -1,6 +1,6 @@
 {
   "name": "Replify for Staffbase",
-  "description": "...",
+  "description": "Tool for generating news articles, add branding, and showcase analytics in Staffbase demos among other features",
   "version": "1.4",
   "manifest_version": 3,
   "permissions": [
@@ -22,9 +22,9 @@
       "run_at": "document_start"
     }
   ],
-  "web_accessible_resources": [  // <--- ADD THIS SECTION
+  "web_accessible_resources": [
     {
-      "resources": ["content/main_world_script.js"],
+      "resources": ["content/analytics/*.js"], // analytics monkey patching scripts
       "matches": ["https://app.staffbase.com/*"]
     }
   ],
