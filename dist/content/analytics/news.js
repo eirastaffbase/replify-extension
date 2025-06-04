@@ -108,7 +108,7 @@
         } catch (e) { console.error(INJECTED_LOG_PREFIX, "Error reading from session storage:", e); }
 
         const metrics = {
-            registeredVisitors: rand(15000, 30000), registeredVisits: 0,
+            registeredVisitors: rand(5000, 10000), registeredVisits: 0,
             unregisteredVisitors: rand(100, 500), unregisteredVisits: 0,
             newPosts: rand(200, 500), comments: 0, likes: 0, shares: 0,
             publishedPosts: 0, publishedPostsUnique: 0, interactedPostsUnique: 0
