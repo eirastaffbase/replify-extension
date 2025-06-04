@@ -1,8 +1,6 @@
 // content/analytics/news.js
 (function () {
 
-    console.log('news.js injected script running...');
-
     const INJECTED_LOG_PREFIX = '[Replify InjectedNewsPatch]:';
     // console.log(INJECTED_LOG_PREFIX, 'Injected script (news.js) executed.');
 
