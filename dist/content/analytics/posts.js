@@ -139,7 +139,7 @@
 
                 switch (matchedEndpointKey) {
                     case 'POSTS_STATS':
-                        modifiedData.registeredVisitors = rand(25, 75); // Adjusted to be medium-low
+                        modifiedData.registeredVisitors = rand(25, 40); // Adjusted to be medium-low
                         postStatsStore.registeredVisitors = modifiedData.registeredVisitors > 0 ? modifiedData.registeredVisitors : 1;
 
                         modifiedData.registeredVisits = postStatsStore.registeredVisitors * rand(1, 3) + rand(Math.floor(postStatsStore.registeredVisitors * 0.2), postStatsStore.registeredVisitors * 2);
