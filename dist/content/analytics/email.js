@@ -69,6 +69,138 @@
         } catch (e) { /* console.warn(INJECTED_LOG_PREFIX, "Could not parse URL for params:", urlString, e); */ }
         return params;
     }
+    
+    // Helper to get the week number for a date
+    function getWeekNumber(d) {
+        d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+        d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+        return Math.ceil((((d - yearStart) / 86400000) + 1)/7);
+    }
+    
+
+
+function getWeekNumber(d) {
+    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    return weekNo;
+}
+
+
+function generateTimeSeriesData(urlParams, statsToDistribute, isCumulative = false) {
+    const { since, until, groupBy = 'DAY' } = urlParams;
+    let sinceDate = new Date(decodeURIComponent(since));
+    const untilDate = new Date(decodeURIComponent(until));
+
+    if (isNaN(sinceDate.getTime()) || isNaN(untilDate.getTime())) {
+        return { timeseries: [] }; // Cannot generate without valid dates
+    }
+
+    const upperGroupBy = groupBy.toUpperCase();
+
+    // 1. Generate the original "active" intervals based on the API request
+    const activeIntervals = [];
+    let tempCurrentDate = new Date(sinceDate);
+    while (tempCurrentDate <= untilDate) {
+        activeIntervals.push(new Date(tempCurrentDate));
+        switch (upperGroupBy) {
+            case 'HOUR': tempCurrentDate.setUTCHours(tempCurrentDate.getUTCHours() + 1); break;
+            case 'WEEK': tempCurrentDate.setUTCDate(tempCurrentDate.getUTCDate() + 7); break;
+            case 'DAY':
+            default: tempCurrentDate.setUTCDate(tempCurrentDate.getUTCDate() + 1); break;
+        }
+    }
+
+    // 2. Determine minimum points and create the final intervals array, padding if necessary
+    let minPoints = 0;
+    if (upperGroupBy === 'HOUR') minPoints = 24;
+    else if (upperGroupBy === 'WEEK') minPoints = 4;
+    else if (upperGroupBy === 'DAY') minPoints = 7;
+
+    let finalIntervals = [...activeIntervals];
+    const pointsToAdd = minPoints - activeIntervals.length;
+
+    if (pointsToAdd > 0) {
+        const paddedIntervals = [];
+        let padDate = new Date(sinceDate);
+        for (let i = 0; i < pointsToAdd; i++) {
+            switch (upperGroupBy) {
+                case 'HOUR': padDate.setUTCHours(padDate.getUTCHours() - 1); break;
+                case 'WEEK': padDate.setUTCDate(padDate.getUTCDate() - 7); break;
+                case 'DAY':
+                default: padDate.setUTCDate(padDate.getUTCDate() - 1); break;
+            }
+            paddedIntervals.unshift(new Date(padDate));
+        }
+        finalIntervals = [...paddedIntervals, ...finalIntervals];
+    }
+
+
+    // 3. Distribute stats across the ENTIRE set of final intervals
+    const numTotalIntervals = finalIntervals.length;
+    let finalDistributedValues = [];
+
+    if (numTotalIntervals > 0) {
+        const weights = finalIntervals.map((_, i) => {
+            const decayFactor = Math.pow(0.7, i) + 0.1;
+            return Math.random() * decayFactor;
+        });
+        const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+
+        finalDistributedValues = finalIntervals.map((_, i) => {
+            if (totalWeight === 0) return { opens: 0, clicks: 0 };
+            const share = weights[i] / totalWeight;
+            const opens = Math.floor(statsToDistribute.opens * share);
+            const clicks = Math.floor(statsToDistribute.clicks * share);
+            return { opens, clicks: Math.min(opens, clicks) };
+        });
+
+        const sumOpens = finalDistributedValues.reduce((sum, v) => sum + v.opens, 0);
+        const sumClicks = finalDistributedValues.reduce((sum, v) => sum + v.clicks, 0);
+
+        const openRemainder = statsToDistribute.opens - sumOpens;
+        const clickRemainder = statsToDistribute.clicks - sumClicks;
+
+        if (finalDistributedValues.length > 0) {
+            finalDistributedValues[0].opens += openRemainder;
+            finalDistributedValues[0].clicks += clickRemainder;
+            // Final safety checks
+            finalDistributedValues[0].opens = Math.max(0, finalDistributedValues[0].opens);
+            finalDistributedValues[0].clicks = Math.max(0, finalDistributedValues[0].clicks);
+            finalDistributedValues[0].clicks = Math.min(finalDistributedValues[0].opens, finalDistributedValues[0].clicks);
+        }
+    }
+
+    // 4. If cumulative, transform the final distributed values into a cumulative sum
+    if (isCumulative && finalDistributedValues.length > 1) {
+        for (let i = 1; i < finalDistributedValues.length; i++) {
+            finalDistributedValues[i].opens += finalDistributedValues[i - 1].opens;
+            finalDistributedValues[i].clicks += finalDistributedValues[i - 1].clicks;
+        }
+        if (finalDistributedValues.length > 0) {
+            finalDistributedValues[finalDistributedValues.length - 1].opens = statsToDistribute.opens;
+            finalDistributedValues[finalDistributedValues.length - 1].clicks = statsToDistribute.clicks;
+        }
+    }
+
+    // 5. Build the final timeseries response object
+    const timeseries = finalIntervals.map((intervalDate, i) => ({
+        opens: finalDistributedValues[i]?.opens || 0,
+        clicks: finalDistributedValues[i]?.clicks || 0,
+        interval: {
+            hour: intervalDate.getUTCHours(),
+            day: intervalDate.getUTCDate(),
+            week: getWeekNumber(intervalDate),
+            month: intervalDate.getUTCMonth() + 1,
+            year: intervalDate.getUTCFullYear()
+        }
+    }));
+
+    return { timeseries };
+}
+
 
     function calculateDateMetrics(sinceStr, untilStr) {
         const since = new Date(decodeURIComponent(sinceStr));
@@ -329,97 +461,81 @@
 
             switch(metric) {
                 case 'recipient-count':
-                    modifiedData = {
-                        totalRecipients: baseStats.totalRecipients,
-                        targetAudience: baseStats.targetAudience
-                    };
+                    modifiedData = { totalRecipients: baseStats.totalRecipients, targetAudience: baseStats.targetAudience };
                     break;
                 
                 case 'opens':
-                     modifiedData = {
-                        totalOpens: baseStats.totalOpens,
-                        uniqueOpens: baseStats.uniqueOpens,
-                        percentage: baseStats.totalRecipients > 0 ? parseFloat((baseStats.uniqueOpens / baseStats.totalRecipients).toFixed(2)) : 0
-                    };
+                     modifiedData = { totalOpens: baseStats.totalOpens, uniqueOpens: baseStats.uniqueOpens, percentage: baseStats.totalRecipients > 0 ? parseFloat((baseStats.uniqueOpens / baseStats.totalRecipients).toFixed(2)) : 0 };
                     break;
 
                 case 'clicks':
-                    modifiedData = {
-                        totalClicks: baseStats.totalClicks,
-                        uniqueClicks: baseStats.uniqueClicks,
-                        percentage: baseStats.totalRecipients > 0 ? parseFloat((baseStats.uniqueClicks / baseStats.totalRecipients).toFixed(2)) : 0,
-                        lastClickRecorded: baseStats.lastClickRecorded
-                    };
+                    modifiedData = { totalClicks: baseStats.totalClicks, uniqueClicks: baseStats.uniqueClicks, percentage: baseStats.totalRecipients > 0 ? parseFloat((baseStats.uniqueClicks / baseStats.totalRecipients).toFixed(2)) : 0, lastClickRecorded: baseStats.lastClickRecorded };
                     break;
                 
                 case 'engagement-trend':
                     modifiedData = {
                         totalRecipients: baseStats.totalRecipients,
-                        opens: {
-                            total: baseStats.uniqueOpens, // Trend usually shows unique opens
-                            previous: Math.round(baseStats.uniqueOpens * randFloat(0.8, 1.2)), // Fake some previous data
-                            dropOff: rand(0,1),
-                            percentage: baseStats.totalRecipients > 0 ? parseFloat((baseStats.uniqueOpens / baseStats.totalRecipients).toFixed(2)) : 0
-                        },
-                        clicks: {
-                            total: baseStats.uniqueClicks,
-                            previous: Math.round(baseStats.uniqueClicks * randFloat(0.8, 1.2)),
-                            dropOff: rand(0,1),
-                            percentage: baseStats.uniqueOpens > 0 ? parseFloat((baseStats.uniqueClicks / baseStats.uniqueOpens).toFixed(2)) : 0 // Click rate of openers
-                        }
+                        opens: { total: baseStats.uniqueOpens, previous: Math.round(baseStats.uniqueOpens * randFloat(0.8, 1.2)), dropOff: rand(0,1), percentage: baseStats.totalRecipients > 0 ? parseFloat((baseStats.uniqueOpens / baseStats.totalRecipients).toFixed(2)) : 0 },
+                        clicks: { total: baseStats.uniqueClicks, previous: Math.round(baseStats.uniqueClicks * randFloat(0.8, 1.2)), dropOff: rand(0,1), percentage: baseStats.uniqueOpens > 0 ? parseFloat((baseStats.uniqueClicks / baseStats.uniqueOpens).toFixed(2)) : 0 }
                     };
                     break;
 
-                case 'links':
-                    // For links, we need the original response to know WHAT links to modify
-                    try {
-                        const originalResponse = await pageContextOriginalFetch.apply(this, args);
-                        const originalJson = await originalResponse.clone().json();
-                        const links = Array.isArray(originalJson.links) ? originalJson.links : [];
-                        
-                        if (links.length > 0) {
-                            // Distribute the total clicks among the links
-                            let remainingTotalClicks = baseStats.totalClicks;
-                            let clicksDistribution = links.map(() => Math.random()); // Assign a random weight to each link
-                            const totalWeight = clicksDistribution.reduce((sum, w) => sum + w, 0);
-
-                            const modifiedLinks = links.map((link, index) => {
-                                let clicksForThisLink = 0;
-                                if (totalWeight > 0) {
-                                    // Distribute clicks based on the random weight
-                                    const share = clicksDistribution[index] / totalWeight;
-                                    clicksForThisLink = Math.round(baseStats.totalClicks * share);
-                                }
-
-                                // A simple distribution fallback for the last item to ensure sum is correct
-                                if (index === links.length - 1) {
-                                    clicksForThisLink = remainingTotalClicks;
-                                } else {
-                                   clicksForThisLink = Math.min(remainingTotalClicks, clicksForThisLink);
-                                   remainingTotalClicks -= clicksForThisLink;
-                                }
-
-
-                                return {
-                                    ...link, // Keep original name, target, etc.
-                                    totalClicks: clicksForThisLink,
-                                    // The percentage is often total clicks on this link / total unique opens of the email
-                                    percentage: baseStats.uniqueOpens > 0 ? parseFloat((clicksForThisLink / baseStats.uniqueOpens).toFixed(4)) : 0,
-                                };
-                            });
-                            modifiedData = { links: modifiedLinks };
-                        } else {
-                           modifiedData = { links: [] }; // No links to modify
+                    case 'links':
+                        // For links, we need the original response to know WHAT links to modify
+                        try {
+                            const originalResponse = await pageContextOriginalFetch.apply(this, args);
+                            const originalJson = await originalResponse.clone().json();
+                            const links = Array.isArray(originalJson.links) ? originalJson.links : [];
+                            
+                            if (links.length > 0) {
+                                // Distribute the total clicks among the links
+                                let remainingTotalClicks = baseStats.totalClicks;
+                                let clicksDistribution = links.map(() => Math.random()); // Assign a random weight to each link
+                                const totalWeight = clicksDistribution.reduce((sum, w) => sum + w, 0);
+    
+                                const modifiedLinks = links.map((link, index) => {
+                                    let clicksForThisLink = 0;
+                                    if (totalWeight > 0) {
+                                        // Distribute clicks based on the random weight
+                                        const share = clicksDistribution[index] / totalWeight;
+                                        clicksForThisLink = Math.round(baseStats.totalClicks * share);
+                                    }
+    
+                                    // A simple distribution fallback for the last item to ensure sum is correct
+                                    if (index === links.length - 1) {
+                                        clicksForThisLink = remainingTotalClicks;
+                                    } else {
+                                       clicksForThisLink = Math.min(remainingTotalClicks, clicksForThisLink);
+                                       remainingTotalClicks -= clicksForThisLink;
+                                    }
+    
+    
+                                    return {
+                                        ...link, // Keep original name, target, etc.
+                                        totalClicks: clicksForThisLink,
+                                        // The percentage is often total clicks on this link / total unique opens of the email
+                                        percentage: baseStats.uniqueOpens > 0 ? parseFloat((clicksForThisLink / baseStats.uniqueOpens).toFixed(4)) : 0,
+                                    };
+                                });
+                                modifiedData = { links: modifiedLinks };
+                            } else {
+                               modifiedData = { links: [] }; // No links to modify
+                            }
+                            
+                        } catch (err) {
+                            console.error(INJECTED_LOG_PREFIX + `Error fetching original or modifying links for ${emailID}:`, err);
+                            modifiedData = { links: [] }; // Return empty on error
                         }
-                        
-                    } catch (err) {
-                        console.error(INJECTED_LOG_PREFIX + `Error fetching original or modifying links for ${emailID}:`, err);
-                        modifiedData = { links: [] }; // Return empty on error
-                    }
+                        break;
+                    
+                case 'total-activity-over-time':
+                    modifiedData = generateTimeSeriesData(urlParams, { opens: baseStats.totalOpens, clicks: baseStats.totalClicks }, false);
                     break;
-                
-                // --- To do: add cases for others ---
-                // E.g., 'total-activity-over-time', 'unique-activity-over-time'
+
+                case 'unique-activity-over-time':
+                    // Unique activity is cumulative, so we show the final total at each interval.
+                    modifiedData = generateTimeSeriesData(urlParams, { opens: baseStats.uniqueOpens, clicks: baseStats.uniqueClicks }, true);
+                    break;
 
                 default:
                     // If the metric is not handled, pass through the original request
