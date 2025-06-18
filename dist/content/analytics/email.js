@@ -20,16 +20,44 @@
     const rand = (min, max) => {
         min = Math.ceil(min);
         max = Math.floor(max);
-        if (min > max) [min, max] = [max, min]; 
+        if (min > max) [min, max] = [max, min];
         return Math.floor(Math.random() * (max - min + 1)) + min;
     };
     const randFloat = (min, max, decimals = 2) => parseFloat((Math.random() * (max - min) + min).toFixed(decimals));
 
+    // --- Main page (existing) endpoints ---
     const TARGET_EMAIL_API_URLS = {
         AGGREGATED_STATS: '/api/email-analytics/aggregated-stats',
         TIMESERIES: '/api/email-analytics/timeseries',
         OVERVIEW: '/api/email-analytics/overview'
     };
+    
+    // --- Individual email page (new) endpoints ---
+    const emailPerformanceRegex = /^\/api\/email-performance\/([a-zA-Z0-9]+)\/([\w-]+)/;
+    const emailPerformanceCache = {}; // Cache for consistent data per emailID
+
+    function getOrGenerateBaseStats(emailID) {
+        if (!emailPerformanceCache[emailID]) {
+            console.log(INJECTED_LOG_PREFIX, `First request for emailID ${emailID}. Generating base stats.`);
+            const totalRecipients = rand(850, 3200);
+            const uniqueOpens = Math.round(totalRecipients * randFloat(0.55, 0.85)); // 55-85% open rate
+            const uniqueClicks = Math.round(uniqueOpens * randFloat(0.18, 0.45));   // 18-45% click-through rate (of openers)
+            const totalOpens = Math.round(uniqueOpens * randFloat(1.1, 1.7));
+            const totalClicks = Math.round(uniqueClicks * randFloat(1.2, 2.2));
+            
+            emailPerformanceCache[emailID] = {
+                totalRecipients,
+                targetAudience: totalRecipients + rand(0, 50), // Target audience can be slightly larger
+                uniqueOpens,
+                totalOpens,
+                uniqueClicks,
+                totalClicks,
+                // Generate a random date in the last month
+                lastClickRecorded: new Date(Date.now() - rand(3600000, 30 * 86400000)).toISOString()
+            };
+        }
+        return emailPerformanceCache[emailID];
+    }
 
     function getUrlParams(urlString) {
         const params = {};
@@ -56,7 +84,7 @@
         const months = Math.max(1, Math.ceil(days / 30.44));
         return { days, weeks, months, sinceDate: since, untilDate: until, error: false };
     }
-    
+
     function generateRandomDate(startDate, endDate) {
         return new Date(startDate.getTime() + Math.random() * (endDate.getTime() - startDate.getTime()));
     }
@@ -73,8 +101,8 @@
             urlParams = getUrlParams(requestFullUrl);
         } catch (e) {
             if (requestFullUrl.startsWith('/')) {
-                 urlPath = requestFullUrl.split('?')[0];
-                 urlParams = getUrlParams(requestFullUrl);
+                urlPath = requestFullUrl.split('?')[0];
+                urlParams = getUrlParams(requestFullUrl);
             } else {
                 return pageContextOriginalFetch.apply(this, args);
             }
@@ -85,12 +113,13 @@
         else if (urlPath === TARGET_EMAIL_API_URLS.TIMESERIES) matchedEndpointKey = 'TIMESERIES';
         else if (urlPath === TARGET_EMAIL_API_URLS.OVERVIEW) matchedEndpointKey = 'OVERVIEW';
 
-        if (matchedEndpointKey) {
-            // console.log(INJECTED_LOG_PREFIX + ` Intercepting ${matchedEndpointKey}: ${requestFullUrl.substring(0,150)}`); // More verbose
-            
-            const { days, weeks, months, sinceDate, untilDate, error: dateError } = calculateDateMetrics(urlParams.since, urlParams.until);
-            // if (dateError) console.warn(INJECTED_LOG_PREFIX, "Error parsing date range, using default 30 days."); // More verbose
+        const performanceMatch = urlPath.match(emailPerformanceRegex);
 
+        // --- Start Interception Logic ---
+        if (matchedEndpointKey) {
+            // --- EXISTING LOGIC FOR MAIN ANALYTICS PAGE ---
+            // console.log(INJECTED_LOG_PREFIX + ` Intercepting ${matchedEndpointKey}: ${requestFullUrl.substring(0,150)}`);
+            const { days, weeks, months, sinceDate, untilDate, error: dateError } = calculateDateMetrics(urlParams.since, urlParams.until);
             const dailyRate = {
                 uniqueSentEmails: randFloat(0.1, 0.5),
                 avgRecipientsPerCampaign: rand(20, 150), // Adjusted from 200
@@ -99,7 +128,6 @@
                 opensPerUniqueOpen: randFloat(1.1, 1.8), // Adjusted from 2.0
                 clicksPerUniqueClick: randFloat(1.1, 2.2) // Adjusted from 2.5
             };
-
             try {
                 const response = await pageContextOriginalFetch.apply(this, args); // Get original response first
                 let originalJsonData = {};
@@ -283,25 +311,135 @@
                 });
 
             } catch (err) {
-                console.error(INJECTED_LOG_PREFIX + ` Error during data generation for ${requestFullUrl}:`, err);
-                // Fallback to empty valid structures for known endpoints on error
+                 console.error(INJECTED_LOG_PREFIX + ` Error during data generation for ${requestFullUrl}:`, err);
+                 // Fallback to avoid breaking the page
                 if (matchedEndpointKey === 'TIMESERIES') return new Response(JSON.stringify({timeseries:[]}), {status: 200, headers: {'Content-Type': 'application/json'}});
                 if (matchedEndpointKey === 'OVERVIEW') return new Response(JSON.stringify({series:[]}), {status: 200, headers: {'Content-Type': 'application/json'}});
                 if (matchedEndpointKey === 'AGGREGATED_STATS') return new Response(JSON.stringify({uniqueSentEmails:0, sentEmails:0, recipients:0, uniqueOpens:0, uniqueClicks:0, totalOpens:0, totalClicks:0}), {status: 200, headers: {'Content-Type': 'application/json'}});
-                
-                // If original fetch failed, and our logic failed, return a generic error response
-                if (!responseOk) {
-                     return new Response(JSON.stringify({error: "Failed to fetch original data and mock generation failed."}), {status: 500, headers: {'Content-Type': 'application/json'}});
-                }
-                return pageContextOriginalFetch.apply(this, args); // Last resort, return original problematic response if any
+                return pageContextOriginalFetch.apply(this, args);
             }
+        } else if (performanceMatch) {
+             // --- LOGIC FOR INDIVIDUAL EMAIL PAGE ---
+            const emailID = performanceMatch[1];
+            const metric = performanceMatch[2];
+            console.log(INJECTED_LOG_PREFIX + `Intercepting Email Performance. Metric: ${metric}, EmailID: ${emailID}`);
+            
+            const baseStats = getOrGenerateBaseStats(emailID);
+            let modifiedData = {};
+
+            switch(metric) {
+                case 'recipient-count':
+                    modifiedData = {
+                        totalRecipients: baseStats.totalRecipients,
+                        targetAudience: baseStats.targetAudience
+                    };
+                    break;
+                
+                case 'opens':
+                     modifiedData = {
+                        totalOpens: baseStats.totalOpens,
+                        uniqueOpens: baseStats.uniqueOpens,
+                        percentage: baseStats.totalRecipients > 0 ? parseFloat((baseStats.uniqueOpens / baseStats.totalRecipients).toFixed(2)) : 0
+                    };
+                    break;
+
+                case 'clicks':
+                    modifiedData = {
+                        totalClicks: baseStats.totalClicks,
+                        uniqueClicks: baseStats.uniqueClicks,
+                        percentage: baseStats.totalRecipients > 0 ? parseFloat((baseStats.uniqueClicks / baseStats.totalRecipients).toFixed(2)) : 0,
+                        lastClickRecorded: baseStats.lastClickRecorded
+                    };
+                    break;
+                
+                case 'engagement-trend':
+                    modifiedData = {
+                        totalRecipients: baseStats.totalRecipients,
+                        opens: {
+                            total: baseStats.uniqueOpens, // Trend usually shows unique opens
+                            previous: Math.round(baseStats.uniqueOpens * randFloat(0.8, 1.2)), // Fake some previous data
+                            dropOff: rand(0,1),
+                            percentage: baseStats.totalRecipients > 0 ? parseFloat((baseStats.uniqueOpens / baseStats.totalRecipients).toFixed(2)) : 0
+                        },
+                        clicks: {
+                            total: baseStats.uniqueClicks,
+                            previous: Math.round(baseStats.uniqueClicks * randFloat(0.8, 1.2)),
+                            dropOff: rand(0,1),
+                            percentage: baseStats.uniqueOpens > 0 ? parseFloat((baseStats.uniqueClicks / baseStats.uniqueOpens).toFixed(2)) : 0 // Click rate of openers
+                        }
+                    };
+                    break;
+
+                case 'links':
+                    // For links, we need the original response to know WHAT links to modify
+                    try {
+                        const originalResponse = await pageContextOriginalFetch.apply(this, args);
+                        const originalJson = await originalResponse.clone().json();
+                        const links = Array.isArray(originalJson.links) ? originalJson.links : [];
+                        
+                        if (links.length > 0) {
+                            // Distribute the total clicks among the links
+                            let remainingTotalClicks = baseStats.totalClicks;
+                            let clicksDistribution = links.map(() => Math.random()); // Assign a random weight to each link
+                            const totalWeight = clicksDistribution.reduce((sum, w) => sum + w, 0);
+
+                            const modifiedLinks = links.map((link, index) => {
+                                let clicksForThisLink = 0;
+                                if (totalWeight > 0) {
+                                    // Distribute clicks based on the random weight
+                                    const share = clicksDistribution[index] / totalWeight;
+                                    clicksForThisLink = Math.round(baseStats.totalClicks * share);
+                                }
+
+                                // A simple distribution fallback for the last item to ensure sum is correct
+                                if (index === links.length - 1) {
+                                    clicksForThisLink = remainingTotalClicks;
+                                } else {
+                                   clicksForThisLink = Math.min(remainingTotalClicks, clicksForThisLink);
+                                   remainingTotalClicks -= clicksForThisLink;
+                                }
+
+
+                                return {
+                                    ...link, // Keep original name, target, etc.
+                                    totalClicks: clicksForThisLink,
+                                    // The percentage is often total clicks on this link / total unique opens of the email
+                                    percentage: baseStats.uniqueOpens > 0 ? parseFloat((clicksForThisLink / baseStats.uniqueOpens).toFixed(4)) : 0,
+                                };
+                            });
+                            modifiedData = { links: modifiedLinks };
+                        } else {
+                           modifiedData = { links: [] }; // No links to modify
+                        }
+                        
+                    } catch (err) {
+                        console.error(INJECTED_LOG_PREFIX + `Error fetching original or modifying links for ${emailID}:`, err);
+                        modifiedData = { links: [] }; // Return empty on error
+                    }
+                    break;
+                
+                // --- To do: add cases for others ---
+                // E.g., 'total-activity-over-time', 'unique-activity-over-time'
+
+                default:
+                    // If the metric is not handled, pass through the original request
+                    console.warn(INJECTED_LOG_PREFIX, `Passing through unhandled performance metric: ${metric}`);
+                    return pageContextOriginalFetch.apply(this, args);
+            }
+
+            // Return the modified data for the performance endpoint
+            return new Response(JSON.stringify(modifiedData), {
+                status: 200, statusText: "OK", headers: {'Content-Type': 'application/json'}
+            });
         }
+
+        // If no endpoints match, perform the original fetch
         return pageContextOriginalFetch.apply(this, args);
     };
 
     window.fetch = injectedEmailCustomFetch;
     window.__REPLIFY_EMAIL_FETCH_APPLIED__ = true;
-    // console.log(INJECTED_LOG_PREFIX + ' Email fetch override applied.');
+    console.log(INJECTED_LOG_PREFIX + ' Email fetch override applied with individual page logic.');
 
     window.__REPLIFY_REVERT_EMAIL_FETCH__ = function() {
         if (window.fetch === injectedEmailCustomFetch) {
