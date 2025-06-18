@@ -48,10 +48,10 @@
   };
   const randFloat = (min, max, decimals) =>
     parseFloat((Math.random() * (max - min) + min).toFixed(decimals));
-
   const MAX_DESIRED_PCT = 88;
   const MIN_PCT_FLOOR_INPUTS = 5;
 
+  // --- Helper functions (normalisePercentage, harmonisePercentagePair, etc.) are unchanged ---
   const normalisePercentage = (inputValue, cap = MAX_DESIRED_PCT) => {
     let n = parseFloat(inputValue);
     if (isNaN(n) || n < 0) n = 0;
@@ -77,7 +77,6 @@
     let finalPct = Math.round(Math.min(Math.max(0, newPct), cap - 1));
     return Math.max(MIN_PCT_FLOOR_INPUTS, finalPct);
   };
-
   const harmonisePercentagePair = (
     visPctInput,
     engPctInput,
@@ -111,7 +110,6 @@
       visPct = cap - rand(1, Math.min(3, cap > 1 ? cap - 1 : 1));
     if (engPct >= cap)
       engPct = cap - rand(1, Math.min(3, cap > 1 ? cap - 1 : 1));
-
     visPct = Math.max(0, visPct);
     engPct = Math.max(0, engPct);
     if (engPct >= visPct && visPct > 0) {
@@ -126,7 +124,6 @@
     if (engPct > visPct) engPct = Math.max(0, visPct - 1);
     return [Math.max(0, visPct), Math.max(0, engPct)];
   };
-
   const generateAlignmentScore = () => {
     const r = Math.random();
     let score;
@@ -227,7 +224,7 @@
         url.includes(TARGET_URLS.SENTIMENT_OVERALL) &&
         url.includes("/comments/sentiment-labels/overall")
       ) {
-        matchedEndpointType = "SENTiment_OVERALL";
+        matchedEndpointType = "SENTIMENT_OVERALL";
         campaignId = extractCampaignIdFromUrl(url);
       } else if (
         url.includes(TARGET_URLS.SENTIMENT_TIMESERIES) &&
@@ -271,74 +268,75 @@
         const clonedResponse = response.clone();
         const data = await clonedResponse.json();
 
-        switch (matchedEndpointType) {
-            case "RANKINGS": // ... existing logic ...
-            if (data.ranking && Array.isArray(data.ranking)) {
-              data.ranking.forEach((item) => {
-                const potential =
-                  item.potentialVisitors > 0
-                    ? item.potentialVisitors
-                    : Math.max(item.visitors, item.engagedUsers, 1);
-                let [normVisPercent, normEngPercent] = harmonisePercentagePair(
-                  (item.visitors / potential) * 100,
-                  (item.engagedUsers / potential) * 100,
-                  MAX_DESIRED_PCT
-                );
-                item.visitors = Math.round((normVisPercent / 100) * potential);
-                item.engagedUsers = Math.round(
-                  (normEngPercent / 100) * potential
-                );
-                if (potential > 0) {
-                  item.visitors = Math.min(item.visitors, potential);
-                }
-                item.engagedUsers = Math.min(item.engagedUsers, item.visitors);
-                let newAlignmentScore = item.alignmentScore,
-                  newAlignmentParticipants = item.alignmentParticipantsCount;
-                if (
-                  item.hasAlignmentSurvey &&
-                  (item.alignmentScore === 0 ||
-                    item.alignmentParticipantsCount <= 5)
-                ) {
-                  newAlignmentScore = generateAlignmentScore();
-                  newAlignmentParticipants = rand(6, 25);
-                } else if (item.alignmentScore > 5) {
-                  newAlignmentScore = generateAlignmentScore();
-                  if (item.alignmentParticipantsCount <= 5)
-                    newAlignmentParticipants = rand(6, 25);
-                } else if (
-                  typeof item.alignmentScore === "number" &&
-                  item.alignmentScore > 0
-                ) {
-                  newAlignmentScore = parseFloat(
-                    item.alignmentScore.toFixed(2)
-                  );
-                  if (
-                    item.hasAlignmentSurvey &&
-                    item.alignmentParticipantsCount <= 5
-                  )
-                    newAlignmentParticipants = rand(
-                      6,
-                      Math.max(6, item.alignmentParticipantsCount + rand(3, 10))
+            switch (matchedEndpointType) {
+                case "RANKINGS": // ... existing logic ...
+                if (data.ranking && Array.isArray(data.ranking)) {
+                  data.ranking.forEach((item) => {
+                    const potential =
+                      item.potentialVisitors > 0
+                        ? item.potentialVisitors
+                        : Math.max(item.visitors, item.engagedUsers, 1);
+                    let [normVisPercent, normEngPercent] = harmonisePercentagePair(
+                      (item.visitors / potential) * 100,
+                      (item.engagedUsers / potential) * 100,
+                      MAX_DESIRED_PCT
                     );
+                    item.visitors = Math.round((normVisPercent / 100) * potential);
+                    item.engagedUsers = Math.round(
+                      (normEngPercent / 100) * potential
+                    );
+                    if (potential > 0) {
+                      item.visitors = Math.min(item.visitors, potential);
+                    }
+                    item.engagedUsers = Math.min(item.engagedUsers, item.visitors);
+                    let newAlignmentScore = item.alignmentScore,
+                      newAlignmentParticipants = item.alignmentParticipantsCount;
+                    if (
+                      item.hasAlignmentSurvey &&
+                      (item.alignmentScore === 0 ||
+                        item.alignmentParticipantsCount <= 5)
+                    ) {
+                      newAlignmentScore = generateAlignmentScore();
+                      newAlignmentParticipants = rand(6, 25);
+                    } else if (item.alignmentScore > 5) {
+                      newAlignmentScore = generateAlignmentScore();
+                      if (item.alignmentParticipantsCount <= 5)
+                        newAlignmentParticipants = rand(6, 25);
+                    } else if (
+                      typeof item.alignmentScore === "number" &&
+                      item.alignmentScore > 0
+                    ) {
+                      newAlignmentScore = parseFloat(
+                        item.alignmentScore.toFixed(2)
+                      );
+                      if (
+                        item.hasAlignmentSurvey &&
+                        item.alignmentParticipantsCount <= 5
+                      )
+                        newAlignmentParticipants = rand(
+                          6,
+                          Math.max(6, item.alignmentParticipantsCount + rand(3, 10))
+                        );
+                    }
+                    item.alignmentScore = newAlignmentScore;
+                    item.alignmentParticipantsCount = newAlignmentParticipants;
+                    injectedCampaignDataStore[item.campaignId] = {
+                      visitors: item.visitors,
+                      engagedUsers: item.engagedUsers,
+                      potentialVisitors: item.potentialVisitors,
+                      alignmentScore: item.alignmentScore,
+                      alignmentParticipantsCount: item.alignmentParticipantsCount,
+                      normVisPercent: normVisPercent,
+                      normEngPercent: normEngPercent,
+                      postSurveyAnswers: {},
+                    };
+                  });
                 }
-                item.alignmentScore = newAlignmentScore;
-                item.alignmentParticipantsCount = newAlignmentParticipants;
-                injectedCampaignDataStore[item.campaignId] = {
-                  visitors: item.visitors,
-                  engagedUsers: item.engagedUsers,
-                  potentialVisitors: item.potentialVisitors,
-                  alignmentScore: item.alignmentScore,
-                  alignmentParticipantsCount: item.alignmentParticipantsCount,
-                  normVisPercent: normVisPercent,
-                  normEngPercent: normEngPercent,
-                  postSurveyAnswers: {},
-                };
-              });
-            }
-            break;
-
-          case "ENGAGEMENT_TIMESERIES":
-          case "VISIBILITY_TIMESERIES":
+                break;
+    
+              case "ENGAGEMENT_TIMESERIES":
+              case "VISIBILITY_TIMESERIES":
+                // This padding logic is for the other graphs (Visibility/Engagement over time)
             if (data.timeseries && Array.isArray(data.timeseries)) {
               const urlObj = new URL(url, window.location.origin);
               const groupBy = urlObj.searchParams.get("groupBy") || "day";
@@ -376,7 +374,6 @@
               }
             }
             break;
-
             case "CAMPAIGN_STATS":
                 if (campaignId && data) {
                   const potential =
@@ -434,10 +431,17 @@
                   }
                 }
                 break;
-              case "POST_STATS":
-                if (campaignId && data && Array.isArray(data.posts)) {
+
+          case "POST_STATS":
+            if (campaignId && data && Array.isArray(data.posts)) {
               const campData = injectedCampaignDataStore[campaignId] || {};
+              if (!injectedCampaignDataStore[campaignId])
+                injectedCampaignDataStore[campaignId] = {};
+              if (!injectedCampaignDataStore[campaignId].postSurveyAnswers)
+                injectedCampaignDataStore[campaignId].postSurveyAnswers = {};
+
               data.posts.forEach((post) => {
+                // --- Logic to generate visitor/engager counts is unchanged ---
                 let postPotential = Math.max(
                   1,
                   campData.potentialVisitors > 0
@@ -446,25 +450,25 @@
                           (data.posts.length || 1)) *
                           randFloat(0.5, 1.5)
                       )
-                    : rand(10, 50)
-                );
-
-                let postVisPercent = rand(
-                  MIN_PCT_FLOOR_INPUTS,
-                  MAX_DESIRED_PCT - rand(5, 15)
-                );
-                let postEngPercent = rand(
-                  MIN_PCT_FLOOR_INPUTS - 5,
-                  Math.max(
-                    MIN_PCT_FLOOR_INPUTS - 5,
-                    postVisPercent - rand(5, 10)
-                  )
-                );
-                [postVisPercent, postEngPercent] = harmonisePercentagePair(
-                  postVisPercent,
-                  postEngPercent,
-                  MAX_DESIRED_PCT
-                );
+                      : rand(10, 50)
+                    );
+    
+                    let postVisPercent = rand(
+                      MIN_PCT_FLOOR_INPUTS,
+                      MAX_DESIRED_PCT - rand(5, 15)
+                    );
+                    let postEngPercent = rand(
+                      MIN_PCT_FLOOR_INPUTS - 5,
+                      Math.max(
+                        MIN_PCT_FLOOR_INPUTS - 5,
+                        postVisPercent - rand(5, 10)
+                      )
+                    );
+                    [postVisPercent, postEngPercent] = harmonisePercentagePair(
+                      postVisPercent,
+                      postEngPercent,
+                      MAX_DESIRED_PCT
+                    );
                 post.visitors = Math.round(
                   (postVisPercent / 100) * postPotential
                 );
@@ -475,48 +479,29 @@
                 if (post.visitors === postPotential && postPotential > 0)
                   post.visitors = Math.max(0, postPotential - 1);
                 post.engagedUsers = Math.min(post.engagedUsers, post.visitors);
-                post.visitors = Math.max(0, post.visitors);
-                post.engagedUsers = Math.max(0, post.engagedUsers);
 
-                post.visits =
-                  post.visitors + rand(0, Math.floor(post.visitors * 1.5));
-                post.reactions = rand(0, Math.floor(post.engagedUsers * 0.5));
-                post.comments = rand(0, Math.floor(post.engagedUsers * 0.25));
-                post.shares = rand(0, Math.floor(post.engagedUsers * 0.1));
-
+                // **MODIFIED**: Increase the chance of a post getting survey answers.
                 let postGetsSurveyActivity = false;
                 if (
                   typeof campData.alignmentScore === "number" &&
-                  campData.alignmentScore > 0
+                  campData.alignmentScore > 3.0
                 ) {
-                  if (Math.random() < 0.65) postGetsSurveyActivity = true;
-                } else {
-                  if (Math.random() < 0.1) postGetsSurveyActivity = true;
+                  // If campaign has a survey, give most posts some answers.
+                  if (Math.random() < 0.85) postGetsSurveyActivity = true;
                 }
 
                 if (postGetsSurveyActivity) {
-                  post.surveyAnswers = rand(1, 10);
-                  post.surveyAnswers = Math.min(
-                    post.surveyAnswers,
-                    Math.max(post.engagedUsers, 1)
-                  );
-                  post.surveyAnswers = Math.max(0, post.surveyAnswers);
+                  post.surveyAnswers = rand(1, Math.max(1, post.engagedUsers)); // Answers can't exceed engaged users
                 } else {
                   post.surveyAnswers = 0;
                 }
-                if (!injectedCampaignDataStore[campaignId])
-                  injectedCampaignDataStore[campaignId] = {
-                    postSurveyAnswers: {},
-                  }; // Ensure object exists
-                if (!injectedCampaignDataStore[campaignId].postSurveyAnswers)
-                  injectedCampaignDataStore[campaignId].postSurveyAnswers = {};
+                // Store the result for this post so we can use it in the per-content endpoint.
                 injectedCampaignDataStore[campaignId].postSurveyAnswers[
                   post.postId
                 ] = post.surveyAnswers;
               });
             }
             break;
-
 
             case "ALIGNMENT_RESULTS_OVERALL": // ...  uses injectedCampaignDataStore ...
             if (campaignId && data) {
@@ -547,307 +532,320 @@
             break;
           case "ALIGNMENT_RESULTS_PER_CONTENT":
             if (campaignId && data && Array.isArray(data.contents)) {
-              const storedCampAlign = injectedCampaignDataStore[campaignId];
-              const overallCampaignScore =
-                storedCampAlign?.alignmentScore || generateAlignmentScore();
-              let overallCampaignParticipants =
-                storedCampAlign?.alignmentParticipantsCount;
-              if (
-                !overallCampaignParticipants ||
-                overallCampaignParticipants <= 5
-              ) {
-                overallCampaignParticipants = rand(6, 25);
-                if (storedCampAlign)
-                  injectedCampaignDataStore[
-                    campaignId
-                  ].alignmentParticipantsCount = overallCampaignParticipants;
+              const storedCampData = injectedCampaignDataStore[campaignId];
+              const allPostsWithSurveyAnswers =
+                storedCampData?.postSurveyAnswers || {};
+              const existingContentIds = new Set(
+                data.contents.map((c) => c.contentId)
+              );
+
+              // **MODIFIED**: Add entries for any post that has survey answers but isn't in the original API response.
+              // This is the key to padding the graph.
+              for (const postId in allPostsWithSurveyAnswers) {
+                if (
+                  allPostsWithSurveyAnswers[postId] > 0 &&
+                  !existingContentIds.has(postId)
+                ) {
+                  data.contents.push({
+                    contentId: postId,
+                    contentType: "post",
+                    surveyReferenceStatus: "enabled",
+                    participantCount: 0, // Will be updated below
+                    answers: null,
+                  });
+                }
               }
 
-              data.contents.forEach((content) => {
-                if (content.surveyReferenceStatus === "enabled") {
-                  const postId = content.contentId;
-                  content.participantCount =
-                    injectedCampaignDataStore[campaignId]?.postSurveyAnswers?.[
-                      postId
-                    ] || rand(1, 5);
+              const overallCampaignScore =
+                storedCampData?.alignmentScore || generateAlignmentScore();
 
-                  if (content.participantCount > 0) {
-                    const postAvgScore = parseFloat(
-                      Math.min(
-                        5.0,
-                        Math.max(
-                          0.0,
-                          overallCampaignScore + randFloat(-0.4, 0.4, 2)
-                        )
-                      ).toFixed(2)
-                    );
-                    content.answers = generateAlignmentAnswers(
-                      postAvgScore,
-                      content.participantCount
-                    );
-                  } else {
-                    content.answers = null;
-                  }
+              // Now, iterate over the (potentially longer) contents array and fill in the details.
+              data.contents.forEach((content) => {
+                const postId = content.contentId;
+                // Use the stored survey answer count from the POST_STATS call.
+                const participantCount =
+                  allPostsWithSurveyAnswers[postId] ||
+                  content.participantCount ||
+                  0;
+
+                content.participantCount = participantCount;
+                content.surveyReferenceStatus = "enabled"; // Ensure it's enabled if we're adding data
+
+                if (participantCount > 0) {
+                  // Generate a plausible score for this post, slightly varied from the campaign's overall score
+                  const postAvgScore = parseFloat(
+                    Math.min(
+                      5.0,
+                      Math.max(
+                        0.0,
+                        overallCampaignScore + randFloat(-0.3, 0.3, 2)
+                      )
+                    ).toFixed(2)
+                  );
+                  content.answers = generateAlignmentAnswers(
+                    postAvgScore,
+                    content.participantCount
+                  );
                 } else {
-                  content.participantCount = 0;
                   content.answers = null;
                 }
               });
             }
             break;
-          case "ENGAGEMENT_GROUPS":
-            if (data.ranking && Array.isArray(data.ranking)) {
-              data.ranking.forEach((group) => {
-                let groupPotential = group.visitors; // This is actually "visitors" for the group, not total potential for group
-                if (group.visitors > 0) {
-                  // Use group.visitors as the base for engagers for this endpoint
-                  let engPctOfVis = rand(30, Math.min(95, MAX_DESIRED_PCT - 2)); // Generate engagers as % of actual visitors for the group
-                  group.engagers = Math.round(
-                    (engPctOfVis / 100) * group.visitors
-                  );
-                  group.engagers = Math.min(group.engagers, group.visitors); // Cap at visitors
-                  if (group.engagers === group.visitors && group.visitors > 0)
-                    group.engagers = group.visitors - 1;
-                  group.engagers = Math.max(0, group.engagers);
-                } else {
-                  group.engagers = 0;
-                }
-              });
-            }
-            break;
-            case "VISIBILITY_USER_GROUP_RANKING": // ...
-        if (data.ranking && Array.isArray(data.ranking)) {
-              data.ranking.forEach((group) => {
-                const potential =
-                  group.potentialVisitors > 0
-                    ? group.potentialVisitors
-                    : group.visitors;
-                if (potential > 0) {
-                  // **FIXED**: Using the correct variable name here
-                  let visPct = normalisePercentage(
-                    rand(MIN_PCT_FLOOR_INPUTS, MAX_DESIRED_PCT),
-                    MAX_DESIRED_PCT
-                  );
-                  group.visitors = Math.round((visPct / 100) * potential);
-                  group.visitors = Math.min(group.visitors, potential);
-                  if (group.visitors === potential && potential > 0) {
-                    group.visitors = Math.max(
-                      0,
-                      potential -
-                        rand(1, Math.max(1, Math.floor(potential * 0.02)) + 1)
-                    );
-                  }
-                  group.visitors = Math.max(0, group.visitors);
-                } else {
-                  group.visitors = 0;
-                }
-            if (group.potentialVisitors === 0 && group.visitors > 0) {
-                  group.potentialVisitors =
-                    group.visitors + rand(0, Math.floor(group.visitors * 0.2));
-                }
-              });
-            }
-            break;
-
-            
-            case "SENTIMENT_OVERALL": // ...  uses injectedCampaignDataStore ...
-            if (campaignId && data && data.data) {
-              const stored = injectedCampaignDataStore[campaignId];
-              let baseCommenters =
-                stored?.engagedUsers > 0
-                  ? Math.floor(stored.engagedUsers * randFloat(0.05, 0.2))
-                  : rand(5, 20);
-              baseCommenters = Math.max(5, baseCommenters);
-
-              data.data.uniqueCommenterCount = baseCommenters;
-              data.data.labelPositiveCount = rand(
-                Math.floor(baseCommenters * 0.2),
-                baseCommenters
-              );
-              data.data.labelNegativeCount = rand(
-                0,
-                Math.floor(baseCommenters * 0.3)
-              );
-              data.data.labelNeutralCount = rand(
-                0,
-                Math.floor(baseCommenters * 0.4)
-              );
-              const sumLabels =
-                data.data.labelPositiveCount +
-                data.data.labelNegativeCount +
-                data.data.labelNeutralCount;
-              if (sumLabels === 0 && data.data.uniqueCommenterCount > 0)
-                data.data.labelPositiveCount = data.data.uniqueCommenterCount;
-              else if (sumLabels > data.data.uniqueCommenterCount) {
-                data.data.labelPositiveCount = Math.floor(
-                  (data.data.labelPositiveCount *
-                    data.data.uniqueCommenterCount) /
-                    sumLabels
-                );
-                data.data.labelNegativeCount = Math.floor(
-                  (data.data.labelNegativeCount *
-                    data.data.uniqueCommenterCount) /
-                    sumLabels
-                );
-                data.data.labelNeutralCount = Math.max(
-                  0,
-                  data.data.uniqueCommenterCount -
-                    data.data.labelPositiveCount -
-                    data.data.labelNegativeCount
-                );
-              }
-            }
-            break;
-          case "SENTIMENT_TIMESERIES": // ...  uses injectedCampaignDataStore ...
-            if (data.data && Array.isArray(data.data)) {
-              const overallEngaged =
-                injectedCampaignDataStore[campaignId]?.engagedUsers ||
-                rand(20, 100);
-              if (
-                data.data.length <= 3 &&
-                campaignId &&
-                (injectedCampaignDataStore[campaignId]?.visitors > 0 ||
-                  data.data.some((d) => d.labelPositiveCount > 0))
-              ) {
-                const numDaysToGenerate = rand(15, 30);
-                const newTimeSeries = [];
-                let startDate = new Date();
-                if (data.data.length > 0 && data.data[0].date) {
-                  startDate = new Date(data.data[0].date);
-                  startDate.setDate(
-                    startDate.getDate() - Math.floor(numDaysToGenerate / 2)
-                  );
-                } else {
-                  startDate.setDate(
-                    startDate.getDate() - numDaysToGenerate + 1
-                  );
-                }
-                for (let i = 0; i < numDaysToGenerate; i++) {
-                  const currentDate = new Date(startDate);
-                  currentDate.setDate(startDate.getDate() + i);
-                  const dailyMaxComments = Math.max(
-                    1,
-                    Math.ceil(
-                      (overallEngaged / numDaysToGenerate) *
-                        randFloat(0.02, 0.1)
-                    )
-                  );
-                  const totalSentimentsToday = rand(0, dailyMaxComments);
-                  let pos = rand(0, totalSentimentsToday);
-                  let neg = rand(0, Math.max(0, totalSentimentsToday - pos));
-                  let neu = Math.max(0, totalSentimentsToday - pos - neg);
-                  newTimeSeries.push({
-                    date:
-                      currentDate.toISOString().split("T")[0] + "T00:00:00Z",
-                    labelPositiveCount: pos,
-                    labelNegativeCount: neg,
-                    labelNeutralCount: neu,
+            case "ENGAGEMENT_GROUPS":
+                if (data.ranking && Array.isArray(data.ranking)) {
+                  data.ranking.forEach((group) => {
+                    let groupPotential = group.visitors; // This is actually "visitors" for the group, not total potential for group
+                    if (group.visitors > 0) {
+                      // Use group.visitors as the base for engagers for this endpoint
+                      let engPctOfVis = rand(30, Math.min(95, MAX_DESIRED_PCT - 2)); // Generate engagers as % of actual visitors for the group
+                      group.engagers = Math.round(
+                        (engPctOfVis / 100) * group.visitors
+                      );
+                      group.engagers = Math.min(group.engagers, group.visitors); // Cap at visitors
+                      if (group.engagers === group.visitors && group.visitors > 0)
+                        group.engagers = group.visitors - 1;
+                      group.engagers = Math.max(0, group.engagers);
+                    } else {
+                      group.engagers = 0;
+                    }
                   });
                 }
-                data.data = newTimeSeries.sort(
-                  (a, b) => new Date(a.date) - new Date(b.date)
-                );
-              } else {
-                data.data.forEach((dp) => {
-                  const dailyMax = Math.max(
-                    1,
-                    Math.ceil((overallEngaged / data.data.length) * 0.1)
+                break;
+                case "VISIBILITY_USER_GROUP_RANKING": // ...
+            if (data.ranking && Array.isArray(data.ranking)) {
+                  data.ranking.forEach((group) => {
+                    const potential =
+                      group.potentialVisitors > 0
+                        ? group.potentialVisitors
+                        : group.visitors;
+                    if (potential > 0) {
+                      // **FIXED**: Using the correct variable name here
+                      let visPct = normalisePercentage(
+                        rand(MIN_PCT_FLOOR_INPUTS, MAX_DESIRED_PCT),
+                        MAX_DESIRED_PCT
+                      );
+                      group.visitors = Math.round((visPct / 100) * potential);
+                      group.visitors = Math.min(group.visitors, potential);
+                      if (group.visitors === potential && potential > 0) {
+                        group.visitors = Math.max(
+                          0,
+                          potential -
+                            rand(1, Math.max(1, Math.floor(potential * 0.02)) + 1)
+                        );
+                      }
+                      group.visitors = Math.max(0, group.visitors);
+                    } else {
+                      group.visitors = 0;
+                    }
+                if (group.potentialVisitors === 0 && group.visitors > 0) {
+                      group.potentialVisitors =
+                        group.visitors + rand(0, Math.floor(group.visitors * 0.2));
+                    }
+                  });
+                }
+                break;
+    
+                
+                case "SENTIMENT_OVERALL": // ...  uses injectedCampaignDataStore ...
+                if (campaignId && data && data.data) {
+                  const stored = injectedCampaignDataStore[campaignId];
+                  let baseCommenters =
+                    stored?.engagedUsers > 0
+                      ? Math.floor(stored.engagedUsers * randFloat(0.05, 0.2))
+                      : rand(5, 20);
+                  baseCommenters = Math.max(5, baseCommenters);
+    
+                  data.data.uniqueCommenterCount = baseCommenters;
+                  data.data.labelPositiveCount = rand(
+                    Math.floor(baseCommenters * 0.2),
+                    baseCommenters
                   );
-                  dp.labelPositiveCount = rand(
+                  data.data.labelNegativeCount = rand(
                     0,
-                    Math.max(dp.labelPositiveCount, rand(0, dailyMax))
+                    Math.floor(baseCommenters * 0.3)
                   );
-                  dp.labelNegativeCount = rand(
+                  data.data.labelNeutralCount = rand(
                     0,
-                    Math.max(
-                      dp.labelNegativeCount,
-                      rand(0, Math.floor(dailyMax * 0.5))
-                    )
+                    Math.floor(baseCommenters * 0.4)
                   );
-                  dp.labelNeutralCount = rand(
-                    0,
-                    Math.max(
-                      dp.labelNeutralCount,
-                      rand(0, Math.floor(dailyMax * 0.5))
-                    )
-                  );
-                });
-              }
-            }
+                  const sumLabels =
+                    data.data.labelPositiveCount +
+                    data.data.labelNegativeCount +
+                    data.data.labelNeutralCount;
+                  if (sumLabels === 0 && data.data.uniqueCommenterCount > 0)
+                    data.data.labelPositiveCount = data.data.uniqueCommenterCount;
+                  else if (sumLabels > data.data.uniqueCommenterCount) {
+                    data.data.labelPositiveCount = Math.floor(
+                      (data.data.labelPositiveCount *
+                        data.data.uniqueCommenterCount) /
+                        sumLabels
+                    );
+                    data.data.labelNegativeCount = Math.floor(
+                      (data.data.labelNegativeCount *
+                        data.data.uniqueCommenterCount) /
+                        sumLabels
+                    );
+                    data.data.labelNeutralCount = Math.max(
+                      0,
+                      data.data.uniqueCommenterCount -
+                        data.data.labelPositiveCount -
+                        data.data.labelNegativeCount
+                    );
+                  }
+                }
+                break;
+              case "SENTIMENT_TIMESERIES": // ...  uses injectedCampaignDataStore ...
+                if (data.data && Array.isArray(data.data)) {
+                  const overallEngaged =
+                    injectedCampaignDataStore[campaignId]?.engagedUsers ||
+                    rand(20, 100);
+                  if (
+                    data.data.length <= 3 &&
+                    campaignId &&
+                    (injectedCampaignDataStore[campaignId]?.visitors > 0 ||
+                      data.data.some((d) => d.labelPositiveCount > 0))
+                  ) {
+                    const numDaysToGenerate = rand(15, 30);
+                    const newTimeSeries = [];
+                    let startDate = new Date();
+                    if (data.data.length > 0 && data.data[0].date) {
+                      startDate = new Date(data.data[0].date);
+                      startDate.setDate(
+                        startDate.getDate() - Math.floor(numDaysToGenerate / 2)
+                      );
+                    } else {
+                      startDate.setDate(
+                        startDate.getDate() - numDaysToGenerate + 1
+                      );
+                    }
+                    for (let i = 0; i < numDaysToGenerate; i++) {
+                      const currentDate = new Date(startDate);
+                      currentDate.setDate(startDate.getDate() + i);
+                      const dailyMaxComments = Math.max(
+                        1,
+                        Math.ceil(
+                          (overallEngaged / numDaysToGenerate) *
+                            randFloat(0.02, 0.1)
+                        )
+                      );
+                      const totalSentimentsToday = rand(0, dailyMaxComments);
+                      let pos = rand(0, totalSentimentsToday);
+                      let neg = rand(0, Math.max(0, totalSentimentsToday - pos));
+                      let neu = Math.max(0, totalSentimentsToday - pos - neg);
+                      newTimeSeries.push({
+                        date:
+                          currentDate.toISOString().split("T")[0] + "T00:00:00Z",
+                        labelPositiveCount: pos,
+                        labelNegativeCount: neg,
+                        labelNeutralCount: neu,
+                      });
+                    }
+                    data.data = newTimeSeries.sort(
+                      (a, b) => new Date(a.date) - new Date(b.date)
+                    );
+                  } else {
+                    data.data.forEach((dp) => {
+                      const dailyMax = Math.max(
+                        1,
+                        Math.ceil((overallEngaged / data.data.length) * 0.1)
+                      );
+                      dp.labelPositiveCount = rand(
+                        0,
+                        Math.max(dp.labelPositiveCount, rand(0, dailyMax))
+                      );
+                      dp.labelNegativeCount = rand(
+                        0,
+                        Math.max(
+                          dp.labelNegativeCount,
+                          rand(0, Math.floor(dailyMax * 0.5))
+                        )
+                      );
+                      dp.labelNeutralCount = rand(
+                        0,
+                        Math.max(
+                          dp.labelNeutralCount,
+                          rand(0, Math.floor(dailyMax * 0.5))
+                        )
+                      );
+                    });
+                  }
+                }
+                break;
+              case "VISIBILITY_TIMESERIES": // ...  uses injectedCampaignDataStore ...
+                if (data.timeseries && Array.isArray(data.timeseries)) {
+                  let overallMaxSeen =
+                    injectedCampaignDataStore[campaignId]?.visitors || 0;
+                  if (overallMaxSeen === 0 && data.timeseries.length > 0)
+                    overallMaxSeen = Math.max(
+                      ...data.timeseries.map((ts) => ts.seenAtLeastOne),
+                      40
+                    );
+                  else if (overallMaxSeen === 0) overallMaxSeen = rand(40, 200); // Default if no other data
+    
+                  data.timeseries.forEach((ts) => {
+                    const dayMaxPotential = rand(
+                      Math.floor(overallMaxSeen * 0.05),
+                      Math.floor(overallMaxSeen * 0.3)
+                    ); // Smaller daily fraction
+                    ts.seenAtLeastOne = rand(
+                      Math.floor(dayMaxPotential * 0.1),
+                      dayMaxPotential
+                    );
+                    ts.seenAtLeastTwo = rand(
+                      0,
+                      Math.floor(ts.seenAtLeastOne * randFloat(0.1, 0.6))
+                    );
+                    ts.seenAtLeastThree = rand(
+                      0,
+                      Math.floor(ts.seenAtLeastTwo * randFloat(0.05, 0.5))
+                    );
+                  });
+                }
+                break;
+              case "CAMPAIGN_INFO":
             break;
-          case "VISIBILITY_TIMESERIES": // ...  uses injectedCampaignDataStore ...
-            if (data.timeseries && Array.isArray(data.timeseries)) {
-              let overallMaxSeen =
-                injectedCampaignDataStore[campaignId]?.visitors || 0;
-              if (overallMaxSeen === 0 && data.timeseries.length > 0)
-                overallMaxSeen = Math.max(
-                  ...data.timeseries.map((ts) => ts.seenAtLeastOne),
-                  40
-                );
-              else if (overallMaxSeen === 0) overallMaxSeen = rand(40, 200); // Default if no other data
-
-              data.timeseries.forEach((ts) => {
-                const dayMaxPotential = rand(
-                  Math.floor(overallMaxSeen * 0.05),
-                  Math.floor(overallMaxSeen * 0.3)
-                ); // Smaller daily fraction
-                ts.seenAtLeastOne = rand(
-                  Math.floor(dayMaxPotential * 0.1),
-                  dayMaxPotential
-                );
-                ts.seenAtLeastTwo = rand(
-                  0,
-                  Math.floor(ts.seenAtLeastOne * randFloat(0.1, 0.6))
-                );
-                ts.seenAtLeastThree = rand(
-                  0,
-                  Math.floor(ts.seenAtLeastTwo * randFloat(0.05, 0.5))
-                );
-              });
-            }
-            break;
-          case "CAMPAIGN_INFO":
-        break;
-    }
-    return new Response(JSON.stringify(data), {
-      status: response.status,
-          statusText: response.statusText,
-          headers: response.headers,
-        });
-      } catch (err) {
-        if (err.name === "AbortError") {
-          // This is expected when requests are cancelled by the browser/framework. We can ignore it.
-        } else {
-          // Log any other, more serious errors.
-          console.error(
-            INJECTED_LOG_PREFIX,
-            "Error during interception for",
-            url,
-            `(${matchedEndpointType}):`,
-            err
-          );
         }
-        // In case of any error, it's safest to return the result of the original fetch call
+        return new Response(JSON.stringify(data), {
+          status: response.status,
+              statusText: response.statusText,
+              headers: response.headers,
+            });
+          } catch (err) {
+            if (err.name === "AbortError") {
+              // This is expected when requests are cancelled by the browser/framework. We can ignore it.
+            } else {
+              // Log any other, more serious errors.
+              console.error(
+                INJECTED_LOG_PREFIX,
+                "Error during interception for",
+                url,
+                `(${matchedEndpointType}):`,
+                err
+              );
+            }
+            // In case of any error, it's safest to return the result of the original fetch call
+            return pageContextOriginalFetch.apply(this, args);
+          }
+        }
         return pageContextOriginalFetch.apply(this, args);
-      }
-    }
-    return pageContextOriginalFetch.apply(this, args);
-  };
-
-  window.fetch = injectedCustomFetch;
-  window.__REPLIFY_CAMPAIGNS_FETCH_APPLIED__ = true;
-
-  window.__REPLIFY_REVERT_CAMPAIGNS_FETCH__ = function () {
-    if (window.fetch === injectedCustomFetch) {
-      window.fetch = pageContextOriginalFetch;
-      delete window.__REPLIFY_CAMPAIGNS_FETCH_APPLIED__;
-      delete window.__REPLIFY_REVERT_CAMPAIGNS_FETCH__;
-      console.log(
-        INJECTED_LOG_PREFIX,
-        "Fetch restored to page original by revert function."
-      );
-      return true;
-    }
-    return false;
-  };
-})();
+      };
+    
+      window.fetch = injectedCustomFetch;
+      window.__REPLIFY_CAMPAIGNS_FETCH_APPLIED__ = true;
+    
+      window.__REPLIFY_REVERT_CAMPAIGNS_FETCH__ = function () {
+        if (window.fetch === injectedCustomFetch) {
+          window.fetch = pageContextOriginalFetch;
+          delete window.__REPLIFY_CAMPAIGNS_FETCH_APPLIED__;
+          delete window.__REPLIFY_REVERT_CAMPAIGNS_FETCH__;
+          console.log(
+            INJECTED_LOG_PREFIX,
+            "Fetch restored to page original by revert function."
+          );
+          return true;
+        }
+        return false;
+      };
+    })();
+    
