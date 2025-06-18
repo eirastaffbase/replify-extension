@@ -67,15 +67,12 @@ let newsPatchCurrentlyActive = false;
 const REPLIFY_NEWS_LOG_PREFIX = '[Replify NewsPatchCS]:';
 const REPLIFY_NEWS_INJECTED_SCRIPT_ID = 'replify-news-fetch-override-script';
 
-// let newsPatchAppliedAtStart = false; // Not strictly needed for executeEnabledPatches logic
-
 let hashtagsPatchCurrentlyActive = false;
 const REPLIFY_HASHTAGS_LOG_PREFIX = '[Replify HashtagsPatchCS]:';
 const REPLIFY_HASHTAGS_INJECTED_SCRIPT_ID = 'replify-hashtags-fetch-override-script';
 
-// --- PATCH MANAGEMENT DEFINITION (needed for early news patch's urlCheck) ---
-// Define PATCH_INFO earlier so applyNewsPatch can use its urlCheck if needed,
-// and the early news application logic can use it too.
+
+// --- PATCH MANAGEMENT DEFINITION ---
 const PATCH_INFO_DEFINITIONS = {
     campaigns: {
         urlCheck: (pathname) => pathname.startsWith("/studio/analytics/campaigns")
@@ -84,7 +81,7 @@ const PATCH_INFO_DEFINITIONS = {
         urlCheck: (pathname) => pathname.startsWith("/content/news/article/")
     },
     email: {
-        urlCheck: (pathname) => pathname.includes("/studio/analytics/email")
+        urlCheck: (pathname) => pathname.includes("/studio/analytics/email") || pathname.startsWith("/studio/email/")
     },
     news: {
         urlCheck: (pathname) => pathname.startsWith("/admin/analytics/news")
@@ -97,12 +94,10 @@ const PATCH_INFO_DEFINITIONS = {
 
 // --- NEWS PATCH ---
 function applyNewsPatch() {
-    // This check ensures it only runs if on the correct page,
-    // complementing the check before calling it in executeEnabledPatches or early application.
     if (!PATCH_INFO_DEFINITIONS.news.urlCheck(window.location.pathname)) {
         return;
     }
-    if (newsPatchCurrentlyActive) return; // Already applied
+    if (newsPatchCurrentlyActive) return; 
 
     console.log(REPLIFY_NEWS_LOG_PREFIX, "Applying News Patch via SCRIPT SRC INJECTION...");
     const oldScriptElement = document.getElementById(REPLIFY_NEWS_INJECTED_SCRIPT_ID);
@@ -115,33 +110,23 @@ function applyNewsPatch() {
     scriptElement.onerror = () => console.error(REPLIFY_NEWS_LOG_PREFIX, "ERROR loading injected news.js.");
     (document.head || document.documentElement).appendChild(scriptElement);
     newsPatchCurrentlyActive = true;
-
-    
 }
 
 // --- CAMPAIGNS PATCH ---
-// storageEnabled: Boolean indicating if chrome.storage wants this patch active.
 function applyCampaignsPatch(storageEnabled = true) {
     const isOnCampaignsPage = PATCH_INFO_DEFINITIONS.campaigns.urlCheck(window.location.pathname);
 
-    // If not on the correct page OR storage does not want this patch active:
-    // Ensure observer is disconnected and take no further action to apply/re-apply script.
     if (!isOnCampaignsPage || !storageEnabled) {
         if (campaignsMutationObserver) {
             campaignsMutationObserver.disconnect();
-            // console.log(REPLIFY_CAMPAIGNS_LOG_PREFIX, "Observer disconnected (not on page or storage disabled).");
         }
-        // The script, if previously injected, remains. campaignsPatchCurrentlyActive flag also remains true.
         return;
     }
 
-    // At this point, we are on the campaigns page AND storage has it enabled.
-    // Manage the MutationObserver: disconnect existing (if any), create and connect new one.
     if (campaignsMutationObserver) {
         campaignsMutationObserver.disconnect();
     }
 
-    // Define the observer callback function locally or ensure it's accessible if defined globally.
     function removeYearFromAxisDates_CS() {
         document.querySelectorAll('g.visx-axis-bottom text > tspan, g.visx-axis-left text > tspan').forEach(tspan => {
             const originalDate = tspan.textContent.trim();
@@ -155,13 +140,10 @@ function applyCampaignsPatch(storageEnabled = true) {
         }
     });
 
-    // Specific condition from original code for when to activate the observer.
     if (window.location.pathname.includes('/studio/analytics/campaigns/') && !window.location.pathname.endsWith('/campaigns')) {
         campaignsMutationObserver.observe(document.body, { childList: true, subtree: true });
     }
 
-    // If patch script is already active (previously injected), no need to re-inject.
-    // Observer logic above would have been re-evaluated and applied as necessary.
     if (campaignsPatchCurrentlyActive) {
         return;
     }
@@ -233,7 +215,7 @@ function applyHashtagsPatch() {
 const PATCH_INFO = {
     campaigns: {
         isActive: () => campaignsPatchCurrentlyActive,
-        apply: applyCampaignsPatch, // Will be called with storage state
+        apply: applyCampaignsPatch, 
         logPrefix: REPLIFY_CAMPAIGNS_LOG_PREFIX,
         urlCheck: PATCH_INFO_DEFINITIONS.campaigns.urlCheck
     },
@@ -280,30 +262,21 @@ function executeEnabledPatches() {
             }
 
             const storageSaysEnable = state[type] === true;
-            const onCorrectPage = patch.urlCheck(window.location.pathname); // URL check from PATCH_INFO
+            const onCorrectPage = patch.urlCheck(window.location.pathname); 
 
             if (type === 'campaigns') {
-                // Campaigns patch manages its observer based on storage and page state.
-                // Pass storage state directly; applyCampaignsPatch will check page state internally.
                 patch.apply(storageSaysEnable);
             } else {
-                // For other patches, apply if storage enabled AND on correct page.
-                // The apply function itself will check its 'currentlyActive' flag to prevent re-injection.
                 if (storageSaysEnable && onCorrectPage) {
                     patch.apply();
                 }
-                // No 'else' branch for explicit cleanup, as per requirements.
-                // Injected scripts remain. `currentlyActive` flags remain true once set.
-                // Effects of patches that don't have ongoing logic (like observers)
-                // will naturally cease if the user navigates away from the targeted elements/pages.
             }
         }
     });
 }
 
 // --- INITIALIZATION & LISTENERS ---
-// News patch is attempted early, immediately after its definition and storage check.
-executeEnabledPatches(); // Initial run for all patches based on current state.
+executeEnabledPatches(); 
 
 if (chrome.storage && chrome.storage.onChanged) {
     chrome.storage.onChanged.addListener((changes, namespace) => {
@@ -335,8 +308,8 @@ if (window.navigation && typeof window.navigation.addEventListener === 'function
     });
      window.navigation.addEventListener('navigateerror', (event) => {
         console.error("[Replify] SPA 'navigateerror' event:", event.message);
-        executeEnabledPatches(); // Re-evaluate state even on navigation errors
+        executeEnabledPatches(); 
     });
 } else {
-    observeUrlChangesFallback(); // Use fallback for older environments
+    observeUrlChangesFallback(); 
 }
