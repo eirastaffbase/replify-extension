@@ -17,24 +17,17 @@
     const dashboardCache = {
         posts: null,
         comments: null,
-        users: null,
-        postStats: {}
+        users: null
     };
 
-    const rand = (min, max) => {
-        min = Math.ceil(min);
-        max = Math.floor(max);
-        return Math.floor(Math.random() * (max - min + 1)) + min;
-    };
+    const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
     function getUrlParams(urlString) {
         const params = {};
         try {
             const url = new URL(urlString, window.location.origin);
-            url.searchParams.forEach((value, key) => {
-                params[key] = value;
-            });
-        } catch (e) { /* Ignore invalid URLs */ }
+            url.searchParams.forEach((value, key) => params[key] = value);
+        } catch (e) { /* Ignore */ }
         return params;
     }
 
@@ -51,35 +44,43 @@
         return dashboardCache.users;
     }
 
+    // FIX: Greatly enhanced to create full post objects for the detail view
     function generateFakePosts(count = 5) {
         if (dashboardCache.posts) return dashboardCache.posts;
         const users = generateFakeUsers();
         const posts = [];
-        const titles = [
-            "Q3 All-Hands Meeting Scheduled for Next Week",
-            "Important: New Employee Expense Policy",
-            "Celebrating Our Team's Success in the Annual Charity Drive",
-            "System Maintenance Alert: Intranet Downtime This Saturday",
-            "Welcome to the New Summer Intern Cohort!"
-        ];
+        const titles = ["Q3 All-Hands Meeting Review", "New Employee Expense Policy Deployed", "Charity Drive Exceeds Goals!", "Weekend System Maintenance: Reminder", "Welcome New Summer Interns!"];
         for (let i = 0; i < count; i++) {
             const author = users[rand(0, users.length - 1)];
-            const postDate = new Date(Date.now() - i * 24 * 3600 * 1000 - rand(0, 24 * 3600 * 1000));
+            const postDate = new Date(Date.now() - i * 48 * 3600 * 1000 - rand(0, 24 * 3600 * 1000));
             const postId = `gen_post_${i}_${Date.now()}`;
+            const channelId = `gen_channel_${i}`;
+
             posts.push({
                 id: postId,
+                branchID: "gen_branch_1",
+                channelID: channelId,
                 authorID: author.id,
-                channelID: `gen_channel_${i}`,
                 contents: {
                     en_US: {
                         title: titles[i] || `Generated Post Title ${i + 1}`,
-                        teaser: `This is a short teaser for our latest news article. Click to read more about "${titles[i]}".`,
-                        content: `<p>This is the full content for "<strong>${titles[i]}</strong>".</p>`,
+                        teaser: `This is a short teaser for our latest news article about "${titles[i]}".`,
+                        content: `<p>This is the full content for "<strong>${titles[i]}</strong>".</p><p>Here you would find more details, paragraphs, and maybe some lists or other rich text elements to make the post more engaging for all employees.</p>`,
                         image: { wide_first: { url: `https://picsum.photos/seed/${postId}/800/450` } }
                     }
                 },
-                author: { ...author, avatar: { thumb: { url: author.avatar } } },
+                author: { ...author, entityType: 'user', avatar: { thumb: { url: author.avatar } } },
+                channel: { id: channelId, pluginID: "news", config: { localization: { en_US: { title: "Company News" } } } },
                 published: postDate.toISOString(),
+                updated: new Date(postDate.getTime() + rand(1000, 60000)).toISOString(),
+                entityType: "post",
+                highlighted: i === 0,
+                commentingAllowed: true,
+                likingAllowed: true,
+                sharingAllowed: true,
+                acknowledgingEnabled: false,
+                links: { detail_view: { href: `/openlink/content/news/article/${postId}` } },
+                rights: ["DELETE", "MODIFY"]
             });
         }
         dashboardCache.posts = posts;
@@ -92,22 +93,27 @@
         const posts = dashboardCache.posts || generateFakePosts();
         if (!posts || posts.length === 0) return [];
         const comments = [];
-        const commentTexts = ["Thanks for the update!", "This is great news!", "Can we get more info?", "Awesome work!", "Who should I contact about this?"];
+        const commentTexts = ["Thanks for sharing this!", "This is great news!", "Finally! Been waiting for this.", "Awesome work, team!", "Who should I contact for more details?"];
         for (let i = 0; i < count; i++) {
             const author = users[rand(0, users.length - 1)];
             const post = posts[rand(0, posts.length - 1)];
-            // FIX: Generate truly recent dates for comments
-            const commentDate = new Date(Date.now() - rand(300000, 24 * 3600 * 1000)); // 5 mins ago to 24 hours ago
+            const createdDate = new Date(Date.now() - rand(3600 * 1000, 7 * 24 * 3600 * 1000)); // 1 hour to 7 days ago
             comments.push({
                 id: `gen_comment_${i}_${Date.now()}`,
-                text: `<p>${commentTexts[i]}</p>`,
-                authorID: author.id,
-                parentID: post.id,
-                rootID: post.id,
                 installationID: post.channelID,
+                parentID: post.id,
                 parentType: "post",
+                author, // Embed full author object
+                authorID: author.id,
+                published: true,
+                status: "PUBLISHED",
+                text: `<p>${commentTexts[i]}</p>`,
+                reportsCount: 0,
+                rootID: post.id,
                 entityType: "comment",
-                created: commentDate.toISOString(),
+                created: createdDate.toISOString(),
+                updated: new Date(createdDate.getTime() + rand(1000, 60000)).toISOString(),
+                links: {},
                 rights: ["DELETE", "MODIFY"]
             });
         }
@@ -115,84 +121,20 @@
         return dashboardCache.comments;
     }
     
-    // FIX: Function rewritten to match the correct data structure
-    function generatePageRankings() {
-        const pageData = [
-            { id: `page_${rand(1000,9999)}`, title: "Home" },
-            { id: `page_${rand(1000,9999)}`, title: "Company Directory" },
-            { id: `page_${rand(1000,9999)}`, title: "IT Helpdesk" },
-            { id: `page_${rand(1000,9999)}`, title: "My Benefits" },
-            { id: `page_${rand(1000,9999)}`, title: "Submit Expense Report" }
-        ];
-
-        const entitiesContents = {};
-        pageData.forEach(page => {
-            entitiesContents[page.id] = { ...page, link: `/content/page/${page.id}` };
-        });
-
-        const ranking = pageData.map(page => ({
-            group: { contentId: page.id, contentType: "page" },
-            registeredVisitors: rand(50, 150),
-            registeredVisits: rand(150, 500),
-            unregisteredVisitors: 0,
-            unregisteredVisits: 0
-        })).sort((a, b) => b.registeredVisits - a.registeredVisits);
-
-        return {
-            entities: { contents: entitiesContents },
-            ranking: ranking,
-            contentType: { "page": { "id": "page", "icon": "n", "title": "Pages" } }
-        };
-    }
-
-    // NEW: Function to generate rankings for posts
-    function generatePostRankings() {
-        const posts = dashboardCache.posts || generateFakePosts();
-        if (!posts || posts.length === 0) return { entities: { contents: {} }, ranking: [] };
-
-        const entitiesContents = {};
-        posts.forEach(post => {
-            entitiesContents[post.id] = { id: post.id, title: post.contents.en_US.title, link: `/content/news/article/${post.id}` };
-        });
-
-        const ranking = posts.map(post => ({
-            group: { contentId: post.id, contentType: "post" },
-            // FIX: Ensure every post has at least 5 visitors
-            registeredVisitors: rand(5, 75),
-            registeredVisits: rand(10, 200),
-            unregisteredVisitors: 0,
-            unregisteredVisits: 0
-        })).sort((a, b) => b.registeredVisitors - a.registeredVisitors).slice(0, 5); // Take top 5
-
-        return {
-            entities: { contents: entitiesContents },
-            ranking: ranking,
-            contentType: { "post": { "id": "post", "icon": "n", "title": "Posts" } } // Mimic structure
-        };
-    }
-
-    function getOrGeneratePostStats(postId) {
-        if (dashboardCache.postStats[postId]) return dashboardCache.postStats[postId];
-        const visitors = rand(5, 50);
-        dashboardCache.postStats[postId] = {
-            registeredVisitors: visitors,
-            registeredVisits: visitors + rand(5, 50),
-            comments: rand(0, 8),
-            likes: rand(2, 30),
-            newPosts: 1,
-            shares: 0
-        };
-        return dashboardCache.postStats[postId];
-    }
+    function generatePageRankings() { /* ... unchanged ... */ return { entities: { contents: { "page_1": { id: "page_1", title: "Home", link: "/content/page/page_1" }, "page_2": { id: "page_2", title: "Directory", link: "/content/page/page_2" } } }, ranking: [{ group: { contentId: "page_1", contentType: "page" }, registeredVisitors: rand(50, 150), registeredVisits: rand(150, 500), unregisteredVisitors: 0, unregisteredVisits: 0 }, { group: { contentId: "page_2", contentType: "page" }, registeredVisitors: rand(40, 100), registeredVisits: rand(100, 300), unregisteredVisitors: 0, unregisteredVisits: 0 }], contentType: { "page": { "id": "page", "icon": "n", "title": "Pages" } } }; }
+    function generatePostRankings() { /* ... unchanged ... */ const p=dashboardCache.posts||generateFakePosts();if(!p||p.length===0)return{entities:{contents:{}},ranking:[]};const e={};p.forEach(t=>{e[t.id]={id:t.id,title:t.contents.en_US.title,link:`/content/news/article/${t.id}`}});const n=p.map(t=>({group:{contentId:t.id,contentType:"post"},registeredVisitors:rand(5,75),registeredVisits:rand(10,200),unregisteredVisitors:0,unregisteredVisits:0})).sort((t,o)=>o.registeredVisitors-t.registeredVisitors).slice(0,5);return{entities:{contents:e},ranking:n,contentType:{post:{id:"post",icon:"n",title:"Posts"}}}; }
+    function generateCustomPostRankings() { /* ... unchanged ... */ const p=dashboardCache.posts||generateFakePosts();if(!p||p.length===0)return{ranking:[]};const r=p.slice(0,4).map(t=>({id:t.id,visitors:rand(5,75),potentialVisitors:rand(250,300)}));return{ranking:r}; }
 
     // --- API Interception ---
     const TARGET_API_URLS = {
         POSTS: '/api/posts',
         COMMENTS: '/api/comments',
+        // FIX: Regex to specifically catch generated post detail requests
+        POST_DETAIL: /^\/api\/posts\/(gen_post_[a-zA-Z0-9_]+)$/,
         USER_STATUS: '/api/branch/analytics/users/status',
         USERS_COUNT_BY_STATUS: /^\/api\/branch\/analytics\/users\/countByStatus/,
         RANKINGS: /^\/api\/branch\/analytics\/contents\/rankings/,
-        POST_STATS: /^\/api\/branch\/analytics\/posts\/stats/
+        CUSTOM_POST_RANKINGS: /^\/api\/branch\/analytics\/posts\/rankings\/custom/
     };
 
     const injectedDashboardCustomFetch = async function(...args) {
@@ -203,49 +145,69 @@
         try {
             urlPath = new URL(requestFullUrl, window.location.origin).pathname;
         } catch (e) {
-            if (requestFullUrl.startsWith('/')) {
-                urlPath = requestFullUrl.split('?')[0];
-            } else {
-                return pageContextOriginalFetch.apply(this, args);
-            }
+            urlPath = requestFullUrl.startsWith('/') ? requestFullUrl.split('?')[0] : '';
         }
 
         try {
+            // FIX: New interception for individual generated post details
+            const postDetailMatch = urlPath.match(TARGET_API_URLS.POST_DETAIL);
+            if (postDetailMatch) {
+                const postId = postDetailMatch[1];
+                console.log(INJECTED_LOG_PREFIX, `Intercepting DETAIL for generated post: ${postId}`);
+                const posts = dashboardCache.posts || generateFakePosts(); // Ensure cache is populated
+                const post = posts.find(p => p.id === postId);
+                if (post) {
+                    return new Response(JSON.stringify(post), { status: 200, headers: {'Content-Type': 'application/json'} });
+                }
+                // If not found for some reason, return a 404
+                return new Response(JSON.stringify({ message: `Generated post ${postId} not found in cache.` }), { status: 404, headers: {'Content-Type': 'application/json'} });
+            }
+
+            // This must come AFTER the POST_DETAIL check
             if (urlPath.endsWith(TARGET_API_URLS.POSTS)) {
-                console.log(INJECTED_LOG_PREFIX, 'Intercepting POSTS');
                 const originalResponse = await pageContextOriginalFetch.apply(this, args);
-                if (!originalResponse.ok) throw new Error(`Original failed: ${originalResponse.status}`);
-                const data = await originalResponse.clone().json();
-                if (data && data.total > 0) {
-                    dashboardCache.posts = data.data;
-                    return originalResponse; 
+                if (originalResponse.ok) {
+                    const data = await originalResponse.clone().json();
+                    if (data && data.total > 0) {
+                        dashboardCache.posts = data.data;
+                        return originalResponse; 
+                    }
                 }
                 const fakePosts = generateFakePosts();
-                return new Response(JSON.stringify({ total: fakePosts.length, data: fakePosts }), { status: 200, headers: {'Content-Type': 'application/json'} });
+                return new Response(JSON.stringify({ total: fakePosts.length, data: fakePosts, links: {} }), { status: 200, headers: {'Content-Type': 'application/json'} });
             }
             
             if (urlPath.endsWith(TARGET_API_URLS.COMMENTS)) {
-                console.log(INJECTED_LOG_PREFIX, 'Intercepting COMMENTS');
                 const originalResponse = await pageContextOriginalFetch.apply(this, args);
-                if (!originalResponse.ok) throw new Error(`Original failed: ${originalResponse.status}`);
-                const data = await originalResponse.clone().json();
-                if (data && data.total > 0) return originalResponse;
+                if (originalResponse.ok) {
+                    const data = await originalResponse.clone().json();
+                    if (data && data.total > 0) {
+                         // Add full author object to real comments for UI consistency
+                        const users = generateFakeUsers();
+                        data.data.forEach(comment => {
+                           comment.author = users.find(u => u.id.endsWith(comment.authorID.slice(-1))) || users[0];
+                        });
+                        return new Response(JSON.stringify(data), { status: 200, headers: {'Content-Type': 'application/json'} });
+                    }
+                }
                 const fakeComments = generateFakeComments();
-                return new Response(JSON.stringify({ total: fakeComments.length, data: fakeComments }), { status: 200, headers: {'Content-Type': 'application/json'} });
+                return new Response(JSON.stringify({ total: fakeComments.length, data: fakeComments, links: {} }), { status: 200, headers: {'Content-Type': 'application/json'} });
+            }
+
+            if (TARGET_API_URLS.CUSTOM_POST_RANKINGS.test(urlPath)) {
+                console.log(INJECTED_LOG_PREFIX, 'Intercepting CUSTOM POST RANKINGS');
+                const fakeData = generateCustomPostRankings();
+                return new Response(JSON.stringify(fakeData), { status: 200, headers: {'Content-Type': 'application/json'} });
             }
             
             if (TARGET_API_URLS.RANKINGS.test(urlPath)) {
                 const urlParams = getUrlParams(requestFullUrl);
                 const filter = decodeURIComponent(urlParams.filter || '');
-                // NEW: Handle post rankings specifically
                 if (filter.includes('contentType%20eq%20%22post%22')) {
-                    console.log(INJECTED_LOG_PREFIX, 'Intercepting POST RANKINGS');
                     const fakeData = generatePostRankings();
                     return new Response(JSON.stringify(fakeData), { status: 200, headers: {'Content-Type': 'application/json'} });
                 }
-                // Handle page rankings
                 if (filter.includes('contentType%20eq%20%22page%22')) {
-                    console.log(INJECTED_LOG_PREFIX, 'Intercepting PAGE RANKINGS');
                     const fakeData = generatePageRankings();
                     return new Response(JSON.stringify(fakeData), { status: 200, headers: {'Content-Type': 'application/json'} });
                 }
@@ -257,22 +219,6 @@
             
             if (TARGET_API_URLS.USERS_COUNT_BY_STATUS.test(urlPath)) {
                 return new Response(JSON.stringify({ "count": rand(2, 10) }), { status: 200, headers: {'Content-Type': 'application/json'} });
-            }
-
-            if (TARGET_API_URLS.POST_STATS.test(urlPath)) {
-                const urlParams = getUrlParams(requestFullUrl);
-                const filter = decodeURIComponent(urlParams.filter || '');
-                const postIdMatch = filter.match(/postId eq "([^"]+)"/);
-                if (postIdMatch && postIdMatch[1]) {
-                    const postId = postIdMatch[1];
-                    const originalResponse = await pageContextOriginalFetch.apply(this, args);
-                    if (originalResponse.ok) {
-                        const realStats = await originalResponse.clone().json();
-                        if (realStats && realStats.registeredVisitors > 0) return originalResponse;
-                    }
-                    const fakeData = getOrGeneratePostStats(postId);
-                    return new Response(JSON.stringify(fakeData), { status: 200, headers: {'Content-Type': 'application/json'} });
-                }
             }
 
         } catch (err) {

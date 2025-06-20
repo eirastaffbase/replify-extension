@@ -79,6 +79,10 @@ let userPatchCurrentlyActive = false;
 const REPLIFY_USER_LOG_PREFIX = '[Replify UserPatchCS]:';
 const REPLIFY_USER_INJECTED_SCRIPT_ID = 'replify-user-fetch-override-script';
 
+let searchPatchCurrentlyActive = false;
+const REPLIFY_SEARCH_LOG_PREFIX = '[Replify UserPatchCS]:';
+const REPLIFY_SEARCH_INJECTED_SCRIPT_ID = 'replify-search-fetch-override-script';
+
 
 
 // --- PATCH MANAGEMENT DEFINITION ---
@@ -103,6 +107,9 @@ const PATCH_INFO_DEFINITIONS = {
     },
     user: {
         urlCheck: (pathname) => pathname.includes("/admin/analytics/users")
+    },
+    search: {
+        urlCheck: (pathname) => pathname.includes("/studio/analytics/search")
     }
 };
 
@@ -260,6 +267,23 @@ function applyUserPatch() {
     userPatchCurrentlyActive = true;
 }
 
+// --- SEARCH PATCH ---
+function applySearchPatch() {
+    if (!PATCH_INFO_DEFINITIONS.search.urlCheck(window.location.pathname)) return;
+    if (searchPatchCurrentlyActive) return;
+
+    console.log(REPLIFY_SEARCH_LOG_PREFIX, "Applying Search Patch via SCRIPT SRC INJECTION...");
+    const oldScriptElement = document.getElementById(REPLIFY_SEARCH_INJECTED_SCRIPT_ID);
+    if (oldScriptElement) oldScriptElement.remove();
+    const scriptElement = document.createElement('script');
+    scriptElement.id = REPLIFY_SEARCH_INJECTED_SCRIPT_ID;
+    scriptElement.src = chrome.runtime.getURL('content/analytics/search.js');
+    scriptElement.onload = () => console.log(REPLIFY_SEARCH_LOG_PREFIX, "Injected search.js loaded.");
+    scriptElement.onerror = () => console.error(REPLIFY_SEARCH_LOG_PREFIX, "ERROR loading injected email.js.");
+    (document.head || document.documentElement).appendChild(scriptElement);
+    searchPatchCurrentlyActive = true;
+}
+
 
 // --- PATCH MANAGEMENT ---
 const PATCH_INFO = {
@@ -304,6 +328,12 @@ const PATCH_INFO = {
         apply: applyUserPatch,
         logPrefix: REPLIFY_USER_LOG_PREFIX,
         urlCheck: PATCH_INFO_DEFINITIONS.user.urlCheck
+    },
+    search: {
+        isActive: () => searchPatchCurrentlyActive,
+        apply: applySearchPatch,
+        logPrefix: REPLIFY_SEARCH_LOG_PREFIX,
+        urlCheck: PATCH_INFO_DEFINITIONS.search.urlCheck
     }
 };
 
