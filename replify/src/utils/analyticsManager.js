@@ -25,6 +25,9 @@ export const getInitialAnalyticsStateFromStorage = () => {
     campaigns: false,
     posts: false,
     email: false,
+    dashboard: false,
+    user: false, 
+    pages: false,
   };
   try {
     const { redirectAnalyticsState } =

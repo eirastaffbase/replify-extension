@@ -25,6 +25,9 @@ const getDefaultAnalyticsState = () => {
     campaigns: false,
     posts: false,
     email: false,
+    dashboard: false,
+    user: false, 
+    pages: false,
     // Add all your analytics types here, initialized to false
   };
 };
