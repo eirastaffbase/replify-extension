@@ -400,7 +400,6 @@
                     Math.floor(totalEngaged * (w / totalWeight))
                   );
     
-                  // Correct rounding errors
                   let visitorSum = distributedVisitors.reduce((s, v) => s + v, 0);
                   let engagedSum = distributedEngaged.reduce((s, v) => s + v, 0);
                   if (distributedVisitors.length > 0)

@@ -71,6 +71,15 @@ let hashtagsPatchCurrentlyActive = false;
 const REPLIFY_HASHTAGS_LOG_PREFIX = '[Replify HashtagsPatchCS]:';
 const REPLIFY_HASHTAGS_INJECTED_SCRIPT_ID = 'replify-hashtags-fetch-override-script';
 
+let dashboardPatchCurrentlyActive = false;
+const REPLIFY_DASHBOARD_LOG_PREFIX = '[Replify DashboardPatchCS]:';
+const REPLIFY_DASHBOARD_INJECTED_SCRIPT_ID = 'replify-dashboard-fetch-override-script';
+
+let userPatchCurrentlyActive = false;
+const REPLIFY_USER_LOG_PREFIX = '[Replify UserPatchCS]:';
+const REPLIFY_USER_INJECTED_SCRIPT_ID = 'replify-user-fetch-override-script';
+
+
 
 // --- PATCH MANAGEMENT DEFINITION ---
 const PATCH_INFO_DEFINITIONS = {
@@ -88,6 +97,12 @@ const PATCH_INFO_DEFINITIONS = {
     },
     hashtags: {
         urlCheck: (pathname) => pathname.includes("/studio/analytics/hashtags")
+    },
+    dashboard: {
+        urlCheck: (pathname) => pathname.endsWith("/studio")
+    },
+    user: {
+        urlCheck: (pathname) => pathname.includes("/admin/analytics/users")
     }
 };
 
@@ -211,6 +226,41 @@ function applyHashtagsPatch() {
     hashtagsPatchCurrentlyActive = true;
 }
 
+// --- DASHBOARD PATCH ---
+function applyDashboardPatch() {
+    if (!PATCH_INFO_DEFINITIONS.dashboard.urlCheck(window.location.pathname)) return;
+    if (dashboardPatchCurrentlyActive) return;
+
+    console.log(REPLIFY_DASHBOARD_LOG_PREFIX, "Applying Dashboard Patch via SCRIPT SRC INJECTION...");
+    const oldScriptElement = document.getElementById(REPLIFY_DASHBOARD_INJECTED_SCRIPT_ID);
+    if (oldScriptElement) oldScriptElement.remove();
+    const scriptElement = document.createElement('script');
+    scriptElement.id = REPLIFY_DASHBOARD_INJECTED_SCRIPT_ID;
+    scriptElement.src = chrome.runtime.getURL('content/analytics/dashboard.js');
+    scriptElement.onload = () => console.log(REPLIFY_DASHBOARD_LOG_PREFIX, "Injected dashboard.js loaded.");
+    scriptElement.onerror = () => console.error(REPLIFY_DASHBOARD_LOG_PREFIX, "ERROR loading injected email.js.");
+    (document.head || document.documentElement).appendChild(scriptElement);
+    dashboardPatchCurrentlyActive = true;
+}
+
+// --- USER PATCH ---
+function applyUserPatch() {
+    if (!PATCH_INFO_DEFINITIONS.user.urlCheck(window.location.pathname)) return;
+    if (userPatchCurrentlyActive) return;
+
+    console.log(REPLIFY_USER_LOG_PREFIX, "Applying User Patch via SCRIPT SRC INJECTION...");
+    const oldScriptElement = document.getElementById(REPLIFY_USER_INJECTED_SCRIPT_ID);
+    if (oldScriptElement) oldScriptElement.remove();
+    const scriptElement = document.createElement('script');
+    scriptElement.id = REPLIFY_USER_INJECTED_SCRIPT_ID;
+    scriptElement.src = chrome.runtime.getURL('content/analytics/user.js');
+    scriptElement.onload = () => console.log(REPLIFY_USER_LOG_PREFIX, "Injected user.js loaded.");
+    scriptElement.onerror = () => console.error(REPLIFY_USER_LOG_PREFIX, "ERROR loading injected email.js.");
+    (document.head || document.documentElement).appendChild(scriptElement);
+    userPatchCurrentlyActive = true;
+}
+
+
 // --- PATCH MANAGEMENT ---
 const PATCH_INFO = {
     campaigns: {
@@ -242,6 +292,18 @@ const PATCH_INFO = {
         apply: applyHashtagsPatch,
         logPrefix: REPLIFY_HASHTAGS_LOG_PREFIX,
         urlCheck: PATCH_INFO_DEFINITIONS.hashtags.urlCheck
+    },
+    dashboard: {
+        isActive: () => dashboardPatchCurrentlyActive,
+        apply: applyDashboardPatch,
+        logPrefix: REPLIFY_DASHBOARD_LOG_PREFIX,
+        urlCheck: PATCH_INFO_DEFINITIONS.dashboard.urlCheck
+    },
+    user: {
+        isActive: () => userPatchCurrentlyActive,
+        apply: applyUserPatch,
+        logPrefix: REPLIFY_USER_LOG_PREFIX,
+        urlCheck: PATCH_INFO_DEFINITIONS.user.urlCheck
     }
 };
 
