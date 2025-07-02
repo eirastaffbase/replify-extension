@@ -16,6 +16,10 @@
     }
     // console.log(INJECTED_LOG_PREFIX, 'pageContextOriginalFetch captured by news injected script.');
 
+    // This object will hold the metrics of the first timeseries call to be used as a baseline for the second call.
+    let comparisonTimeseriesData = null;
+    const COMPARISON_CACHE_DURATION_MS = 10 * 1000; // 10 seconds to catch the subsequent comparison call
+
     const SESSION_STORAGE_KEY = 'replifyNewsAnalyticsBaseline';
     const BASELINE_CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
 
@@ -46,15 +50,6 @@
         const untilInput = decodeURIComponent(untilStr);
         let since = new Date(sinceInput);
         let until = new Date(untilInput);
-
-        // Handle cases where timezone might make 'until' seem before 'since' on the same day for short periods
-        if (until < since && (until.toDateString() === since.toDateString() || new Date(until.getTime() + 24*60*60*1000) > since) ) {
-           // If 'until' is on the same day as 'since' but earlier time, or very close, adjust 'until' to end of its day for calculation.
-           // Or if 'until' is slightly before 'since' due to timezone parsing for 'today' or 'yesterday' ranges
-           // A common pattern for "today" might be since=T00:00:00 and until=Tcurrent_time.
-           // For "yesterday", since=YESTERDAY_T00:00:00, until=YESTERDAY_T23:59:59
-           // If 'until' is the current time on the same day as 'since', this calculation is fine.
-        }
         
         if (isNaN(since.getTime()) || isNaN(until.getTime()) || until < since) {
             console.warn(INJECTED_LOG_PREFIX, `Date parsing issue or until<since. since: ${sinceInput}, until: ${untilInput}. Defaulting to ~1 day.`);
@@ -68,7 +63,7 @@
         const millisPerHour = millisPerMinute * 60;
         const millisPerDay = millisPerHour * 24;
 
-        const durationMillis = Math.max(millisPerHour, until - since); // Ensure at least 1 hour duration for calculations
+        const durationMillis = Math.max(millisPerHour, until - since); // Ensure at least 1 hour duration
 
         const hours = Math.max(1, Math.ceil(durationMillis / millisPerHour));
         const days = Math.max(1, Math.ceil(durationMillis / millisPerDay));
@@ -94,7 +89,7 @@
         return { filterCount, reductionFactor };
     }
 
-    function getBaselineYearlyMetrics() { /* ... same as before, but ensure all relevant metrics are here ... */
+    function getBaselineYearlyMetrics() { /* ... same as before ... */
         try {
             const cached = sessionStorage.getItem(SESSION_STORAGE_KEY);
             if (cached) {
@@ -114,26 +109,58 @@
         metrics.registeredVisits = Math.round(metrics.registeredVisitors * randFloat(2.5, 5.0));
         metrics.unregisteredVisits = Math.round(metrics.unregisteredVisitors * randFloat(1.5, 3.0));
         
-        const interactionBaseVisitors = metrics.registeredVisitors; // Base interactions on visitors
-        metrics.likes = Math.round(interactionBaseVisitors * randFloat(0.15, 0.35)); // Increased likelihood of likes
-        metrics.comments = Math.round(interactionBaseVisitors * randFloat(0.03, 0.15)); // Increased comments
-        metrics.shares = Math.round(interactionBaseVisitors * randFloat(0.01, 0.08)); // Increased shares
+        const interactionBaseVisitors = metrics.registeredVisitors;
+        metrics.likes = Math.round(interactionBaseVisitors * randFloat(0.15, 0.35));
+        metrics.comments = Math.round(interactionBaseVisitors * randFloat(0.03, 0.15));
+        metrics.shares = Math.round(interactionBaseVisitors * randFloat(0.01, 0.08));
 
         metrics.publishedPostsUnique = metrics.newPosts;
         metrics.publishedPosts = Math.round(metrics.publishedPostsUnique * randFloat(1.0, 1.2));
-        metrics.interactedPostsUnique = Math.round(metrics.publishedPostsUnique * randFloat(0.7, 0.95)); // Most posts get some interaction
+        metrics.interactedPostsUnique = Math.round(metrics.publishedPostsUnique * randFloat(0.7, 0.95));
 
         try {
             sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ metrics, timestamp: Date.now() }));
         } catch (e) { console.error(INJECTED_LOG_PREFIX, "Error writing to session storage:", e); }
         return metrics;
     }
+    
+    /**
+     * Generates metrics for the comparison (past) period, ensuring they are lower
+     * than the current period's metrics to show a positive trend.
+     * @param {object} currentPeriodMetrics The metrics generated for the recent time period.
+     * @returns {object} A new metrics object with intentionally reduced values.
+     */
+    function generateLowerComparisonMetrics(currentPeriodMetrics) {
+        const result = {};
+        // Make past data 65-85% of current data, which creates a 15-35% increase.
+        const reductionMin = 0.65;
+        const reductionMax = 0.85;
+
+        for (const key in currentPeriodMetrics) {
+            const baseValue = currentPeriodMetrics[key];
+            if (typeof baseValue === 'number') {
+                result[key] = Math.floor(baseValue * randFloat(reductionMin, reductionMax));
+            } else {
+                result[key] = baseValue; // Copy non-numeric properties
+            }
+        }
+        
+        // Ensure logical consistency after reduction
+        result.registeredVisits = Math.max(result.registeredVisits, result.registeredVisitors);
+        result.unregisteredVisits = Math.max(result.unregisteredVisits, result.unregisteredVisitors);
+        result.interactedPostsUnique = Math.min(result.interactedPostsUnique, result.publishedPostsUnique);
+        
+        if (result.registeredVisitors === 0) {
+            result.likes = 0; result.comments = 0; result.shares = 0; result.interactedPostsUnique = 0;
+        }
+
+        return result;
+    }
 
     function generateMetricsForPeriodAndFilters(periodUnits, filterReduction) {
         const yearlyBaseline = getBaselineYearlyMetrics();
-        // Use hours for scaling if period is less than a day, otherwise days.
         const isShortPeriod = periodUnits.days <= 1;
-        const basePeriodUnit = isShortPeriod ? (365 * 24) : 365; // Yearly baseline in hours or days
+        const basePeriodUnit = isShortPeriod ? (365 * 24) : 365;
         const currentPeriodUnit = isShortPeriod ? periodUnits.hours : periodUnits.days;
         
         const scalingFactor = currentPeriodUnit / basePeriodUnit;
@@ -143,45 +170,27 @@
             result[key] = Math.round(yearlyBaseline[key] * scalingFactor * filterReduction * randFloat(0.80, 1.20));
             result[key] = Math.max(0, result[key]);
         }
-
-        // Ensure some minimums, especially for interactions on short periods
-        const minVisitors = (periodUnits.days <=1 && periodUnits.hours > 0) ? rand(0,3) : rand(1,10);
-        result.registeredVisitors = Math.max(result.registeredVisitors, minVisitors);
-        result.registeredVisits = Math.max(result.registeredVisits, result.registeredVisitors * rand(1,2));
         
-        result.newPosts = Math.max(result.newPosts, (periodUnits.days <=1 && Math.random() < 0.3) ? 1 : 0 ); // Chance of 1 new post for <=1 day
-        if (periodUnits.days > 1 && periodUnits.days <= 7) result.newPosts = Math.max(result.newPosts, rand(0,2));
-
-
+        // Ensure logical consistencies and minimums
+        result.registeredVisitors = Math.max(result.registeredVisitors, (periodUnits.days <= 1 ? rand(0,3) : rand(1,10)));
+        result.registeredVisits = Math.max(result.registeredVisits, result.registeredVisitors * rand(1,2));
+        result.newPosts = Math.max(result.newPosts, (periodUnits.days <= 7 && Math.random() < 0.3) ? rand(0,2) : 0 );
         result.publishedPostsUnique = Math.max(result.publishedPostsUnique, result.newPosts);
         result.publishedPosts = Math.max(result.publishedPosts, result.publishedPostsUnique);
-
+        
         if (result.registeredVisitors > 0) {
             result.likes = Math.max(result.likes, rand(0, Math.floor(result.registeredVisitors * 0.15) +1));
             result.comments = Math.max(result.comments, rand(0, Math.floor(result.registeredVisitors * 0.05)+1));
-            result.shares = Math.max(result.shares, rand(0, Math.floor(result.registeredVisitors * 0.02)+1));
-            result.interactedPostsUnique = Math.max(
-                result.interactedPostsUnique, 
-                (result.likes > 0 || result.comments > 0 || result.shares > 0) ? Math.max(1, result.newPosts > 0 ? 1: 0) : 0
-            );
-        } else { // If no visitors, no interactions
+        } else {
             result.likes = 0; result.comments = 0; result.shares = 0; result.interactedPostsUnique = 0;
         }
         
-        // Logical consistencies
-        result.unregisteredVisits = Math.max(result.unregisteredVisits, result.unregisteredVisitors);
         result.interactedPostsUnique = Math.min(result.interactedPostsUnique, result.publishedPostsUnique);
-        result.likes = Math.min(result.likes, result.registeredVisitors * 3); // Allow multiple likes from same visitor over time concept
-        result.comments = Math.min(result.comments, result.registeredVisitors * 2);
-        result.shares = Math.min(result.shares, result.registeredVisitors);
-
-
         return result;
     }
 
 
     const injectedNewsCustomFetch = async function(...args) {
-        // ... (URL parsing and endpoint matching as before) ...
         const resource = args[0];
         const requestFullUrl = typeof resource === 'string' ? resource : resource.url;
         let urlPath = '';
@@ -205,8 +214,27 @@
 
         if (matchedEndpointKey) {
             const dateMetrics = calculateDateMetrics(urlParams.since, urlParams.until);
-            const { filterCount, reductionFactor } = parseFilters(requestFullUrl);
-            const periodMetrics = generateMetricsForPeriodAndFilters(dateMetrics, reductionFactor);
+            const { reductionFactor } = parseFilters(requestFullUrl);
+            let periodMetrics;
+
+            // This is the core logic change for ensuring upward trends.
+            if (matchedEndpointKey === 'TIMESERIES') {
+                // Check if this is the second call in a pair (the "past" period).
+                if (comparisonTimeseriesData && (Date.now() - comparisonTimeseriesData.timestamp < COMPARISON_CACHE_DURATION_MS)) {
+                    // It is the second call. Generate lower metrics based on the stored "current" data.
+                    periodMetrics = generateLowerComparisonMetrics(comparisonTimeseriesData.metrics);
+                    // Clear the cache to reset the sequence.
+                    comparisonTimeseriesData = null;
+                } else {
+                    // It is the first call (the "current" period). Generate metrics normally.
+                    periodMetrics = generateMetricsForPeriodAndFilters(dateMetrics, reductionFactor);
+                    // Save these metrics to be used by the next comparison call.
+                    comparisonTimeseriesData = { metrics: periodMetrics, timestamp: Date.now() };
+                }
+            } else {
+                // For other endpoints ('RANKINGS', 'INTERACTIONS'), generate metrics as usual without comparison logic.
+                periodMetrics = generateMetricsForPeriodAndFilters(dateMetrics, reductionFactor);
+            }
 
             try {
                 const response = await pageContextOriginalFetch.apply(this, args);
@@ -228,57 +256,41 @@
 
                     case 'TIMESERIES':
                         modifiedData.timeseries = [];
-                        const groupBy = urlParams.groupBy || 'day'; // day, week, month, hour
+                        const groupBy = urlParams.groupBy || 'day';
                         let numIntervals = 0;
                         
                         if (groupBy === 'hour') numIntervals = dateMetrics.hours;
                         else if (groupBy === 'day') numIntervals = dateMetrics.days;
                         else if (groupBy === 'week') numIntervals = dateMetrics.weeks;
                         else if (groupBy === 'month') numIntervals = dateMetrics.months;
-                        else numIntervals = dateMetrics.days; // Default for unknown groupBy
+                        else numIntervals = dateMetrics.days;
 
-                        numIntervals = Math.max(1, Math.min(numIntervals, 100)); // Cap intervals to prevent huge arrays
-
+                        numIntervals = Math.max(1, Math.min(numIntervals, 100));
                         let currentDate = new Date(dateMetrics.sinceDate);
                         const tempTotals = { ...periodMetrics };
 
                         for (let i = 0; i < numIntervals; i++) {
-                            const dateGroup = {
+                             const dateGroup = {
                                 hour: groupBy === 'hour' ? currentDate.getUTCHours() : undefined,
-                                day: (groupBy === 'hour' || groupBy === 'day' || groupBy === 'week') ? currentDate.getUTCDate() : 1, // Day 1 for month grouping
-                                month: (groupBy !== 'year') ? currentDate.getUTCMonth() + 1 : 1, // Month 1 for year grouping
+                                day: (groupBy === 'hour' || groupBy === 'day' || groupBy === 'week') ? currentDate.getUTCDate() : 1,
+                                month: (groupBy !== 'year') ? currentDate.getUTCMonth() + 1 : 1,
                                 year: currentDate.getUTCFullYear()
                             };
-                            // Remove undefined fields from dateGroup
                             Object.keys(dateGroup).forEach(key => dateGroup[key] === undefined && delete dateGroup[key]);
-
 
                             let groupData = {};
                             const metricKeys = ['registeredVisitors', 'registeredVisits', 'unregisteredVisitors', 'unregisteredVisits', 'newPosts', 'comments', 'likes', 'shares'];
                             
                             metricKeys.forEach(key => {
-                                let share;
-                                if (periodMetrics[key] === 0) {
-                                    share = 0;
-                                } else if (numIntervals === 0) { // Avoid division by zero
-                                    share = (i === 0) ? tempTotals[key] : 0;
-                                } else {
-                                    share = (i === numIntervals - 1) ? tempTotals[key] : Math.round(periodMetrics[key] / numIntervals * randFloat(0.6, 1.4));
-                                }
+                                let share = (i === numIntervals - 1) ? tempTotals[key] : Math.round(periodMetrics[key] / numIntervals * randFloat(0.6, 1.4));
                                 groupData[key] = Math.max(0, share);
                                 tempTotals[key] = Math.max(0, tempTotals[key] - groupData[key]);
                             });
                             
                             groupData.registeredVisits = Math.max(groupData.registeredVisits, groupData.registeredVisitors);
-                            groupData.unregisteredVisits = Math.max(groupData.unregisteredVisits, groupData.unregisteredVisitors);
-                            if (groupData.registeredVisitors > 0) { // Ensure interactions only if visitors
-                                groupData.likes = Math.min(groupData.likes, groupData.registeredVisitors * 2);
-                                groupData.comments = Math.min(groupData.comments, groupData.registeredVisitors);
-                                groupData.shares = Math.min(groupData.shares, groupData.registeredVisitors);
-                            } else {
+                            if (groupData.registeredVisitors <= 0) {
                                 groupData.likes = 0; groupData.comments = 0; groupData.shares = 0;
                             }
-
 
                             modifiedData.timeseries.push({ group: dateGroup, ...groupData });
 
@@ -292,54 +304,26 @@
                         break;
 
                     case 'RANKINGS':
-                        modifiedData.entities = (originalJsonData && originalJsonData.entities) ? originalJsonData.entities : { contents: {}, posts: {}, spaces: {} };
+                        modifiedData.entities = originalJsonData.entities || { contents: {}, posts: {}, spaces: {} };
                         modifiedData.ranking = [];
-                        const existingRankingItems = (originalJsonData && Array.isArray(originalJsonData.ranking)) ? originalJsonData.ranking : [];
+                        const existingRankingItems = originalJsonData.ranking || [];
                         
                         if (existingRankingItems.length > 0) {
-                            const numItemsToProcess = existingRankingItems.length;
                             let remainingMetrics = { ...periodMetrics }; 
-
                             existingRankingItems.forEach((item, index) => {
                                 const itemMetrics = {};
-                                const metricKeysForRanking = ['registeredVisitors', 'registeredVisits', 'comments', 'likes', 'shares']; // 'newPosts' might not fit per item here
+                                const metricKeysForRanking = ['registeredVisitors', 'registeredVisits', 'comments', 'likes', 'shares'];
                                 
                                 metricKeysForRanking.forEach(key => {
-                                    let share;
-                                     if (periodMetrics[key] === 0) {
-                                        share = 0;
-                                    } else if (numItemsToProcess === 0) {
-                                        share = 0;
-                                    }
-                                     else {
-                                        share = (index === numItemsToProcess - 1) ? remainingMetrics[key] : Math.round(periodMetrics[key] / numItemsToProcess * randFloat(0.5, 1.5));
-                                    }
+                                    let share = (index === existingRankingItems.length - 1) ? remainingMetrics[key] : Math.round(periodMetrics[key] / existingRankingItems.length * randFloat(0.5, 1.5));
                                     itemMetrics[key] = Math.max(0, share);
                                     remainingMetrics[key] = Math.max(0, remainingMetrics[key] - itemMetrics[key]);
                                 });
-                                // Add missing metrics that are usually 0 in ranking but expected in schema
-                                itemMetrics.unregisteredVisitors = 0;
-                                itemMetrics.unregisteredVisits = 0;
-                                itemMetrics.newPosts = item.group.postId && periodMetrics.newPosts > 0 && Math.random() < (1/numItemsToProcess * periodMetrics.newPosts) ? 1 : 0;
-
-
+                                
                                 itemMetrics.registeredVisits = Math.max(itemMetrics.registeredVisits, itemMetrics.registeredVisitors);
-                                if (itemMetrics.registeredVisitors > 0) {
-                                    itemMetrics.likes = Math.min(itemMetrics.likes, itemMetrics.registeredVisitors * 2);
-                                    itemMetrics.comments = Math.min(itemMetrics.comments, itemMetrics.registeredVisitors);
-                                    itemMetrics.shares = Math.min(itemMetrics.shares, itemMetrics.registeredVisitors);
-                                } else {
-                                   itemMetrics.likes = 0; itemMetrics.comments = 0; itemMetrics.shares = 0;
-                                }
-
-
-                                modifiedData.ranking.push({
-                                    group: item.group, 
-                                    ...itemMetrics
-                                });
+                                modifiedData.ranking.push({ group: item.group, ...itemMetrics });
                             });
-                        } 
-                        // If originalJsonData.ranking is empty, modifiedData.ranking remains []
+                        }
                         break;
                 }
                 
@@ -349,7 +333,6 @@
 
             } catch (err) {
                 console.error(INJECTED_LOG_PREFIX + ` Error during data generation for ${requestFullUrl}:`, err);
-                // Fallback for errors
                 const emptyResponses = {
                     TIMESERIES: {timeseries:[]},
                     RANKINGS: {entities:{contents:{},posts:{},spaces:{}}, ranking:[]},
@@ -365,7 +348,7 @@
     window.__REPLIFY_NEWS_FETCH_APPLIED__ = true;
     // console.log(INJECTED_LOG_PREFIX + ' News fetch override applied.');
 
-    window.__REPLIFY_REVERT_NEWS_FETCH__ = function() { /* ... (same revert structure as other patches) ... */ 
+    window.__REPLIFY_REVERT_NEWS_FETCH__ = function() {
         if (window.fetch === injectedNewsCustomFetch) {
             window.fetch = pageContextOriginalFetch;
             delete window.__REPLIFY_NEWS_FETCH_APPLIED__;

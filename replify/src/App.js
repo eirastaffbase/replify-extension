@@ -88,6 +88,8 @@ function App() {
   const [sbEmail, setSbEmail] = useState("");
   const [sbPassword, setSbPassword] = useState("");
   const [mergeField, setMergeField] = useState("");
+  const [setupEmailChecked, setSetupEmailChecked] = useState(false); // Add this line
+
 
   /* 📲  Launchpad & mobile quick links ------------------------------------ */
   const [launchpadSel, setLaunchpadSel] = useState([]);
@@ -528,9 +530,9 @@ function App() {
 
   /** POST to Replify backend to spin up a fresh environment with selected extras. */
   async function handleSetupNewEnv() {
-    setResponse("Setting up new environment! Allow 1-2 minutes…");
+    setResponse("Setting up new environment! This may take a minute or two...");
     setIsLoading(true);
-
+  
     const body = {
       chat: chatEnabled,
       microsoft: microsoftEnabled,
@@ -547,9 +549,10 @@ function App() {
     if (customWidgetsChecked) body.customWidgets = [sbEmail, sbPassword];
     if (mergeIntegrationsChecked)
       body.workdayMerge = [sbEmail, sbPassword, mergeField];
-
+  
     try {
-      const r = await fetch(
+      // 1. Create the environment
+      const envResponse = await fetch(
         "https://sb-news-generator.uc.r.appspot.com/api/v1/installations",
         {
           method: "POST",
@@ -560,14 +563,58 @@ function App() {
           body: JSON.stringify(body),
         }
       );
-      if (!r.ok) throw new Error(`${r.status}`);
-      setResponse("Environment created!");
+  
+      if (!envResponse.ok) {
+        throw new Error(`Environment setup failed: ${envResponse.statusText}`);
+      }
+  
+      // Assuming the response contains the domain of the new environment
+      const envData = await envResponse.json();
+      const domain = envData.domain; 
+      let finalMessage = "✅ Environment created!";
+  
+      // 2. Set up email templates if requested
+      if (setupEmailChecked) {
+        if (!domain) {
+          throw new Error("Could not get domain from setup response to configure email.");
+        }
+        
+        setResponse("Environment created. Now setting up email templates...");
+  
+        const emailResponse = await fetch(
+          "https://sb-news-generator.uc.r.appspot.com/api/v1/generate/email-templates",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiToken}`,
+            },
+            body: JSON.stringify({ domain }),
+          }
+        );
+  
+        if (emailResponse.ok) {
+          finalMessage += " Email templates set up successfully!";
+        } else {
+          finalMessage += ` Failed to set up email templates: ${emailResponse.statusText}`;
+        }
+      }
+  
+      setResponse(finalMessage);
+      
     } catch (err) {
-      setResponse(`Error: ${err.message}`);
+      setResponse(`❌ Error: ${err.message}`);
     } finally {
       setIsLoading(false);
     }
-  }  
+  }
+  
+  
+  
+  
+  
+  
+  
 
   /* ──────────────────────────────────────────────────────────────
    UI UTILS
@@ -753,6 +800,8 @@ function App() {
           setCustomWidgetsChecked={setCustomWidgetsChecked}
           mergeIntegrationsChecked={mergeIntegrationsChecked}
           setMergeIntegrationsChecked={setMergeIntegrationsChecked}
+          setupEmailChecked={setupEmailChecked}         
+          setSetupEmailChecked={setSetupEmailChecked}          
           sbEmail={sbEmail}
           setSbEmail={setSbEmail}
           sbPassword={sbPassword}
