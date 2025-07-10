@@ -58,6 +58,7 @@ function App() {
   const [logoPadWidth, setLogoPadWidth] = useState(0);
   const [logoPadHeight, setLogoPadHeight] = useState(0);
   const [bgVertical, setBgVertical] = useState(0);
+  const [applyMobileBranding, setApplyMobileBranding] = useState(false);
   const [previewActive, setPreviewActive] = useState(false);
   const [brandingExists, setBrandingExists] = useState(false); // Replify block already in CSS?
 
