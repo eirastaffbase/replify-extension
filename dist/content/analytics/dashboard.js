@@ -44,7 +44,6 @@
         return dashboardCache.users;
     }
 
-    // FIX: Greatly enhanced to create full post objects for the detail view
     function generateFakePosts(count = 5) {
         if (dashboardCache.posts) return dashboardCache.posts;
         const users = generateFakeUsers();
@@ -120,17 +119,33 @@
         dashboardCache.comments = comments.sort((a,b) => new Date(b.created) - new Date(a.created));
         return dashboardCache.comments;
     }
-    
+
     function generatePageRankings() { /* ... unchanged ... */ return { entities: { contents: { "page_1": { id: "page_1", title: "Home", link: "/content/page/page_1" }, "page_2": { id: "page_2", title: "Directory", link: "/content/page/page_2" } } }, ranking: [{ group: { contentId: "page_1", contentType: "page" }, registeredVisitors: rand(50, 150), registeredVisits: rand(150, 500), unregisteredVisitors: 0, unregisteredVisits: 0 }, { group: { contentId: "page_2", contentType: "page" }, registeredVisitors: rand(40, 100), registeredVisits: rand(100, 300), unregisteredVisitors: 0, unregisteredVisits: 0 }], contentType: { "page": { "id": "page", "icon": "n", "title": "Pages" } } }; }
     function generatePostRankings() { /* ... unchanged ... */ const p=dashboardCache.posts||generateFakePosts();if(!p||p.length===0)return{entities:{contents:{}},ranking:[]};const e={};p.forEach(t=>{e[t.id]={id:t.id,title:t.contents.en_US.title,link:`/content/news/article/${t.id}`}});const n=p.map(t=>({group:{contentId:t.id,contentType:"post"},registeredVisitors:rand(5,75),registeredVisits:rand(10,200),unregisteredVisitors:0,unregisteredVisits:0})).sort((t,o)=>o.registeredVisitors-t.registeredVisitors).slice(0,5);return{entities:{contents:e},ranking:n,contentType:{post:{id:"post",icon:"n",title:"Posts"}}}; }
     function generateCustomPostRankings() { /* ... unchanged ... */ const p=dashboardCache.posts||generateFakePosts();if(!p||p.length===0)return{ranking:[]};const r=p.slice(0,4).map(t=>({id:t.id,visitors:rand(5,75),potentialVisitors:rand(250,300)}));return{ranking:r}; }
+
+    // NEW: Generates fake view/comment/like counts for a post.
+    function generateFakePostStats(postId) {
+        const commentsForPost = (dashboardCache.comments || []).filter(c => c.parentID === postId).length;
+        const visitors = rand(25, 150);
+        const visits = visitors + rand(20, 100);
+
+        return {
+            registeredVisitors: visitors,
+            registeredVisits: visits,
+            newPosts: 1,
+            comments: commentsForPost > 0 ? commentsForPost : rand(0, 15),
+            likes: rand(10, 80),
+            shares: 0
+        };
+    }
 
     // --- API Interception ---
     const TARGET_API_URLS = {
         POSTS: '/api/posts',
         COMMENTS: '/api/comments',
-        // FIX: Regex to specifically catch generated post detail requests
         POST_DETAIL: /^\/api\/posts\/(gen_post_[a-zA-Z0-9_]+)$/,
+        POST_STATS: /^\/api\/branch\/analytics\/posts\/stats/, // NEW
         USER_STATUS: '/api/branch/analytics/users/status',
         USERS_COUNT_BY_STATUS: /^\/api\/branch\/analytics\/users\/countByStatus/,
         RANKINGS: /^\/api\/branch\/analytics\/contents\/rankings/,
@@ -149,32 +164,45 @@
         }
 
         try {
-            // FIX: New interception for individual generated post details
             const postDetailMatch = urlPath.match(TARGET_API_URLS.POST_DETAIL);
             if (postDetailMatch) {
                 const postId = postDetailMatch[1];
                 console.log(INJECTED_LOG_PREFIX, `Intercepting DETAIL for generated post: ${postId}`);
-                const posts = dashboardCache.posts || generateFakePosts(); // Ensure cache is populated
+                const posts = dashboardCache.posts || generateFakePosts();
                 const post = posts.find(p => p.id === postId);
                 if (post) {
                     return new Response(JSON.stringify(post), { status: 200, headers: {'Content-Type': 'application/json'} });
                 }
-                // If not found for some reason, return a 404
                 return new Response(JSON.stringify({ message: `Generated post ${postId} not found in cache.` }), { status: 404, headers: {'Content-Type': 'application/json'} });
             }
-
-            // This must come AFTER the POST_DETAIL check
+            
             if (urlPath.endsWith(TARGET_API_URLS.POSTS)) {
                 const originalResponse = await pageContextOriginalFetch.apply(this, args);
                 if (originalResponse.ok) {
                     const data = await originalResponse.clone().json();
                     if (data && data.total > 0) {
+                        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+                        const hasRecentPosts = data.data.some(post => new Date(post.published) > sevenDaysAgo);
+
+                        if (!hasRecentPosts) {
+                            console.log(INJECTED_LOG_PREFIX, 'No recent posts found. Modifying dates of latest posts.');
+                            const modifiedPosts = data.data.slice(0, 5);
+                            modifiedPosts.forEach((post, i) => {
+                                const newDate = new Date(Date.now() - i * 24 * 3600 * 1000 - rand(0, 12 * 3600 * 1000));
+                                post.published = newDate.toISOString();
+                                post.created = newDate.toISOString();
+                                post.updated = newDate.toISOString();
+                            });
+                            dashboardCache.posts = modifiedPosts;
+                            return new Response(JSON.stringify({ ...data, data: modifiedPosts, total: modifiedPosts.length }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+                        }
                         dashboardCache.posts = data.data;
-                        return originalResponse; 
+                        return originalResponse;
                     }
                 }
+                console.log(INJECTED_LOG_PREFIX, 'No real posts found. Generating fake posts.');
                 const fakePosts = generateFakePosts();
-                return new Response(JSON.stringify({ total: fakePosts.length, data: fakePosts, links: {} }), { status: 200, headers: {'Content-Type': 'application/json'} });
+                return new Response(JSON.stringify({ total: fakePosts.length, data: fakePosts, links: {} }), { status: 200, headers: { 'Content-Type': 'application/json' } });
             }
             
             if (urlPath.endsWith(TARGET_API_URLS.COMMENTS)) {
@@ -182,16 +210,46 @@
                 if (originalResponse.ok) {
                     const data = await originalResponse.clone().json();
                     if (data && data.total > 0) {
-                         // Add full author object to real comments for UI consistency
+                        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+                        const hasRecentComments = data.data.some(comment => new Date(comment.created) > sevenDaysAgo);
+                        let commentsToReturn = data.data;
+
+                        if (!hasRecentComments) {
+                            console.log(INJECTED_LOG_PREFIX, 'No recent comments found. Modifying dates of latest comments.');
+                            commentsToReturn = data.data.slice(0, 5);
+                            commentsToReturn.forEach((comment, i) => {
+                                const newDate = new Date(Date.now() - rand(3600 * 1000, i * 6 * 3600 * 1000 + 3600 * 1000));
+                                comment.created = newDate.toISOString();
+                                comment.updated = newDate.toISOString();
+                            });
+                        }
+                        
                         const users = generateFakeUsers();
-                        data.data.forEach(comment => {
+                        commentsToReturn.forEach(comment => {
                            comment.author = users.find(u => u.id.endsWith(comment.authorID.slice(-1))) || users[0];
                         });
-                        return new Response(JSON.stringify(data), { status: 200, headers: {'Content-Type': 'application/json'} });
+
+                        dashboardCache.comments = commentsToReturn;
+                        return new Response(JSON.stringify({ ...data, data: commentsToReturn, total: commentsToReturn.length }), { status: 200, headers: { 'Content-Type': 'application/json' } });
                     }
                 }
+                console.log(INJECTED_LOG_PREFIX, 'No real comments found. Generating fake comments.');
                 const fakeComments = generateFakeComments();
-                return new Response(JSON.stringify({ total: fakeComments.length, data: fakeComments, links: {} }), { status: 200, headers: {'Content-Type': 'application/json'} });
+                return new Response(JSON.stringify({ total: fakeComments.length, data: fakeComments, links: {} }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            }
+
+            // NEW: Intercepts requests for post stats and returns fake data.
+            if (TARGET_API_URLS.POST_STATS.test(urlPath)) {
+                console.log(INJECTED_LOG_PREFIX, 'Intercepting POST STATS');
+                const urlParams = getUrlParams(requestFullUrl);
+                const filter = decodeURIComponent(urlParams.filter || '');
+                const postIdMatch = filter.match(/postId eq "([^"]+)"/);
+                
+                if (postIdMatch && postIdMatch[1]) {
+                    const postId = postIdMatch[1];
+                    const fakeData = generateFakePostStats(postId);
+                    return new Response(JSON.stringify(fakeData), { status: 200, headers: {'Content-Type': 'application/json'} });
+                }
             }
 
             if (TARGET_API_URLS.CUSTOM_POST_RANKINGS.test(urlPath)) {
@@ -199,7 +257,7 @@
                 const fakeData = generateCustomPostRankings();
                 return new Response(JSON.stringify(fakeData), { status: 200, headers: {'Content-Type': 'application/json'} });
             }
-            
+
             if (TARGET_API_URLS.RANKINGS.test(urlPath)) {
                 const urlParams = getUrlParams(requestFullUrl);
                 const filter = decodeURIComponent(urlParams.filter || '');
@@ -212,11 +270,11 @@
                     return new Response(JSON.stringify(fakeData), { status: 200, headers: {'Content-Type': 'application/json'} });
                 }
             }
-            
+
             if (urlPath.endsWith(TARGET_API_URLS.USER_STATUS)) {
                 return new Response(JSON.stringify({ "activated": rand(240, 260), "pending": rand(1, 5) }), { status: 200, headers: {'Content-Type': 'application/json'} });
             }
-            
+
             if (TARGET_API_URLS.USERS_COUNT_BY_STATUS.test(urlPath)) {
                 return new Response(JSON.stringify({ "count": rand(2, 10) }), { status: 200, headers: {'Content-Type': 'application/json'} });
             }
@@ -224,7 +282,7 @@
         } catch (err) {
             console.warn(INJECTED_LOG_PREFIX, 'Could not intercept, falling back. Reason:', err.message);
         }
-        
+
         return pageContextOriginalFetch.apply(this, args);
     };
 

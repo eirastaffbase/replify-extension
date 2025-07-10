@@ -9,7 +9,9 @@ const scriptConfig = {
     news: 'content/analytics/news.js',
     campaigns: 'content/analytics/campaigns.js',
     user: 'content/analytics/user.js',
-    search: 'content/analytics/search.js'
+    search: 'content/analytics/search.js',
+    pages: 'content/analytics/pages.js'
+
 };
 
 /**
@@ -96,7 +98,7 @@ const PATCH_CONFIG = {
         scriptPath: 'content/analytics/search.js'
     },
     pages: {
-        urlCheck: (pathname) => pathname.includes("/pages"),
+        urlCheck: (pathname) => pathname.includes("/studio/analytics/pages"),
         scriptPath: 'content/analytics/pages.js'
     }
 };
