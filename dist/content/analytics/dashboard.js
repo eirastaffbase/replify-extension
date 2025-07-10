@@ -284,22 +284,29 @@
     // --- DOM Manipulation for Empty Reach Tab ---
   
     function populateEmptyReachTab() {
+      const reachTabButton = document.querySelector(
+        'button[aria-controls="panel-id-0"]'
+      );
+      // 1. Only run if the Reach tab is the currently selected one.
+      if (!reachTabButton || reachTabButton.getAttribute("aria-selected") !== "true") {
+        return;
+      }
+  
       const reachTabPanel = document.querySelector("#panel-id-0");
-      // Ensure panel and its list exist before proceeding
       if (!reachTabPanel) return;
   
       const postList = reachTabPanel.querySelector("ul");
-      // Check if the list is truly empty
+      // 2. Only run if the list is empty (which it will be after React re-renders it).
       if (!postList || postList.children.length > 0) {
         return;
       }
   
       console.log(
         INJECTED_LOG_PREFIX,
-        "Reach tab is empty. Populating with custom ranking data."
+        "Reach tab is active and empty. Populating..."
       );
   
-      // Use cached posts or generate them if cache is empty
+      // Use cached posts. If cache is empty, generate fake ones for now.
       const posts = dashboardCache.posts || generateFakePosts();
       const rankings = generateCustomPostRankings().ranking;
   
@@ -322,16 +329,18 @@
             ),
           };
         })
-        .filter(Boolean); // Remove nulls for posts not found
+        .filter(Boolean);
   
       let newContent = "";
       combinedData.forEach((item) => {
+        // FIX: Added optional chaining (?.) before .replace to prevent errors if the URL path doesn't exist.
         const imageUrl =
-          item.contents?.en_US?.image?.wide_first?.url.replace(
+          item.contents?.en_US?.image?.thumb?.url ||
+          item.contents?.en_US?.image?.wide_first?.url?.replace(
             "800/450",
             "240/135"
           ) ||
-          "https://app.staffbase.com/api/media/secure/external/v2/image/upload/g_faces:center,c_fill,w_240,h_135/684b04bcc712a807851af13a.jpg";
+          "https://via.placeholder.com/48x48.png?text=No+Image";
         const postUrl = item.links?.detail_view?.href || "#";
         const title = item.contents?.en_US?.title || "Untitled Post";
   
@@ -351,7 +360,7 @@
                       <span>${item.visitors} Visitors</span>
                     </li>
                     <li class="ms-12 flex items-center first-of-type:m-0 [&amp;_svg]:text-icon-neutral-medium">
-                     <svg aria-hidden="true" viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" class="ds-icon ds-icon-user-group me-4 shrink-0"><path d="M13.75,7.75a6.194,6.194,0,0,1-.663,2.789.5.5,0,0,0,.1.579A4.7,4.7,0,0,0,16.5,12.5a4.75,4.75,0,0,0,0-9.5,4.7,4.7,0,0,0-3.318,1.382.5.5,0,0,0-.1.579A6.194,6.194,0,0,1,13.75,7.75Z"></path><path d="M16.5,13a7.4,7.4,0,0,0-2.377.393.5.5,0,0,0-.2.823A8.957,8.957,0,0,1,16.5,20.5a.5.5,0,0,0,.5.5h6.5a.5.5,0,0,0,.5-.5A7.508,7.508,0,0,0,16.5,13Z"></path><circle cx="7.5" cy="7.75" r="4.75"></circle><path d="M15,20.5a7.5,7.5,0,0,0-15,0,.5.5,0,0,0,.5.5h14A.5.5,0,0,0,15,20.5Z"></path></svg>
+                      <svg aria-hidden="true" viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" class="ds-icon ds-icon-user-group me-4 shrink-0"><path d="M13.75,7.75a6.194,6.194,0,0,1-.663,2.789.5.5,0,0,0,.1.579A4.7,4.7,0,0,0,16.5,12.5a4.75,4.75,0,0,0,0-9.5,4.7,4.7,0,0,0-3.318,1.382.5.5,0,0,0-.1.579A6.194,6.194,0,0,1,13.75,7.75Z"></path><path d="M16.5,13a7.4,7.4,0,0,0-2.377.393.5.5,0,0,0-.2.823A8.957,8.957,0,0,1,16.5,20.5a.5.5,0,0,0,.5.5h6.5a.5.5,0,0,0,.5-.5A7.508,7.508,0,0,0,16.5,13Z"></path><circle cx="7.5" cy="7.75" r="4.75"></circle><path d="M15,20.5a7.5,7.5,0,0,0-15,0,.5.5,0,0,0,.5.5h14A.5.5,0,0,0,15,20.5Z"></path></svg>
                       <span>${item.potentialVisitors} Potential Reach</span>
                     </li>
                   </ul>
@@ -605,21 +614,29 @@
   
       return pageContextOriginalFetch.apply(this, args);
     };
-  
-    // --- DOM Observer to Populate Empty Tabs ---
-    const observerTarget = document.getElementById("tab-topposts");
-    if (observerTarget) {
-      const observer = new MutationObserver(() => {
-        // Use a small delay to allow the UI to finish rendering after a tab switch
-        setTimeout(populateEmptyReachTab, 100);
-      });
-      observer.observe(observerTarget, { childList: true, subtree: true });
-      // Initial check after page loads
-      setTimeout(populateEmptyReachTab, 1000);
-    } else {
-      // Fallback if the main element isn't immediately available
-      setTimeout(populateEmptyReachTab, 2000);
+    
+    // --- Setup and Event Listeners ---
+    
+    // This function sets up a click listener on the tab container.
+    function setupTabListener() {
+      const tabContainer = document.querySelector('#tab-topposts .ds-tab-group__header');
+      if (tabContainer) {
+        tabContainer.addEventListener('click', (e) => {
+          // When any tab is clicked, wait a moment for the DOM to update, then run our population logic.
+          // The function itself will check if the "Reach" tab is the one that's active.
+          if (e.target.closest('button[role="tab"]')) {
+            setTimeout(populateEmptyReachTab, 150);
+          }
+        });
+      }
     }
+  
+    // After the page has had some time to load, run our functions.
+    setTimeout(() => {
+      populateEmptyReachTab(); // Run once for the initial page view.
+      setupTabListener();      // Set up the listener for subsequent tab clicks.
+    }, 2000); // Increased delay to ensure the initial UI and data are more likely to be ready.
+  
   
     window.fetch = injectedDashboardCustomFetch;
     window.__REPLIFY_DASHBOARD_FETCH_APPLIED__ = true;
