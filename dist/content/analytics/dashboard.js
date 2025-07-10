@@ -251,13 +251,11 @@
     /* ... unchanged ... */ const p =
       dashboardCache.posts || generateFakePosts();
     if (!p || p.length === 0) return { ranking: [] };
-    const r = p
-      .slice(0, 4)
-      .map((t) => ({
-        id: t.id,
-        visitors: rand(5, 75),
-        potentialVisitors: rand(250, 300),
-      }));
+    const r = p.slice(0, 4).map((t) => ({
+      id: t.id,
+      visitors: rand(5, 75),
+      potentialVisitors: rand(250, 300),
+    }));
     return { ranking: r };
   }
 
