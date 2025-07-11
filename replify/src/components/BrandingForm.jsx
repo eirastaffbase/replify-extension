@@ -139,7 +139,7 @@ export default function BrandingForm({
             </div>
           ))}
 
-          {/*  colour pickers  */}
+          {/* colour pickers  */}
           {[
             ["Primary Branding Color", primaryColor, withPreview(setPrimaryColor)],
             ["Text Branding Color", textColor, withPreview(setTextColor)],
@@ -147,12 +147,22 @@ export default function BrandingForm({
           ].map(([lbl, val, onChange]) => (
             <div key={lbl} style={formGroupStyle}>
               <label style={labelStyle}>{lbl}:</label>
-              <input
-                type="color"
-                style={{ ...inputStyle, width: 50, height: 50 }}
-                value={val}
-                onChange={(e) => onChange(e.target.value)}
-              />
+              {/* Flex container to hold both inputs side-by-side */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="color"
+                  style={{ ...inputStyle, padding: 0, width: 50, height: 50, border: 'none' }}
+                  value={val}
+                  onChange={(e) => onChange(e.target.value)}
+                />
+                <input
+                  type="text"
+                  style={{ ...inputStyle, width: 100 }}
+                  value={val}
+                  onChange={(e) => onChange(e.target.value)}
+                  placeholder="#RRGGBB"
+                />
+              </div>
             </div>
           ))}
 

@@ -88,6 +88,16 @@ export default function buildPreviewCss(o) {
         --desktop-app-header-bg-color: ${headerBgTranslucent} !important;
         background-color             : ${headerBgTranslucent} !important;
       }
+
+      /* ================= mobile ================= */
+      static-content-block[background-color="#d3e6ec"] {
+        background-color: ${o.background} !important;
+      }
+
+      static-content-block[background-color="#d3e6ec"] * {
+        color: ${widgetTextColor} !important;
+      }
+
   
       /* ================= menu / icons ================= */
       .desktop.wow-header-activated .header-title,
@@ -168,20 +178,6 @@ export default function buildPreviewCss(o) {
         color: ${primaryInverse} !important;
       }
 
-      /* ================= custom static content block ================= */
-        .static-content-widget:has(weather-time) {
-          background-color: var(--color-client-background) !important;
-        }
-
-        /* Targets the <p> tags, like "Welcome back..." and the temperature */
-        .static-content-widget:has(weather-time) p {
-          color: ${widgetTextColor} !important;
-        }
-
-        /* Targets the weather-time element, which also has an inline color style */
-        .static-content-widget:has(weather-time) weather-time {
-          color: ${widgetTextColor} !important;
-        }
   
       /* ================= audio player ================= */
       .audio-player .audio-player__play-button.audio-player__play-button {

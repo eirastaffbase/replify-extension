@@ -1,7 +1,7 @@
 {
   "name": "Replify for Staffbase",
   "description": "Tool for generating news articles, add branding, and showcase analytics in Staffbase demos among other features",
-  "version": "1.6",
+  "version": "1.8",
   "manifest_version": 3,
   "permissions": [
     "scripting",

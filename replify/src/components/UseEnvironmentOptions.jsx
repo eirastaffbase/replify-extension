@@ -27,6 +27,12 @@ export default function UseEnvironmentOptions({ slug, onChoose }) {
       >
         Brand
       </button>
+      <button
+        style={brandingButtonStyle}
+        onClick={() => onChoose("users")}
+      >
+        Update Users
+      </button>
     </div>
   );
 }

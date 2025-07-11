@@ -6,6 +6,7 @@ import {
   checkboxLabelStyle,
   checkboxStyle,
   dropdownHeaderStyle,
+  psaStyle
 } from "../styles";
 
 import { ANALYTICS_TYPES } from "../constants/appConstants";
@@ -26,15 +27,6 @@ const enableButtonHoverStyle = {
   backgroundColor: '#0056b3',
 };
 
-const psaStyle = {
-  marginTop: '15px',
-  padding: '10px',
-  backgroundColor: '#f0f0f0',
-  borderRadius: '4px',
-  fontSize: '12px',
-  color: '#333',
-  lineHeight: '1.4',
-};
 
 const selectAllLabelStyle = {
     ...checkboxLabelStyle,
