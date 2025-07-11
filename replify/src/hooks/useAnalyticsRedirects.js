@@ -103,21 +103,32 @@ export default function useAnalyticsRedirects() {
   // Callback for TOGGLING and SAVING a redirect state
   const handleToggleRedirect = useCallback(
     (id, enabled) => {
-      utilToggle(
-        id,
-        enabled,
-        redirectState, // Pass current state
-        (newState) => { // Pass a function that can update the state
-            setRedirectState(newState);
-        },
-        setAnalyticsResponse // Pass function to set response
-      );
+      // Use the functional update form of `setRedirectState`.
+      // `prevState` is guaranteed by React to be the latest version of the state.
+      setRedirectState(prevState => {
+        const newState = {
+          ...prevState,
+          [id]: enabled,
+        };
+
+        // Call your utility function for its side effects (like saving to storage).
+        // We pass it the newly calculated `newState` so it saves the correct, up-to-date data.
+        utilToggle(
+          id,
+          enabled,
+          newState, // Pass the correct new state
+          () => {}, // The state is already set, so we pass an empty function for the setter
+          setAnalyticsResponse
+        );
+
+        // Return the new state to complete the update.
+        return newState;
+      });
     },
-    [redirectState, utilToggle] // utilToggle might come from import, if it's stable, it's fine.
-                                // If utilToggle itself isn't memoized and defined inside analyticsManager,
-                                // it might cause this useCallback to re-memoize often.
-                                // For now, this is the standard dependency.
+    // The dependencies are now stable, which fixes the bug.
+    [setAnalyticsResponse]
   );
+
 
   // Log redirectState whenever it changes (after loading or toggling)
   useEffect(() => {

@@ -44,10 +44,17 @@ const selectAllLabelStyle = {
 
 const arrowStyle = {
     marginLeft: '8px',
-    cursor: 'pointer',
     userSelect: 'none',
     transition: 'transform 0.2s ease-in-out',
     display: 'inline-block',
+};
+
+// New style for the clickable area
+const clickableAreaStyle = {
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    userSelect: 'none',
 };
 
 export default function RedirectAnalyticsForm({
@@ -65,12 +72,16 @@ export default function RedirectAnalyticsForm({
   const handleSelectAll = () => {
     const shouldSelectAll = !allSelected;
     ANALYTICS_TYPES.forEach(type => {
-      onToggleType(type.id, shouldSelectAll);
+      // Ensure the state change is respected by passing the new value
+      if (state[type.id] !== shouldSelectAll) {
+          onToggleType(type.id, shouldSelectAll);
+      }
     });
   };
 
   const handleToggleSubAnalytics = (e) => {
-      e.stopPropagation(); // Prevents the onToggleOpen from firing
+      e.preventDefault(); // Prevents the label from toggling the checkbox
+      e.stopPropagation(); // Prevents any other parent click handlers from firing
       setSubAnalyticsVisible(prev => !prev);
   };
 
@@ -99,17 +110,21 @@ export default function RedirectAnalyticsForm({
               <input
                 style={checkboxStyle}
                 type="checkbox"
-                ref={el => el && (el.indeterminate = isIndeterminate)}
+                ref={el => {
+                  if (el) el.indeterminate = isIndeterminate;
+                }}
                 checked={allSelected}
                 onChange={handleSelectAll}
               />
-              Select All
-              <span
-                onClick={handleToggleSubAnalytics}
-                style={{...arrowStyle, transform: subAnalyticsVisible ? 'rotate(90deg)' : 'rotate(0deg)'}}
-                title={subAnalyticsVisible ? "Hide sub-analytics" : "Show sub-analytics"}
-              >
-                ▸
+              {/* This new span makes the text and arrow a single clickable area */}
+              <span onClick={handleToggleSubAnalytics} style={clickableAreaStyle}>
+                Select All
+                <span
+                  style={{...arrowStyle, transform: subAnalyticsVisible ? 'rotate(90deg)' : 'rotate(0deg)'}}
+                  title={subAnalyticsVisible ? "Hide sub-analytics" : "Show sub-analytics"}
+                >
+                  ▸
+                </span>
               </span>
             </label>
           </div>
