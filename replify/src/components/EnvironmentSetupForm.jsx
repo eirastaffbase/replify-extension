@@ -11,6 +11,48 @@ import {
 import LaunchpadSelect from "./LaunchpadSelect";
 import MobileQuickLinks from "./MobileQuickLinks";
 
+/**
+ * EnvironmentSetupForm Component
+ * 
+ * This component provides a form for configuring various environment settings, including toggles for enabling features,
+ * managing launchpad items, quick links, custom widgets, merge integrations, and email templates. It also includes a 
+ * submit button to finalize the setup.
+ * 
+ * @param {Object} props - The props object.
+ * @param {boolean} props.chatEnabled - Indicates if chat is enabled.
+ * @param {Function} props.setChatEnabled - Function to toggle chat enabled state.
+ * @param {boolean} props.microsoftEnabled - Indicates if Microsoft integration is enabled.
+ * @param {Function} props.setMicrosoftEnabled - Function to toggle Microsoft integration enabled state.
+ * @param {boolean} props.campaignsEnabled - Indicates if campaigns are enabled. (Note: Endpoint for campaigns is broken.)
+ * @param {Function} props.setCampaignsEnabled - Function to toggle campaigns enabled state.
+ * @param {Array} props.launchpadSel - Selected launchpad items.
+ * @param {Array} props.items - List of launchpad items.
+ * @param {boolean} props.openLaunchpad - Indicates if the launchpad is open.
+ * @param {Function} props.onToggleLaunchpadOpen - Function to toggle the launchpad open state.
+ * @param {Function} props.onToggleLaunchpadItem - Function to toggle individual launchpad items.
+ * @param {boolean} props.quickLinksEnabled - Indicates if quick links are enabled.
+ * @param {Function} props.setQuickLinksEnabled - Function to toggle quick links enabled state.
+ * @param {Array} props.mobileQuickLinks - List of mobile quick links.
+ * @param {Function} props.onQuickLinkChange - Function to handle changes to quick links.
+ * @param {Function} props.onQuickLinkSwap - Function to swap quick links.
+ * @param {Function} props.onQuickLinkDelete - Function to delete quick links.
+ * @param {Function} props.onQuickLinkAdd - Function to add new quick links.
+ * @param {boolean} props.customWidgetsChecked - Indicates if custom widgets are enabled.
+ * @param {Function} props.setCustomWidgetsChecked - Function to toggle custom widgets enabled state.
+ * @param {boolean} props.mergeIntegrationsChecked - Indicates if merge integrations are enabled.
+ * @param {Function} props.setMergeIntegrationsChecked - Function to toggle merge integrations enabled state.
+ * @param {boolean} props.setupEmailChecked - Indicates if email templates are enabled.
+ * @param {Function} props.setSetupEmailChecked - Function to toggle email templates enabled state.
+ * @param {string} props.sbEmail - Email for custom widgets or merge integrations.
+ * @param {Function} props.setSbEmail - Function to set the email for custom widgets or merge integrations.
+ * @param {string} props.sbPassword - Password for custom widgets or merge integrations.
+ * @param {Function} props.setSbPassword - Function to set the password for custom widgets or merge integrations.
+ * @param {string} props.mergeField - Merge field for integrations.
+ * @param {Function} props.setMergeField - Function to set the merge field for integrations.
+ * @param {Function} props.onSetup - Function to handle the setup process.
+ * 
+ * @returns {JSX.Element} The rendered EnvironmentSetupForm component.
+ */
 export default function EnvironmentSetupForm({
   /* toggles */
   chatEnabled, setChatEnabled,
@@ -50,7 +92,7 @@ export default function EnvironmentSetupForm({
       {[
         ["Enable Chat", chatEnabled, setChatEnabled],
         ["Enable Microsoft Integration", microsoftEnabled, setMicrosoftEnabled],
-        ["Enable Campaigns", campaignsEnabled, setCampaignsEnabled],
+        // ["Enable Campaigns", campaignsEnabled, setCampaignsEnabled],
       ].map(([lbl, val, setter]) => (
         <div key={lbl} style={formGroupStyle}>
           <label style={checkboxLabelStyle}>
@@ -63,7 +105,10 @@ export default function EnvironmentSetupForm({
             {lbl}
           </label>
         </div>
-      ))}
+      )
+    )
+      }
+        
 
       {/* Launchpad */}
       <div style={formGroupStyle}>

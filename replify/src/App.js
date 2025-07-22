@@ -687,7 +687,8 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
     // UPDATE: Only exclude image fields for now.
     const fieldsToExclude = [
       'avatar', 
-      'profileHeaderImage'
+      'profileHeaderImage',
+      'apitoken'
     ];
   
     try {
@@ -711,13 +712,11 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
 
   
 
-  /** * Fetch the full profile for a single selected user and
-   * dynamically identify which fields are nested in the 'profile' object.
-   */
+  /** Fetch the full profile for a single selected user. */
   useEffect(() => {
+    // This hook is now simplified, as it no longer needs to find nested keys.
     if (!selectedUserId || !apiToken) {
       setUserProfile(null);
-      setNestedFieldKeys([]); // Clear nested keys when no user is selected
       return;
     }
     const fetchUserProfile = async () => {
@@ -731,19 +730,11 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
         
         const data = await response.json();
         setUserProfile(data);
-
-        // Dynamically get the list of keys from the user's profile object
-        if (data && data.profile && typeof data.profile === 'object') {
-          setNestedFieldKeys(Object.keys(data.profile));
-        } else {
-          setNestedFieldKeys([]);
-        }
         
         setResponse("✅ Profile loaded. Select a field to update.");
       } catch (err) {
         setResponse(`❌ ${err.message}`);
         setUserProfile(null);
-        setNestedFieldKeys([]);
       } finally {
         setIsLoading(false);
       }
@@ -752,8 +743,8 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
     fetchUserProfile();
   }, [selectedUserId, apiToken]);
 
-  /** * Sends a PUT request, dynamically building the body based on whether
-   * the field is top-level or nested within the user's profile.
+  /** * Sends a PUT request, defaulting to nesting fields under 'profile'
+   * unless the field is in the 'topLevelFields' list.
    */
   const handleUpdateUser = async () => {
     if (!selectedUserId || !fieldToUpdate || !newValue) {
@@ -768,12 +759,24 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
     setIsLoading(true);
     setResponse("Updating user profile...");
 
+    // Define the exceptions: fields that are NOT nested under 'profile'.
+    const topLevelFields = [
+      'firstName', 
+      'lastName', // lastName is often top-level as well
+      'department', 
+      'publicEmailAddress', 
+      'position', 
+      'location', 
+      'phoneNumber'
+    ];
+
     let body;
-    // Use the dynamically generated list of keys to build the correct body
-    if (nestedFieldKeys.includes(fieldToUpdate)) {
-      body = { profile: { [fieldToUpdate]: newValue } };
-    } else {
+    // If the field is in our exception list, build a top-level body.
+    if (topLevelFields.includes(fieldToUpdate)) {
       body = { [fieldToUpdate]: newValue };
+    } else {
+      // Otherwise, default to nesting it under 'profile'.
+      body = { profile: { [fieldToUpdate]: newValue } };
     }
 
     try {
@@ -795,12 +798,12 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
         throw new Error(updatedUser.message || `API responded with status ${response.status}`);
       }
       
-      // Use the same dynamic list to verify the response correctly
       let actualValue;
-      if (nestedFieldKeys.includes(fieldToUpdate)) {
-        actualValue = updatedUser.profile?.[fieldToUpdate];
-      } else {
+      // Use the same logic to find the updated value for verification.
+      if (topLevelFields.includes(fieldToUpdate)) {
         actualValue = updatedUser[fieldToUpdate];
+      } else {
+        actualValue = updatedUser.profile?.[fieldToUpdate];
       }
       
       const isSuccess = String(actualValue) === String(newValue);
@@ -809,7 +812,7 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
       verificationMessage += `--- Verification ---\n`;
       verificationMessage += `Field: '${fieldToUpdate}'\n`;
       verificationMessage += `Requested: '${newValue}'\n`;
-      verificationMessage += `Result: '${actualValue ?? "Not set"}'\n`; // Use ?? for cleaner "Not set"
+      verificationMessage += `Result: '${actualValue ?? "Not set"}'\n`;
       verificationMessage += `Status: ${isSuccess ? '✔️ Verified Match' : '❌ Mismatch!'}`;
       
       setResponse(verificationMessage);
@@ -820,6 +823,13 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
       setIsLoading(false);
     }
   };
+
+
+
+
+
+
+
 
   /* ──────────────────────────────────────────────────────────────
    UI UTILS
