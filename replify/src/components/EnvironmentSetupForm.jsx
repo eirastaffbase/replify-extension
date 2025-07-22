@@ -22,19 +22,19 @@ export default function EnvironmentSetupForm({
   openLaunchpad, onToggleLaunchpadOpen,
   onToggleLaunchpadItem,
 
-
   /* quick links  */
   quickLinksEnabled, setQuickLinksEnabled,
 
   mobileQuickLinks,
-  onQuickLinkChange,   // (idx, field, value)
-  onQuickLinkSwap,     // (aIdx, bIdx)
-  onQuickLinkDelete,   // (idx)
-  onQuickLinkAdd,      // ()
+  onQuickLinkChange,
+  onQuickLinkSwap,
+  onQuickLinkDelete,
+  onQuickLinkAdd,
 
   /* widgets / merge */
   customWidgetsChecked, setCustomWidgetsChecked,
   mergeIntegrationsChecked, setMergeIntegrationsChecked,
+  setupEmailChecked, setSetupEmailChecked, // Destructure new prop
   sbEmail, setSbEmail,
   sbPassword, setSbPassword,
   mergeField, setMergeField,
@@ -103,14 +103,11 @@ export default function EnvironmentSetupForm({
         </>
       )}
 
-      {/* Custom widgets / merge */}
+      {/* Custom widgets / merge / email */}
       {[
         ["Custom Widgets?", customWidgetsChecked, setCustomWidgetsChecked],
-        [
-          "Merge Integrations?",
-          mergeIntegrationsChecked,
-          setMergeIntegrationsChecked,
-        ],
+        [ "Merge Integrations?", mergeIntegrationsChecked, setMergeIntegrationsChecked],
+        ["Email Templates?", setupEmailChecked, setSetupEmailChecked], // Add new checkbox item here
       ].map(([lbl, val, setter]) => (
         <div key={lbl} style={formGroupStyle}>
           <label style={labelStyle}>

@@ -1,4 +1,4 @@
-/*  utils/buildPreviewCss.js
+/* utils/buildPreviewCss.js
     ------------------------------------------------------------
     Generate a **single giant CSS string** that can be injected
     into a Staffbase page for live-preview or permanent branding.
@@ -35,7 +35,7 @@ export default function buildPreviewCss(o) {
   /* --------------------------------------------------
     Persist the prospect name so we can read it later
     -------------------------------------------------- */
-    const prospectComment = o.prospectName
+  const prospectComment = o.prospectName
     ? `/* prospect:${o.prospectName.trim()} */\n`
     : "";
 
@@ -88,6 +88,16 @@ export default function buildPreviewCss(o) {
         --desktop-app-header-bg-color: ${headerBgTranslucent} !important;
         background-color             : ${headerBgTranslucent} !important;
       }
+
+      /* ================= mobile ================= */
+      static-content-block[background-color="#d3e6ec"] {
+        background-color: ${o.background} !important;
+      }
+
+      static-content-block[background-color="#d3e6ec"] * {
+        color: ${widgetTextColor} !important;
+      }
+
   
       /* ================= menu / icons ================= */
       .desktop.wow-header-activated .header-title,
@@ -125,6 +135,10 @@ export default function buildPreviewCss(o) {
         .news-articles-plain .read-more {
           color: ${widgetTextColor} !important;
         }
+        .content-widget-wrapper:has(a[href*="6813d9141acf7c2a0cf77cb3"]) > h2.content-widget-title span {
+          color: ${widgetTextColor} !important;
+        }
+
   
         /* publish‐date & channel link */
         .news-articles-plain .news-feed-post-meta,
@@ -163,6 +177,7 @@ export default function buildPreviewCss(o) {
         strong span {
         color: ${primaryInverse} !important;
       }
+
   
       /* ================= audio player ================= */
       .audio-player .audio-player__play-button.audio-player__play-button {
@@ -287,6 +302,7 @@ export default function buildPreviewCss(o) {
   if (o.logo) {
     css += `
       /* ================= logo/header ================= */
+        /* ---- DESKTOP LOGO ---- */
         .desktop.wow-header-activated .header-left-container img.header-logo{
           opacity: 0 !important;                                /* keep layout, hide pixels */
         }
@@ -299,6 +315,25 @@ export default function buildPreviewCss(o) {
           background-size    : contain;
           background-position: left center;
           pointer-events     : none;                            /* logo stays decorative */
+        }
+
+        /* ---- MOBILE LOGO ---- */
+        .mobile .header-container .header-left-container {
+            position: relative !important;
+        }
+        .mobile .header-container .header-left-container img.header-logo {
+            opacity: 0 !important;
+        }
+        .mobile .header-container .header-left-container::after {
+            content: "" !important;
+            position: absolute;
+            inset: 0;
+            margin: auto 1rem; /* vertical centering and horiz-margin */
+            background-image: var(--logo-url);
+            background-repeat: no-repeat;
+            background-size: contain;
+            background-position: left center;
+            pointer-events: none;
         }
         `;
   } else {

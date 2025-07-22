@@ -1,16 +1,25 @@
+//App.js
 /* eslint-disable no-undef */
-import React, { useState } from "react";
+/* global chrome */
+
+import React, { useState, useEffect } from "react";
 
 /* ───── Hooks & utils ───── */
 import useStaffbaseTab from "./hooks/useStaffbaseTab";
 import useSavedTokens from "./hooks/useSavedTokens";
+import useAnalyticsRedirects from "./hooks/useAnalyticsRedirects";
 import buildPreviewCss from "./utils/buildPreviewCss";
-// @ts-ignore:next-line
 import { fetchCurrentCSS, postUpdatedCSS } from "./utils/staffbaseCss";
 import {
   loadTokensFromStorage,
   saveTokensToStorage,
 } from "./utils/tokenStorage";
+import {
+  getInitialAnalyticsStateFromStorage,
+  manageAnalyticsScriptInPage,
+  handleToggleAnalyticsChange,
+} from "./utils/analyticsManager"; 
+
 
 /* ───── Constants & styles ───── */
 import { LAUNCHPAD_DICT, blockRegex } from "./constants/appConstants";
@@ -22,6 +31,10 @@ import ApiKeyForm from "./components/ApiKeyForm";
 import BrandingForm from "./components/BrandingForm";
 import EnvironmentSetupForm from "./components/EnvironmentSetupForm";
 import UseEnvironmentOptions from "./components/UseEnvironmentOptions";
+import RedirectAnalyticsForm from "./components/RedirectAnalyticsForm";
+import FeedbackBanner from "./components/FeedbackBanner";
+import UpdateUserForm from "./components/UpdateUserForm";
+
 
 function App() {
   // --------------------------------------------------
@@ -46,6 +59,7 @@ function App() {
   const [logoPadWidth, setLogoPadWidth] = useState(0);
   const [logoPadHeight, setLogoPadHeight] = useState(0);
   const [bgVertical, setBgVertical] = useState(0);
+  const [applyMobileBranding, setApplyMobileBranding] = useState(false);
   const [previewActive, setPreviewActive] = useState(false);
   const [brandingExists, setBrandingExists] = useState(false); // Replify block already in CSS?
 
@@ -53,6 +67,14 @@ function App() {
   const [includeArticles, setIncludeArticles] = useState(false);
   const [prospectLinkedInUrl, setProspectLinkedInUrl] = useState("");
   const [linkedInPostsCount, setLinkedInPostsCount] = useState(10);
+
+  /* 📈  Analytics / redirect toggles ---- */
+  const [redirectOpen, setRedirectOpen] = useState(false);
+  const {
+    redirectState,
+    analyticsResponse, // if needed for display
+    handleToggleRedirect,
+  } = useAnalyticsRedirects();
 
   /* ⚙️  Prospect / misc branding inputs ----------------------------------- */
   const [prospectName, setProspectName] = useState("");
@@ -68,6 +90,8 @@ function App() {
   const [sbEmail, setSbEmail] = useState("");
   const [sbPassword, setSbPassword] = useState("");
   const [mergeField, setMergeField] = useState("");
+  const [setupEmailChecked, setSetupEmailChecked] = useState(false); // Add this line
+
 
   /* 📲  Launchpad & mobile quick links ------------------------------------ */
   const [launchpadSel, setLaunchpadSel] = useState([]);
@@ -78,6 +102,17 @@ function App() {
     { name: "Launchpad", title: "Launchpad", position: 2, enabled: true },
   ]);
   const [quickLinksEnabled, setQuickLinksEnabled] = useState(false);
+
+/* 👥  User management ---------------------------------------------------- */
+const [usersList, setUsersList] = useState([]);
+const [selectedUserId, setSelectedUserId] = useState("");
+const [userProfile, setUserProfile] = useState(null);
+const [fieldToUpdate, setFieldToUpdate] = useState("");
+const [newValue, setNewValue] = useState("");
+const [allProfileFields, setAllProfileFields] = useState([]); 
+const [adminUserId, setAdminUserId] = useState(null);        
+const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
+
 
   /* 🔄  UI / async status -------------------------------------------------- */
   const [isLoading, setIsLoading] = useState(false);
@@ -283,12 +318,18 @@ function App() {
    SAVED-TOKEN INTERACTIONS
    ────────────────────────────────────────────────────────────── */
 
-  /** “Set Up” or “Brand” button inside <SavedEnvironments>. */
+  /** “Set Up” or “Brand” button inside <UseEnvironmentOptions>. */
   const handleUseOptionClick = async ({ mode, token, branchId }) => {
     setApiToken(token);
     setBranchId(branchId);
     setIsAuthenticated(true);
     setUseOption({ type: mode, token, branchId });
+
+    if (mode === "users") {
+      fetchUsers(token); // Fetch users when entering this mode
+      fetchAllProfileFields(token, branchId); 
+      fetchAdminUserId(token);              
+    }
 
     // For existing envs we also flag if a Replify block already lives in CSS
     if (mode === "existing") {
@@ -305,8 +346,10 @@ function App() {
     setResponse(
       mode === "existing"
         ? "Using saved environment – ready to brand!"
+        : mode === "users"
+        ? "Ready to update users!"
         : "Using saved environment – ready to set up!"
-    );
+      );
   };
 
   /** Trash-can icon next to a saved token. */
@@ -502,15 +545,17 @@ function App() {
     }
   }
 
+
+  
   /* ──────────────────────────────────────────────────────────────
    ENVIRONMENT CREATION
    ────────────────────────────────────────────────────────────── */
 
   /** POST to Replify backend to spin up a fresh environment with selected extras. */
   async function handleSetupNewEnv() {
-    setResponse("Setting up new environment! Allow 1-2 minutes…");
+    setResponse("Setting up new environment! This may take a minute or two...");
     setIsLoading(true);
-
+  
     const body = {
       chat: chatEnabled,
       microsoft: microsoftEnabled,
@@ -527,9 +572,10 @@ function App() {
     if (customWidgetsChecked) body.customWidgets = [sbEmail, sbPassword];
     if (mergeIntegrationsChecked)
       body.workdayMerge = [sbEmail, sbPassword, mergeField];
-
+  
     try {
-      const r = await fetch(
+      // 1. Create the environment
+      const envResponse = await fetch(
         "https://sb-news-generator.uc.r.appspot.com/api/v1/installations",
         {
           method: "POST",
@@ -540,14 +586,240 @@ function App() {
           body: JSON.stringify(body),
         }
       );
-      if (!r.ok) throw new Error(`${r.status}`);
-      setResponse("Environment created!");
+  
+      if (!envResponse.ok) {
+        throw new Error(`Environment setup failed: ${envResponse.statusText}`);
+      }
+  
+      // Assuming the response contains the domain of the new environment
+      const envData = await envResponse.json();
+      const domain = envData.domain; 
+      let finalMessage = "✅ Environment created!";
+  
+      // 2. Set up email templates if requested
+      if (setupEmailChecked) {
+        if (!domain) {
+          throw new Error("Could not get domain from setup response to configure email.");
+        }
+        
+        setResponse("Environment created. Now setting up email templates...");
+  
+        const emailResponse = await fetch(
+          "https://sb-news-generator.uc.r.appspot.com/api/v1/generate/email-templates",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiToken}`,
+            },
+            body: JSON.stringify({ domain }),
+          }
+        );
+  
+        if (emailResponse.ok) {
+          finalMessage += " Email templates set up successfully!";
+        } else {
+          finalMessage += ` Failed to set up email templates: ${emailResponse.statusText}`;
+        }
+      }
+  
+      setResponse(finalMessage);
+      
     } catch (err) {
-      setResponse(`Error: ${err.message}`);
+      setResponse(`❌ Error: ${err.message}`);
     } finally {
       setIsLoading(false);
     }
   }
+  
+
+
+  /* ──────────────────────────────────────────────────────────────
+    USER MANAGEMENT
+    ────────────────────────────────────────────────────────────── */
+
+  /** * Fetches all users, finds the first admin ID for updates, 
+   * and cleans up usernames for display. 
+   */
+  const fetchUsers = async (token) => {
+    setIsLoading(true);
+    setResponse("Fetching users...");
+    try {
+      const response = await fetch("https://app.staffbase.com/api/users?limit=200", { // Increased limit to get all users
+        headers: { Authorization: `Basic ${token}` },
+      });
+      if (!response.ok) throw new Error(`Failed to fetch users: ${response.statusText}`);
+      
+      const data = await response.json();
+      const allUsers = data.data || [];
+
+      // 1. Find the first user with the admin role and set their ID
+      const adminUser = allUsers.find(user => user.branchRole === 'WeBranchAdminRole');
+      if (adminUser) {
+        setAdminUserId(adminUser.id);
+      } else {
+        setAdminUserId(null); // Explicitly set to null if no admin is found
+        setResponse(prev => prev + "\n⚠️ No admin user found. Updates will be disabled.");
+      }
+
+      // 2. Clean the username data before setting it to state
+      const cleanedUsers = allUsers.map(user => {
+        // Safety check: Only call replace if user.username is a string
+        const cleanedUsername = typeof user.username === 'string'
+          ? user.username.replace(/^\(|\)$/g, '')
+          : user.username; // If not a string, leave it as is (e.g., null)
+          
+        return { ...user, username: cleanedUsername };
+      });
+      
+      setUsersList(cleanedUsers);
+      setResponse("✅ Users loaded. Ready to update.");
+
+    } catch (err) {
+      setResponse(`❌ ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /** Fetches all available, non-read-only profile fields for the branch. */
+  const fetchAllProfileFields = async (token, branchId) => {
+    // UPDATE: Only exclude image fields for now.
+    const fieldsToExclude = [
+      'avatar', 
+      'profileHeaderImage'
+    ];
+  
+    try {
+      const response = await fetch(`https://app.staffbase.com/api/branches/${branchId}/profilefields`, {
+        headers: { Authorization: `Basic ${token}` },
+      });
+      if (!response.ok) throw new Error("Failed to fetch profile fields");
+      
+      const data = await response.json();
+      const fields = Object.values(data.schema)
+        .filter(field => !field.readOnly)
+        .map(field => field.slug)
+        .filter(slug => !fieldsToExclude.includes(slug));
+        
+      setAllProfileFields(fields);
+    } catch (err) {
+      console.error(err.message);
+      setResponse(prev => prev + "\n⚠️ Could not fetch all profile fields.");
+    }
+  };
+
+  
+
+  /** * Fetch the full profile for a single selected user and
+   * dynamically identify which fields are nested in the 'profile' object.
+   */
+  useEffect(() => {
+    if (!selectedUserId || !apiToken) {
+      setUserProfile(null);
+      setNestedFieldKeys([]); // Clear nested keys when no user is selected
+      return;
+    }
+    const fetchUserProfile = async () => {
+      setIsLoading(true);
+      setResponse(`Fetching profile for user ${selectedUserId}...`);
+      try {
+        const response = await fetch(`https://app.staffbase.com/api/users/${selectedUserId}`, {
+          headers: { Authorization: `Basic ${apiToken}` },
+        });
+        if (!response.ok) throw new Error(`Failed to fetch profile: ${response.statusText}`);
+        
+        const data = await response.json();
+        setUserProfile(data);
+
+        // Dynamically get the list of keys from the user's profile object
+        if (data && data.profile && typeof data.profile === 'object') {
+          setNestedFieldKeys(Object.keys(data.profile));
+        } else {
+          setNestedFieldKeys([]);
+        }
+        
+        setResponse("✅ Profile loaded. Select a field to update.");
+      } catch (err) {
+        setResponse(`❌ ${err.message}`);
+        setUserProfile(null);
+        setNestedFieldKeys([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, [selectedUserId, apiToken]);
+
+  /** * Sends a PUT request, dynamically building the body based on whether
+   * the field is top-level or nested within the user's profile.
+   */
+  const handleUpdateUser = async () => {
+    if (!selectedUserId || !fieldToUpdate || !newValue) {
+      setResponse("Please select a user, a field, and provide a new value.");
+      return;
+    }
+    if (!adminUserId) {
+      setResponse("❌ Cannot update: Branch Admin user ID not found.");
+      return;
+    }
+
+    setIsLoading(true);
+    setResponse("Updating user profile...");
+
+    let body;
+    // Use the dynamically generated list of keys to build the correct body
+    if (nestedFieldKeys.includes(fieldToUpdate)) {
+      body = { profile: { [fieldToUpdate]: newValue } };
+    } else {
+      body = { [fieldToUpdate]: newValue };
+    }
+
+    try {
+      const response = await fetch(`https://app.staffbase.com/api/users/${selectedUserId}`, {
+        method: 'PUT',
+        mode: "cors",
+        credentials: "omit",           
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${apiToken}`,
+          'USERID': adminUserId,
+        },
+        body: JSON.stringify(body),
+      });
+
+      const updatedUser = await response.json(); 
+
+      if (!response.ok) {
+        throw new Error(updatedUser.message || `API responded with status ${response.status}`);
+      }
+      
+      // Use the same dynamic list to verify the response correctly
+      let actualValue;
+      if (nestedFieldKeys.includes(fieldToUpdate)) {
+        actualValue = updatedUser.profile?.[fieldToUpdate];
+      } else {
+        actualValue = updatedUser[fieldToUpdate];
+      }
+      
+      const isSuccess = String(actualValue) === String(newValue);
+
+      let verificationMessage = `Update sent for user ${selectedUserId}.\n\n`;
+      verificationMessage += `--- Verification ---\n`;
+      verificationMessage += `Field: '${fieldToUpdate}'\n`;
+      verificationMessage += `Requested: '${newValue}'\n`;
+      verificationMessage += `Result: '${actualValue ?? "Not set"}'\n`; // Use ?? for cleaner "Not set"
+      verificationMessage += `Status: ${isSuccess ? '✔️ Verified Match' : '❌ Mismatch!'}`;
+      
+      setResponse(verificationMessage);
+
+    } catch (err) {
+      setResponse(`❌ Update Failed: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   /* ──────────────────────────────────────────────────────────────
    UI UTILS
@@ -611,6 +883,8 @@ function App() {
     <div style={containerStyle}>
       <h1 style={headingStyle}>Replify for Staffbase</h1>
 
+      <FeedbackBanner />
+
       {/* ─────────── SAVED ENVIRONMENTS ─────────── */}
       <SavedEnvironments
         savedTokens={savedTokens}
@@ -623,7 +897,15 @@ function App() {
         onAdd={() => setShowApiKeyInput((prev) => !prev)}
       />
 
-      {useOption?.type && renderBreadcrumbs()}
+      <RedirectAnalyticsForm
+        open={redirectOpen} // This state should be managed in App.js
+        onToggleOpen={() => setRedirectOpen((o) => !o)} // This should be managed in App.js
+        state={redirectState}
+        onToggleType={handleToggleRedirect}
+      />
+
+    {useOption?.type && renderBreadcrumbs()}
+
 
       {/* ─────────── ENTER API-KEY FIRST TIME ─────────── */}
       {!useOption?.type && !isAuthenticated && showApiKeyInput && (
@@ -645,6 +927,23 @@ function App() {
               branchId: useOption.branchId,
             })
           }
+        />
+      )}
+
+      {/* ─────────── UPDATE USERS ─────────── */}
+      {isAuthenticated && useOption?.type === "users" && (
+        <UpdateUserForm
+          users={usersList}
+          selectedUserId={selectedUserId}
+          onUserSelect={setSelectedUserId}
+          userProfile={userProfile}
+          fieldToUpdate={fieldToUpdate}
+          onFieldChange={setFieldToUpdate}
+          newValue={newValue}
+          onNewValueChange={setNewValue}
+          onUpdate={handleUpdateUser}
+          isLoading={isLoading}
+          allProfileFields={allProfileFields}
         />
       )}
 
@@ -723,6 +1022,8 @@ function App() {
           setCustomWidgetsChecked={setCustomWidgetsChecked}
           mergeIntegrationsChecked={mergeIntegrationsChecked}
           setMergeIntegrationsChecked={setMergeIntegrationsChecked}
+          setupEmailChecked={setupEmailChecked}         
+          setSetupEmailChecked={setSetupEmailChecked}          
           sbEmail={sbEmail}
           setSbEmail={setSbEmail}
           sbPassword={sbPassword}
