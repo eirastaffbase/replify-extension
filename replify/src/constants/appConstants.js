@@ -34,5 +34,6 @@ export const LAUNCHPAD_DICT = [
     { id: "dashboard",  label: "Dashboard"  },
     { id: "user",       label: "User"       },
     { id: "search",     label: "Search"     },
+    { id: "chat",       label: "Chat"       },
     { id: "pages",      label: "Pages (Experimental)"      },
   ];

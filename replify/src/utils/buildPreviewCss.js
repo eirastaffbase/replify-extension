@@ -94,7 +94,7 @@ export default function buildPreviewCss(o) {
         background-color: ${o.background} !important;
       }
 
-      static-content-block[background-color="#d3e6ec"] * {
+      static-content-block[background-color="#d3e6ec"] p {
         color: ${widgetTextColor} !important;
       }
 
@@ -317,24 +317,6 @@ export default function buildPreviewCss(o) {
           pointer-events     : none;                            /* logo stays decorative */
         }
 
-        /* ---- MOBILE LOGO ---- */
-        .mobile .header-container .header-left-container {
-            position: relative !important;
-        }
-        .mobile .header-container .header-left-container img.header-logo {
-            opacity: 0 !important;
-        }
-        .mobile .header-container .header-left-container::after {
-            content: "" !important;
-            position: absolute;
-            inset: 0;
-            margin: auto 1rem; /* vertical centering and horiz-margin */
-            background-image: var(--logo-url);
-            background-repeat: no-repeat;
-            background-size: contain;
-            background-position: left center;
-            pointer-events: none;
-        }
         `;
   } else {
     // If no logo is provided, ensure the original logo is visible (though it should be by default)

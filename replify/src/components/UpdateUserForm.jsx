@@ -36,17 +36,14 @@ export default function UpdateUserForm({
   onUpdate,
   isLoading,
 }) {
-  // --- NEW LOGIC: Find the current value from either top-level or nested profile ---
   let currentValue = '';
   if (userProfile && fieldToUpdate) {
-    // Check inside userProfile.profile first, then fall back to top-level.
-    // The '??' (nullish coalescing operator) is perfect for this.
     currentValue = userProfile.profile?.[fieldToUpdate] ?? userProfile[fieldToUpdate];
   }
-  // --- END NEW LOGIC ---
 
   return (
     <div>
+      <h2>Update User Profiles</h2>
       {/* ─── Step 1: Select User ─── */}
       <div style={formSectionStyle}>
         <label style={labelStyle} htmlFor="user-select">
@@ -57,8 +54,8 @@ export default function UpdateUserForm({
           style={selectStyle}
           value={selectedUserId}
           onChange={(e) => {
-            onFieldChange(''); // Reset selected field when user changes
-            onNewValueChange(''); // Reset value when user changes
+            onFieldChange(''); 
+            onNewValueChange(''); 
             onUserSelect(e.target.value);
           }}
           disabled={isLoading || !users.length}

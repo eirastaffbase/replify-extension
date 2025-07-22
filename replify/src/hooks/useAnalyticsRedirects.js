@@ -27,6 +27,7 @@ const getDefaultAnalyticsState = () => {
     email: false,
     dashboard: false,
     user: false, 
+    chat: false,
     pages: false,
     // Add all your analytics types here, initialized to false
   };
