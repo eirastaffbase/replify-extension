@@ -1,4 +1,4 @@
-//App.js
+// App.js
 /* eslint-disable no-undef */
 /* global chrome */
 
@@ -19,11 +19,13 @@ import {
   manageAnalyticsScriptInPage,
   handleToggleAnalyticsChange,
 } from "./utils/analyticsManager"; 
+import { automationScript } from "./utils/automationRunner";
 
 
 /* ───── Constants & styles ───── */
 import { LAUNCHPAD_DICT, blockRegex } from "./constants/appConstants";
-import { responseStyle, containerStyle, headingStyle } from "./styles";
+import { responseStyle, containerStyle, headingStyle, brandingButtonStyle, subDescriptionStyle } from "./styles";
+
 
 /* ───── Components ───── */
 import SavedEnvironments from "./components/SavedEnvironments";
@@ -34,6 +36,8 @@ import UseEnvironmentOptions from "./components/UseEnvironmentOptions";
 import RedirectAnalyticsForm from "./components/RedirectAnalyticsForm";
 import FeedbackBanner from "./components/FeedbackBanner";
 import UpdateUserForm from "./components/UpdateUserForm";
+import AutomationForm from "./components/AutomationForm";
+import ProgressBar from "./components/ProgressBar";
 
 
 function App() {
@@ -90,7 +94,7 @@ function App() {
   const [sbEmail, setSbEmail] = useState("");
   const [sbPassword, setSbPassword] = useState("");
   const [mergeField, setMergeField] = useState("");
-  const [setupEmailChecked, setSetupEmailChecked] = useState(false); // Add this line
+  const [setupEmailChecked, setSetupEmailChecked] = useState(false);
 
 
   /* 📲  Launchpad & mobile quick links ------------------------------------ */
@@ -112,6 +116,7 @@ const [newValue, setNewValue] = useState("");
 const [allProfileFields, setAllProfileFields] = useState([]); 
 const [adminUserId, setAdminUserId] = useState(null);        
 const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
+const [userManagementView, setUserManagementView] = useState('selection'); // 'selection', 'profile', or 'automation'
 
 
   /* 🔄  UI / async status -------------------------------------------------- */
@@ -121,9 +126,90 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
   /* 🌐  Browser-specific --------------------------------------------------- */
   const isStaffbaseTab = useStaffbaseTab(); // are we viewing a Staffbase page?
 
+  /* 🌐  Progress tracking -------------------------------------------------- */
+  const [automationRunning, setAutomationRunning] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [totalTasks, setTotalTasks] = useState(0);
+  
   // --------------------------------------------------
-  //  DERIVED LABELS / SMALL HELPERS
+  //   SMALL HELPERS
   // --------------------------------------------------
+
+
+  useEffect(() => {
+    const messageListener = (message, sender, sendResponse) => {
+        if (message.type === 'automationProgress') {
+            setProgress(message.payload.tasksCompleted);
+            setTotalTasks(message.payload.totalTasks);
+        } else if (message.type === 'automationComplete') {
+            setAutomationRunning(false);
+            setResponse("✅ Automation has finished!");
+        }
+    };
+    
+    chrome.runtime.onMessage.addListener(messageListener);
+    
+    // Cleanup function to remove the listener when the component unmounts
+    return () => {
+        chrome.runtime.onMessage.removeListener(messageListener);
+    };
+  }, []); // The empty array ensures this effect runs only once
+  
+
+  const handleRunAutomation = async (selectedUserIds) => {
+    if (selectedUserIds.length === 0) {
+      setResponse("⚠️ Please select at least one user.");
+      return;
+    }
+
+    setResponse("🚀 Starting automation... preparing new tab.");
+    setProgress(0);
+    setTotalTasks(selectedUserIds.length * 14); // 3 tasks per user
+    setAutomationRunning(true);
+    setIsLoading(true); // Keep existing loading state for initial setup
+    setIsLoading(true);
+
+    const selectedUsers = usersList.filter(user => selectedUserIds.includes(user.id));
+    if (selectedUsers.length === 0) {
+        setResponse("❌ Error: Could not find user data for the current selection.");
+        setIsLoading(false);
+        return;
+    }
+
+    try {
+      // 1. Get the origin URL from the current tab.
+      const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const origin = new URL(currentTab.url).origin;
+      const rootUrl = `${origin}/`;
+
+      // 2. Create a new tab at the root URL. The script will be injected here.
+      const newTab = await chrome.tabs.create({ url: rootUrl, active: true });
+
+      // 3. Listen for the tab to be ready before injecting the script.
+      const listener = (tabId, changeInfo, tab) => {
+        if (tabId === newTab.id && changeInfo.status === 'complete') {
+          chrome.tabs.onUpdated.removeListener(listener); // Clean up the listener!
+
+          setResponse(`Tab ready. Injecting main automation script...`);
+          
+          // 4. Inject the single, powerful automation script that handles the entire lifecycle.
+          chrome.scripting.executeScript({
+            target: { tabId: newTab.id },
+            func: automationScript,
+            args: [selectedUsers, apiToken, adminUserId],
+          });
+          
+          setResponse(`✅ Script injected. The new tab will now run the automation.`);
+          setIsLoading(false);
+        }
+      };
+      chrome.tabs.onUpdated.addListener(listener);
+      
+    } catch (err) {
+      setResponse(`❌ Automation failed: ${err.message}`);
+      setIsLoading(false);
+    }
+  };
 
   /** Returns CTA label for the “Create” button depending on the two checkboxes. */
   const getCreateLabel = () => {
@@ -324,6 +410,7 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
     setBranchId(branchId);
     setIsAuthenticated(true);
     setUseOption({ type: mode, token, branchId });
+    setUserManagementView('selection'); // Reset to main selection view
 
     if (mode === "users") {
       fetchUsers(token); // Fetch users when entering this mode
@@ -347,7 +434,7 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
       mode === "existing"
         ? "Using saved environment – ready to brand!"
         : mode === "users"
-        ? "Ready to update users!"
+        ? "Ready for user management!"
         : "Using saved environment – ready to set up!"
       );
   };
@@ -379,8 +466,8 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
 
   /**
    * Create or update demo resources:
-   *  1. Inject / replace Replify CSS block.
-   *  2. Trigger sb-news LinkedIn scraper (optional).
+   * 1. Inject / replace Replify CSS block.
+   * 2. Trigger sb-news LinkedIn scraper (optional).
    */
   async function handleCreateDemo() {
     try {
@@ -673,7 +760,7 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
       });
       
       setUsersList(cleanedUsers);
-      setResponse("✅ Users loaded. Ready to update.");
+      setResponse("✅ Users loaded. Ready for user management.");
 
     } catch (err) {
       setResponse(`❌ ${err.message}`);
@@ -847,12 +934,35 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
           padding: 0,
           fontSize: 14,
         }}
-        onClick={() => setUseOption({ type: null })}
+        onClick={() => {
+          setUseOption({ type: null });
+          setUserManagementView('selection'); // Also reset user mgmt view
+        }}
       >
-        ← Back
+        ← Back to Environments
       </button>
     </div>
   );
+  
+  /** Breadcrumb nav for inside the User Management section. */
+  const renderUserMgmtBreadcrumbs = () => (
+    <div style={{ marginBottom: 20 }}>
+      <button
+        style={{
+          background: "none",
+          border: "none",
+          color: "#007bff",
+          cursor: "pointer",
+          padding: 0,
+          fontSize: 14,
+        }}
+        onClick={() => setUserManagementView('selection')}
+      >
+        ← Back to User Options
+      </button>
+    </div>
+  );
+
 
   /* ——— Quick‑link helpers ——— */
   const handleQuickLinkChange = (idx, field, val) => {
@@ -940,21 +1050,56 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
         />
       )}
 
-      {/* ─────────── UPDATE USERS ─────────── */}
+      {/* ─────────── USER MANAGEMENT (AUTOMATION / PROFILE) ─────────── */}
       {isAuthenticated && useOption?.type === "users" && (
-        <UpdateUserForm
-          users={usersList}
-          selectedUserId={selectedUserId}
-          onUserSelect={setSelectedUserId}
-          userProfile={userProfile}
-          fieldToUpdate={fieldToUpdate}
-          onFieldChange={setFieldToUpdate}
-          newValue={newValue}
-          onNewValueChange={setNewValue}
-          onUpdate={handleUpdateUser}
-          isLoading={isLoading}
-          allProfileFields={allProfileFields}
-        />
+        <>
+          {userManagementView !== 'selection' && renderUserMgmtBreadcrumbs()}
+
+          {userManagementView === 'selection' && (
+            <div style={{ marginTop: '10px' }}>
+              <button style={brandingButtonStyle} onClick={() => setUserManagementView('automation')}>
+                Automation
+              </button>
+              <p style={subDescriptionStyle}>
+                This can fill out surveys, forms, comment, create chat groups, and more.
+              </p>
+
+              <button style={{ ...brandingButtonStyle, marginTop: '20px' }} onClick={() => setUserManagementView('profile')}>
+                User Profile
+              </button>
+              <p style={subDescriptionStyle}>
+                Update user profile fields.
+              </p>
+            </div>
+          )}
+          
+          {userManagementView === 'automation' && (
+            <AutomationForm
+              users={usersList}
+              isStaffbaseTab={isStaffbaseTab}
+              onRun={handleRunAutomation}
+              automationRunning={automationRunning}
+              progress={progress}
+              totalTasks={totalTasks}
+            />
+          )}
+
+          {userManagementView === 'profile' && (
+            <UpdateUserForm
+              users={usersList}
+              selectedUserId={selectedUserId}
+              onUserSelect={setSelectedUserId}
+              userProfile={userProfile}
+              fieldToUpdate={fieldToUpdate}
+              onFieldChange={setFieldToUpdate}
+              newValue={newValue}
+              onNewValueChange={setNewValue}
+              onUpdate={handleUpdateUser}
+              isLoading={isLoading}
+              allProfileFields={allProfileFields}
+            />
+          )}
+        </>
       )}
 
       {/* ─────────── BRAND EXISTING ENV ─────────── */}

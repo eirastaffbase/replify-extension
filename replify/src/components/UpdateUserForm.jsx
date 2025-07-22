@@ -43,7 +43,8 @@ export default function UpdateUserForm({
 
   return (
     <div>
-      <h2>Update User Profiles</h2>
+      <h2>Update User Profile</h2>
+      <p>Select a single user to view and modify their profile fields.</p>
       {/* ─── Step 1: Select User ─── */}
       <div style={formSectionStyle}>
         <label style={labelStyle} htmlFor="user-select">
