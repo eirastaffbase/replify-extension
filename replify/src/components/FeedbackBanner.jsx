@@ -63,7 +63,7 @@ const bannerStyle = {
         >
           Version Release Notes
         </a>
-        <span style={{ fontStyle: "oblique", fontSize: "10px" }}> 1.8</span>
+        <span style={{ fontStyle: "oblique", fontSize: "10px" }}> 1.9</span>
       </div>
     );
   };

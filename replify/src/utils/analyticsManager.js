@@ -27,6 +27,7 @@ export const getInitialAnalyticsStateFromStorage = () => {
     email: false,
     dashboard: false,
     user: false, 
+    chat: false,
     pages: false,
   };
   try {

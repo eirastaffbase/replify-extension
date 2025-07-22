@@ -11,7 +11,6 @@ const scriptConfig = {
     user: 'content/analytics/user.js',
     search: 'content/analytics/search.js',
     pages: 'content/analytics/pages.js'
-
 };
 
 /**
@@ -100,7 +99,11 @@ const PATCH_CONFIG = {
     pages: {
         urlCheck: (pathname) => pathname.includes("/studio/analytics/pages"),
         scriptPath: 'content/analytics/pages.js'
-    }
+    },
+    chat: {
+        urlCheck: (pathname) => pathname.includes("/admin/analytics/chat"),
+        scriptPath: 'content/analytics/chat.js'
+    },
 };
 
 // --- GLOBAL STATE & OBSERVERS ---
