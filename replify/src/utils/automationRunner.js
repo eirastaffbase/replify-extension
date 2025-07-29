@@ -1,4 +1,3 @@
-// src/utils/automationRunner.js
 /* global chrome */
 
 export function automationScript(users, apiToken, adminId) {
@@ -30,7 +29,10 @@ export function automationScript(users, apiToken, adminId) {
       }
       return array;
     };
-    const getRandomItem = (array) => array[Math.floor(Math.random() * array.length)];
+    const getRandomItem = (array) => {
+        if (!array || array.length === 0) return null;
+        return array[Math.floor(Math.random() * array.length)];
+    }
     const getRandomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
     // --- Configuration ---
@@ -46,7 +48,8 @@ export function automationScript(users, apiToken, adminId) {
         { parent: "What are the key metrics for success on this project?", reply: "Understanding the success metrics would provide a lot of clarity." },
         { parent: "Is the documentation for this available on the company intranet?", reply: "A direct link to the documentation would be perfect." },
         { parent: "This is a great initiative! How can other teams get involved?", reply: "My team would be very interested in contributing as well." },
-        { parent: "What was the biggest challenge the team faced during this rollout?", reply: "I'm curious about the lessons learned from this process." }
+        { parent: "What was the biggest challenge the team faced during this rollout?", reply: "I'm curious about the lessons learned from this process." },
+        { parent: "Are there any plans to expand this program to other departments?", reply: "That's a great question; our team would be very interested." } // FIX: Added 10th item
     ]; // 10 pairs = 20 comments
 
     const SINGLE_COMMENTS = [
@@ -95,9 +98,9 @@ export function automationScript(users, apiToken, adminId) {
     
     async function getSurveyDetailsAndToken(survey, csrfToken) {
         try {
-            const forwardLink = survey.links?.frontend_forward?.href;
+            const forwardLink = survey?.links?.frontend_forward?.href;
             if (!forwardLink) {
-              console.warn(`  - Survey "${survey.config.localization.en_US.title}" has no forward link. Skipping.`);
+              console.warn(`  - Survey "${survey?.config?.localization?.en_US?.title || survey?.id}" has no forward link. Skipping.`);
               return null;
             }
 
@@ -106,19 +109,23 @@ export function automationScript(users, apiToken, adminId) {
                 redirect: 'manual' 
             });
 
-            const locationUrl = new URL(redirectResponse.url);
+            const locationHeader = redirectResponse.headers.get('Location') || redirectResponse.url;
+            if (!locationHeader) {
+                console.error("  - Survey redirect failed. No 'Location' header or URL found. Skipping.");
+                return null;
+            }
+
+            const locationUrl = new URL(locationHeader);
             const jwt = locationUrl.searchParams.get('jwt');
             if (!jwt) {
-                console.error("  - Could not extract JWT from survey redirect. Skipping.");
+                console.error("  - Could not extract JWT from survey redirect URL. Skipping.");
+                console.log("  - URL Searched:", locationUrl.href);
                 return null;
             }
 
             const surveyApiUrl = `https://pluginsurveys-us1.staffbase.com/api/v1/surveys/${survey.id}`;
             const detailsResponse = await fetch(surveyApiUrl, {
-                headers: {
-                    'Authorization': `Bearer ${jwt}`,
-                    'Accept': 'application/json'
-                }
+                headers: { 'Authorization': `Bearer ${jwt}`, 'Accept': 'application/json' }
             });
 
             if (!detailsResponse.ok) {
@@ -139,15 +146,20 @@ export function automationScript(users, apiToken, adminId) {
         const payload = { content: {} };
         if (!questions) return payload;
         for (const question of questions) {
-            switch (question.type) {
+            switch (question?.type) {
                 case 'rating':
                     payload.content[question.id] = getRandomInt(1, 10);
                     break;
                 case 'text':
                     payload.content[question.id] = getRandomItem(SURVEY_COMMENT_BANK);
                     break;
+                case 'select':
+                     if (question.config?.options?.length > 0) {
+                        payload.content[question.id] = [getRandomItem(question.config.options).id];
+                    }
+                    break;
                 default:
-                    console.warn(`  - Unsupported survey question type: "${question.type}". Skipping.`);
+                    console.warn(`  - Unsupported survey question type: "${question?.type}". Skipping.`);
                     break;
             }
         }
@@ -185,8 +197,9 @@ export function automationScript(users, apiToken, adminId) {
             }
             console.log(`[SURVEYS] Processing ${surveys.length} pre-fetched surveys.`);
             for (const survey of surveys) {
+                if (!survey) continue;
                 const surveyDetails = await getSurveyDetailsAndToken(survey, csrfToken);
-                if (surveyDetails && surveyDetails.survey?.questions) {
+                if (surveyDetails?.survey?.questions) {
                     const responsePayload = generateSurveyResponse(surveyDetails.survey.questions);
                     if (Object.keys(responsePayload.content).length > 0) {
                         await submitSurveyFeedback(surveyDetails, responsePayload);
@@ -223,6 +236,10 @@ export function automationScript(users, apiToken, adminId) {
                 alert("No published posts found. Cannot proceed with commenting or reacting. Aborting.");
                 return;
             }
+            if (!users || users.length === 0) {
+                alert("No users provided for automation. Aborting.");
+                return;
+            }
 
             console.log(`✅ Pre-fetched ${publishedSurveys.length} surveys and ${publishedPosts.length} posts.`);
             console.log("--- Data pre-fetching complete ---");
@@ -235,48 +252,53 @@ export function automationScript(users, apiToken, adminId) {
         console.log("--- Generating commenting plan ---");
         const commentTasks = [];
         const createdParentComments = {}; // { parentTaskId: 'commentIdFromApi' }
-        const totalCommentsToCreate = 50;
-        const numPairs = 20; // This means 10 parent, 10 reply
-        const numSingleComments = 30;
-
-        // Generate 10 parent/reply pairs (20 comments) if more than one user exists
-        if (users.length > 1) {
-            console.log(`  - Generating ${numPairs / 2} parent/reply comment pairs.`);
+        
+        // Generate parent/reply pairs if possible
+        if (users.length > 1 && PARENT_REPLY_PAIRS?.length > 0) {
+            const numPairsToGenerate = Math.min(10, PARENT_REPLY_PAIRS.length); // FIX: Dynamic loop limit
+            console.log(`  - Generating ${numPairsToGenerate} parent/reply comment pairs.`);
             const shuffledUsers = shuffleArray([...users]);
-            for (let i = 0; i < (numPairs / 2); i++) {
+
+            for (let i = 0; i < numPairsToGenerate; i++) {
                 const parentUser = shuffledUsers[i % shuffledUsers.length];
                 const replyUser = shuffledUsers[(i + 1) % shuffledUsers.length];
-                
-                commentTasks.push({
-                    id: `pair_${i}`,
-                    type: 'parent',
-                    user: parentUser,
-                    post: getRandomItem(publishedPosts),
-                    text: PARENT_REPLY_PAIRS[i].parent
-                });
-                
-                commentTasks.push({
-                    id: `reply_to_pair_${i}`,
-                    type: 'reply',
-                    user: replyUser,
-                    parentTaskId: `pair_${i}`,
-                    text: PARENT_REPLY_PAIRS[i].reply
-                });
+                const commentPair = PARENT_REPLY_PAIRS[i];
+                const post = getRandomItem(publishedPosts);
+
+                if (parentUser && replyUser && commentPair && post) {
+                    commentTasks.push({
+                        id: `pair_${i}`,
+                        type: 'parent',
+                        user: parentUser,
+                        post: post,
+                        text: commentPair.parent
+                    });
+                    
+                    commentTasks.push({
+                        id: `reply_to_pair_${i}`,
+                        type: 'reply',
+                        user: replyUser,
+                        parentTaskId: `pair_${i}`,
+                        text: commentPair.reply
+                    });
+                }
             }
         } else {
-            console.warn("  - Only one user available. Skipping two-pronged parent/reply comments.");
+            console.warn("  - Skipping two-pronged parent/reply comments (not enough users or no pairs defined).");
         }
         
-        // Generate single comments (30 if pairs were made, 50 otherwise)
-        const singleCommentsToGenerate = users.length > 1 ? numSingleComments : totalCommentsToCreate;
-        console.log(`  - Generating ${singleCommentsToGenerate} single comments.`);
-        for (let i = 0; i < singleCommentsToGenerate; i++) {
-            commentTasks.push({
-                type: 'single',
-                user: getRandomItem(users),
-                post: getRandomItem(publishedPosts),
-                text: getRandomItem(SINGLE_COMMENTS)
-            });
+        // Generate single comments to reach the target of 50 total
+        const singleCommentsToGenerate = 50 - commentTasks.length;
+        if (singleCommentsToGenerate > 0 && SINGLE_COMMENTS?.length > 0) {
+            console.log(`  - Generating ${singleCommentsToGenerate} single comments.`);
+            for (let i = 0; i < singleCommentsToGenerate; i++) {
+                const user = getRandomItem(users);
+                const post = getRandomItem(publishedPosts);
+                const text = getRandomItem(SINGLE_COMMENTS);
+                if (user && post && text) {
+                    commentTasks.push({ type: 'single', user, post, text });
+                }
+            }
         }
         console.log(`✅ Commenting plan generated with ${commentTasks.length} total comments.`);
 
@@ -286,14 +308,13 @@ export function automationScript(users, apiToken, adminId) {
 
         for (const [index, user] of users.entries()) {
             const userTaskStartCount = tasksCompleted;
-            const userCommentTasks = commentTasks.filter(task => task.user.id === user.id);
-            const totalTasksForThisUser = 1 + 10 + userCommentTasks.length; // 1 login, 10 reactions, N comments for this user
+            const userCommentTasks = commentTasks.filter(task => task?.user?.id === user.id);
+            const totalTasksForThisUser = 1 + 10 + userCommentTasks.length;
 
             let freshCsrfToken = null;
 
             try {
-                const primaryEmail = user.emails?.find(e => e.primary === true);
-                const identifier = primaryEmail?.value || user.emails?.[0]?.value;
+                const identifier = user.emails?.find(e => e.primary)?.value || user.emails?.[0]?.value;
                 if (!identifier) throw new Error(`User with ID ${user.id} has no email available.`);
                 
                 console.log(`--- [${index + 1}/${users.length}] Processing: ${identifier} ---`);
@@ -310,35 +331,37 @@ export function automationScript(users, apiToken, adminId) {
                 console.log(`✅ Login successful.`);
                 
                 freshCsrfToken = await getFreshCsrfToken();
-                console.log(`✅ Fresh CSRF token acquired: ${freshCsrfToken.substring(0, 15)}...`);
+                console.log(`✅ Fresh CSRF token acquired.`);
                 await sleep(1000);
 
-                // Handle Surveys using the pre-fetched list
+                // Handle Surveys
                 await handleSurveys(publishedSurveys, freshCsrfToken);
                 
                 // Post Reaction Logic
                 console.log("[REACTIONS] Starting post reactions...");
                 const postsToReactTo = shuffleArray([...publishedPosts]).slice(0, 10);
-                console.log(`[${identifier}] Reacting to ${postsToReactTo.length} random posts...`);
                 for (const post of postsToReactTo) {
-                    await fetch('/api/reactions', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'x-csrf-token': freshCsrfToken },
-                        body: JSON.stringify({ parentId: post.id, parentType: 'post', type: getRandomItem(REACTION_TYPES) })
-                    });
+                    if (post?.id) {
+                         await fetch('/api/reactions', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'x-csrf-token': freshCsrfToken },
+                            body: JSON.stringify({ parentId: post.id, parentType: 'post', type: getRandomItem(REACTION_TYPES) })
+                        });
+                    }
                     tasksCompleted++;
                     chrome.runtime.sendMessage({ type: 'automationProgress', payload: { tasksCompleted, totalTasks } });
                     await sleep(Math.random() * 1000 + 500);
                 }
                 console.log(`✅ Finished reacting.`);
 
-                // --- NEW: Commenting Logic ---
+                // Commenting Logic
                 console.log(`[COMMENTS] Starting commenting tasks for ${identifier}...`);
                 if (userCommentTasks.length > 0) {
                     for (const task of userCommentTasks) {
                         try {
-                            if (task.type === 'single' || task.type === 'parent') {
-                                console.log(`  - Posting comment on article ${task.post.id}`);
+                            if (!task?.text) continue; // Skip task if there's no text
+
+                            if ((task.type === 'single' || task.type === 'parent') && task.post?.id) {
                                 const response = await fetch(`/api/articles/${task.post.id}/comments`, {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json', 'x-csrf-token': freshCsrfToken },
@@ -347,46 +370,43 @@ export function automationScript(users, apiToken, adminId) {
                                 if (!response.ok) throw new Error(`Failed to post comment. Status: ${response.status}`);
                                 
                                 const responseData = await response.json();
-                                if (task.type === 'parent') {
+                                if (task.type === 'parent' && responseData?.id) {
                                     createdParentComments[task.id] = responseData.id;
                                     console.log(`  ✅ Parent comment ${task.id} created with ID ${responseData.id}`);
                                 } else {
-                                    console.log(`  ✅ Single comment posted.`);
+                                    console.log(`  ✅ Single comment posted to article ${task.post.id}.`);
                                 }
-
                             } else if (task.type === 'reply') {
                                 const parentCommentId = createdParentComments[task.parentTaskId];
                                 if (!parentCommentId) {
-                                    console.warn(`  - Skipping reply for task ${task.id} because parent comment ID was not found. Parent may have failed.`);
-                                    tasksCompleted++; // Still increment task to not stall progress bar
+                                    console.warn(`  - Skipping reply for task ${task.id} because parent comment ID was not found.`);
+                                    tasksCompleted++;
                                     chrome.runtime.sendMessage({ type: 'automationProgress', payload: { tasksCompleted, totalTasks } });
                                     continue;
                                 }
-                                console.log(`  - Posting reply to comment ${parentCommentId}`);
                                 await fetch(`/api/comments/${parentCommentId}/comments`, {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json', 'x-csrf-token': freshCsrfToken },
                                     body: JSON.stringify({ text: `<p>${task.text}</p>`, image: null })
                                 });
-                                console.log(`  ✅ Reply comment posted.`);
+                                console.log(`  ✅ Reply comment posted to ${parentCommentId}.`);
                             }
                             tasksCompleted++;
                             chrome.runtime.sendMessage({ type: 'automationProgress', payload: { tasksCompleted, totalTasks } });
                             await sleep(Math.random() * 1500 + 1000);
                         } catch (commentError) {
                             console.error(`  ❌ Failed to execute comment task: ${commentError.message}`);
-                            tasksCompleted++; // Still increment task to not stall progress bar on a single failure
+                            tasksCompleted++;
                             chrome.runtime.sendMessage({ type: 'automationProgress', payload: { tasksCompleted, totalTasks } });
                         }
                     }
                 } else {
                     console.log(`  - No comment tasks for this user.`);
                 }
-                 console.log(`✅ Finished commenting tasks for ${identifier}.`);
+                console.log(`✅ Finished commenting tasks for ${identifier}.`);
 
             } catch (error) {
-                console.error(`❌ An error occurred for user ${user.id}:`, error.message);
-                // If a major error occurs (e.g., login fails), mark all of this user's tasks as complete for progress.
+                console.error(`❌ An error occurred for user ${user?.id || 'Unknown User'}:`, error.message);
                 tasksCompleted = userTaskStartCount + totalTasksForThisUser; 
                 chrome.runtime.sendMessage({ type: 'automationProgress', payload: { tasksCompleted, totalTasks } });
             }
