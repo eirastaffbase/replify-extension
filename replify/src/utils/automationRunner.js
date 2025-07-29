@@ -47,6 +47,7 @@ export function automationScript(users, apiToken, adminId) {
     const REACTION_TYPES = ['LIKE', 'CELEBRATE', 'SUPPORT', 'INSIGHTFUL', 'THANKS'];
 
     const CHAT_MESSAGE_PAIRS = [
+        // --- Existing Pairs ---
         { 
             initiator: (name) => `Hey ${name}, just a heads up that your shift starts in about an hour. See you soon!`, 
             reply: "Got it, thanks for the reminder! I'm on my way." 
@@ -66,6 +67,47 @@ export function automationScript(users, apiToken, adminId) {
         { 
             initiator: (name) => `Friendly reminder that our weekly team sync is tomorrow at 10 AM.`, 
             reply: "Thanks! I have it on my calendar." 
+        },
+        // --- New Additions ---
+        {
+            initiator: (name) => `Are you free for a quick call this afternoon, ${name}? I'd like to go over the launch plan.`,
+            reply: "Yep, my calendar is open after 2 PM. Just send an invite."
+        },
+        {
+            initiator: (name) => `Did you get a chance to see the latest client feedback on the mockups?`,
+            reply: "Not yet, just logged on. I'll check my email now. Hopefully it's good news!"
+        },
+        {
+            initiator: (name) => `I'm a little stuck on the data analysis for the monthly report. Do you have a moment to look at my spreadsheet, ${name}?`,
+            reply: "Of course, happy to help. Share the link with me whenever you're ready."
+        },
+        {
+            initiator: (name) => `Anyone up for grabbing lunch today? I'm thinking about that new sandwich shop.`,
+            reply: "I could eat. What time were you thinking?"
+        },
+        {
+            initiator: (name) => `Huge congrats on the successful presentation, ${name}! You absolutely nailed it.`,
+            reply: "Thanks so much! That really means a lot."
+        },
+        {
+            initiator: (name) => `How was your weekend, ${name}?`,
+            reply: "It was great, thanks for asking! Just relaxed. How about yours?"
+        },
+        {
+            initiator: (name) => `${name}, would you be able to cover the first hour of my Friday shift? Something unexpected came up.`,
+            reply: "I think so, but let me double-check my schedule and I'll confirm with you in a few minutes."
+        },
+        {
+            initiator: (name) => `Just a heads-up, all expense reports for last month are due by end of day today.`,
+            reply: "Whoops, almost forgot! Appreciate the reminder, I'll get that submitted now."
+        },
+        {
+            initiator: (name) => `Is anyone else having trouble connecting to the VPN this morning?`,
+            reply: "Yeah, it's been really slow for me too. I was just about to file a ticket with IT."
+        },
+        {
+            initiator: (name) => `Great job on closing that deal, ${name}! The whole team is celebrating.`,
+            reply: "Thank you! It was a team effort for sure."
         }
     ];
     
@@ -221,55 +263,6 @@ export function automationScript(users, apiToken, adminId) {
                     return response.json();
                 };
 
-                const handleChatting = async (currentUser, allUsers, chatInstallationId, csrfToken, pendingChatReplies) => {
-                    // Find a pending reply where this user is the recipient
-                    const replyableIndex = pendingChatReplies.findIndex(p => p.recipientId === currentUser.id);
-            
-                    if (replyableIndex > -1) {
-                        // A message is waiting for this user to reply to.
-                        const [replyable] = pendingChatReplies.splice(replyableIndex, 1);
-                        
-                        console.log(`  - Found a pending chat from user ${replyable.authorId}. Replying...`);
-                        await fetch(`/api/installations/${chatInstallationId}/conversations/direct/${replyable.authorId}`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
-                            body: JSON.stringify({ message: replyable.replyText })
-                        });
-                        console.log(`  - 💬 Sent chat reply to user ${replyable.authorId}.`);
-                    } else {
-                        // No pending replies, so start a new conversation.
-                        let recipient;
-                        do {
-                            recipient = getRandomItem(allUsers);
-                        } while (recipient && recipient.id === currentUser.id);
-            
-                        if (!recipient) {
-                            console.log("  - Could not find a valid recipient for chat.");
-                            return;
-                        }
-            
-                        const pair = getRandomItem(CHAT_MESSAGE_PAIRS);
-                        const initialMessage = pair.initiator(recipient.firstName);
-            
-                        const response = await fetch(`/api/installations/${chatInstallationId}/conversations/direct/${recipient.id}`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
-                            body: JSON.stringify({ message: initialMessage })
-                        });
-            
-                        if (!response.ok) throw new Error('Failed to send initial chat message.');
-                        const newConvoData = await response.json();
-            
-                        // Add the reply to the queue for the other user to handle later
-                        pendingChatReplies.push({
-                            conversationId: newConvoData.conversationID,
-                            replyText: pair.reply,
-                            authorId: currentUser.id, // The current user sent the first message
-                            recipientId: recipient.id  // The other user needs to reply
-                        });
-                        console.log(`  - 💬 Started new chat with ${recipient.firstName} (${recipient.id}). Waiting for reply.`);
-                    }
-                };
             
 
                 // Helper for posting a paired comment (either reply or new parent)
