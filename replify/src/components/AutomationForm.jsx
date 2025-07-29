@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { brandingButtonStyle, psaStyle, subDescriptionStyle } from "../styles";
+import { brandingButtonStyle, psaStyle } from "../styles";
 import ProgressBar from "./ProgressBar";
 
 // --- Styles ---
@@ -13,10 +13,10 @@ const AUTOMATION_OPTIONS = [
   { id: 'surveys', label: 'Fill Surveys', timePerUser: 10 },
   { id: 'reactions', label: 'Add Reactions (10x)', timePerUser: 15 },
   { id: 'comments', label: 'Post and Reply to Comments (2-4x)', timePerUser: 25 },
-  { id: 'chats', label: 'Send and Reply to Chats', timePerUser: 5 },
+  { id: 'chats', label: 'Reply to Chats', timePerUser: 5 },
 ];
 
-export default function AutomationForm({ users, isStaffbaseTab, onRun, automationRunning, progress, totalTasks }) {
+export default function AutomationForm({ users, isStaffbaseTab, onRun, automationRunning, progressData }) {
   const [selectedUserIds, setSelectedUserIds] = useState([]);
   const [options, setOptions] = useState({
     surveys: true,
@@ -40,9 +40,7 @@ export default function AutomationForm({ users, isStaffbaseTab, onRun, automatio
     if (userCount === 0) return "";
 
     const totalSecondsPerUser = AUTOMATION_OPTIONS.reduce((acc, option) => {
-      if (options[option.id]) {
-        return acc + option.timePerUser;
-      }
+      if (options[option.id]) return acc + option.timePerUser;
       return acc;
     }, 0);
 
@@ -52,7 +50,7 @@ export default function AutomationForm({ users, isStaffbaseTab, onRun, automatio
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     
-    return `Est. time: ${minutes > 0 ? `${minutes}m ` : ''}${seconds}s`;
+    return `Est. time: ${minutes > 0 ? `${minutes}m ` : ''}${seconds > 0 ? `${seconds}s` : ''}`.trim();
   };
 
   return (
@@ -72,13 +70,7 @@ export default function AutomationForm({ users, isStaffbaseTab, onRun, automatio
       <div style={checkboxContainerStyle}>
         {AUTOMATION_OPTIONS.map(option => (
           <div key={option.id}>
-            <input
-              type="checkbox"
-              id={`option-${option.id}`}
-              checked={options[option.id]}
-              onChange={() => handleOptionChange(option.id)}
-              style={{ marginRight: "12px", cursor: "pointer" }}
-            />
+            <input type="checkbox" id={`option-${option.id}`} checked={options[option.id]} onChange={() => handleOptionChange(option.id)} style={{ marginRight: "12px", cursor: "pointer" }} />
             <label htmlFor={`option-${option.id}`} style={labelStyle}>{option.label}</label>
           </div>
         ))}
@@ -86,11 +78,7 @@ export default function AutomationForm({ users, isStaffbaseTab, onRun, automatio
 
       <div style={psaStyle}>
         <strong>Heads up!</strong> This process will open and control a new tab. Please leave the new tab open and stay on this page. You can open another Chrome window to continue working while the automation runs.
-        {selectedUserIds.length > 0 && (
-          <div style={{ marginTop: "5px" }}>
-            <strong>{timeEstimate()}</strong>
-          </div>
-        )}
+        {selectedUserIds.length > 0 && (<div style={{ marginTop: "5px" }}><strong>{timeEstimate()}</strong></div>)}
       </div>
 
       <button
@@ -102,13 +90,14 @@ export default function AutomationForm({ users, isStaffbaseTab, onRun, automatio
       </button>
 
       {automationRunning && (
-        <ProgressBar current={progress} total={totalTasks} />
+        <ProgressBar
+          progressData={progressData}
+          totalTimeEstimate={AUTOMATION_OPTIONS.reduce((acc, opt) => (options[opt.id] ? acc + opt.timePerUser : acc), 0) * selectedUserIds.length}
+        />
       )}
 
       {selectedUserIds.length > 0 && !isStaffbaseTab && !automationRunning && (
-        <p style={{ color: "red", fontSize: "12px", marginTop: "5px" }}>
-          ⚠️ You must be on an app.staffbase.com tab to run automation.
-        </p>
+        <p style={{ color: "red", fontSize: "12px", marginTop: "5px" }}>⚠️ You must be on an app.staffbase.com tab to run automation.</p>
       )}
     </div>
   );

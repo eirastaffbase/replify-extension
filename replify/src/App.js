@@ -130,30 +130,39 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
   const [automationRunning, setAutomationRunning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [totalTasks, setTotalTasks] = useState(0);
+  const [progressData, setProgressData] = useState({
+    tasksCompleted: 0,
+    totalTasks: 0,
+    currentUser: null,
+    currentStatus: null,
+  });
+
   
   // --------------------------------------------------
   //   SMALL HELPERS
   // --------------------------------------------------
 
 
-  useEffect(() => {
-    const messageListener = (message, sender, sendResponse) => {
-        if (message.type === 'automationProgress') {
-            setProgress(message.payload.tasksCompleted);
-            setTotalTasks(message.payload.totalTasks);
-        } else if (message.type === 'automationComplete') {
-            setAutomationRunning(false);
-            setResponse("✅ Automation has finished!");
-        }
-    };
-    
-    chrome.runtime.onMessage.addListener(messageListener);
-    
-    // Cleanup function to remove the listener when the component unmounts
-    return () => {
-        chrome.runtime.onMessage.removeListener(messageListener);
-    };
-  }, []); // The empty array ensures this effect runs only once
+    useEffect(() => {
+      const messageListener = (message, sender, sendResponse) => {
+          if (message.type === 'automationProgress') {
+              setProgressData(prev => ({
+                  tasksCompleted: message.payload.tasksCompleted,
+                  totalTasks: message.payload.totalTasks,
+                  // Only update user/status if they are provided, otherwise keep the last known value
+                  currentUser: message.payload.user || prev.currentUser,
+                  currentStatus: message.payload.status || prev.currentStatus,
+              }));
+          } else if (message.type === 'automationComplete') {
+              setAutomationRunning(false);
+              setResponse("✅ Automation has finished!");
+          }
+      };
+      
+      chrome.runtime.onMessage.addListener(messageListener);
+      
+      return () => chrome.runtime.onMessage.removeListener(messageListener);
+  }, []); // Empty array ensures this runs only once
   
   const handleLoginAsUser = async () => {
     if (!selectedUserId) {
@@ -233,15 +242,15 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
     }
   };
 
-  const handleRunAutomation = async (selectedUserIds, automationOptions) => { // 👈 automationOptions added
+  const handleRunAutomation = async (selectedUserIds, automationOptions) => {
     if (selectedUserIds.length === 0) {
       setResponse("⚠️ Please select at least one user.");
       return;
     }
 
     setResponse("🚀 Starting automation... preparing new tab.");
-    setProgress(0);
-    setTotalTasks(0); // The script will now calculate and send the total
+    // Reset progress data
+    setProgressData({ tasksCompleted: 0, totalTasks: 0, currentUser: null, currentStatus: "Initializing..." });
     setAutomationRunning(true);
     setIsLoading(true);
 
@@ -1152,11 +1161,9 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
               isStaffbaseTab={isStaffbaseTab}
               onRun={handleRunAutomation}
               automationRunning={automationRunning}
-              progress={progress}
-              totalTasks={totalTasks}
+              progressData={progressData} 
             />
           )}
-
           {userManagementView === 'profile' && (
             <UpdateUserForm
             users={usersList}

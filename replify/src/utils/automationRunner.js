@@ -3,7 +3,6 @@
 export function automationScript(users, apiToken, adminId, options) {
     // --- Helper Functions & Constants ---
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
     // --- Unique Item Selector ---
     function getUniqueRandomItem(availableItems, masterList) {
         if (availableItems.length === 0) {
@@ -31,21 +30,21 @@ export function automationScript(users, apiToken, adminId, options) {
     }
 
     const getFreshCsrfToken = async () => {
-      console.log("  - Fetching /auth/discover to get a definitive CSRF token...");
-      try {
-          const response = await fetch('/auth/discover', {
-              method: 'GET',
-              headers: { 'Accept': 'application/vnd.staffbase.auth.discovery.v2+json', 'Content-Type': 'application/json' }
-          });
-          if (!response.ok) throw new Error(`Failed to fetch from /auth/discover. Status: ${response.status}`);
-          const discoveryData = await response.json();
-          const token = discoveryData?.csrfToken;
-          if (token) return token;
-          throw new Error("Could not find 'csrfToken' key in the /auth/discover API response.");
-      } catch (error) {
-          console.error("Error in getFreshCsrfToken:", error);
-          throw error;
-      }
+        console.log("  - Fetching /auth/discover to get a definitive CSRF token...");
+        try {
+            const response = await fetch('/auth/discover', {
+                method: 'GET',
+                headers: { 'Accept': 'application/vnd.staffbase.auth.discovery.v2+json', 'Content-Type': 'application/json' }
+            });
+            if (!response.ok) throw new Error(`Failed to fetch from /auth/discover. Status: ${response.status}`);
+            const discoveryData = await response.json();
+            const token = discoveryData?.csrfToken;
+            if (token) return token;
+            throw new Error("Could not find 'csrfToken' key in the /auth/discover API response.");
+        } catch (error) {
+            console.error("Error in getFreshCsrfToken:", error);
+            throw error;
+        }
     };
     
     const getRandomItem = (array) => {
@@ -85,7 +84,6 @@ export function automationScript(users, apiToken, adminId, options) {
         }
         return surveysWithQuestions;
     }
-
     function generateSurveyResponse(questions) {
         const payload = { content: {} };
         if (!questions) return payload;
@@ -116,24 +114,21 @@ export function automationScript(users, apiToken, adminId, options) {
         });
     }
     
-    // ✅ FIX: Added `updateProgress` as a parameter
     async function handleSurveys(surveysWithQuestions, csrfToken, updateProgress) {
         if (!surveysWithQuestions || surveysWithQuestions.length === 0) return;
-        console.log(`[SURVEYS] User will attempt to respond to ${surveysWithQuestions.length} pre-fetched surveys.`);
         
         for (const survey of surveysWithQuestions) {
             try {
+                updateProgress({ status: `Answering survey: ${survey.config?.localization?.en_US?.title}` });
                 if (!survey?.questions) continue;
-                fetch(survey.links.frontend_forward.href, { headers: { 'x-csrf-token': csrfToken } })
-                    .catch(err => { /* This error is expected and normal */ });
+                fetch(survey.links.frontend_forward.href, { headers: { 'x-csrf-token': csrfToken } }).catch(() => {});
                 
                 const jwt = await pollForJwtInStorage(survey.id);
                 const responsePayload = generateSurveyResponse(survey.questions);
 
                 if (Object.keys(responsePayload.content).length > 0) {
                     await submitSurveyFeedback(jwt, responsePayload);
-                    console.log(`  ✅ Survey response submitted for "${survey.config?.localization?.en_US?.title}".`);
-                    updateProgress();
+                    updateProgress({ increment: true });
                 }
                 await sleep(1500);
             } catch(error) {
@@ -173,7 +168,7 @@ export function automationScript(users, apiToken, adminId, options) {
             if (currentUser.id === adminId) console.log(`[CHAT] Skipping chat reply for admin user.`);
             return; 
         }
-        console.log(`[CHAT] Checking for chat messages for ${currentUser.firstName}...`);
+        updateProgress({ status: "Replying to chat..." });
         const pendingChatIndex = pendingChats.findIndex(c => c.recipientId === currentUser.id);
         if (pendingChatIndex > -1) {
             const [chatToReplyTo] = pendingChats.splice(pendingChatIndex, 1);
@@ -185,8 +180,7 @@ export function automationScript(users, apiToken, adminId, options) {
                     body: JSON.stringify({ message: chatToReplyTo.replyText })
                 });
                 if (!response.ok) throw new Error(`Failed to send reply. Status: ${response.status}`);
-                console.log(`  - 💬 Replied to chat from admin (user ${chatToReplyTo.initiatorId}).`);
-                updateProgress();
+                updateProgress({ increment: true });
             } catch (error) {
                 console.error(`  - ❌ Failed to reply to chat:`, error.message);
             }
@@ -203,13 +197,17 @@ export function automationScript(users, apiToken, adminId, options) {
         let initialCsrfToken, surveysWithQuestions, publishedPosts, chatInstallationId;
         let pendingReplies = [], pendingChats = [];
         let tasksCompleted = 0, totalTasks = 0;
-        const updateProgress = () => {
-            tasksCompleted++;
-            chrome.runtime.sendMessage({ type: 'automationProgress', payload: { tasksCompleted, totalTasks } });
+
+        const updateProgress = ({ increment = false, status = null, user = null }) => {
+            if (increment) tasksCompleted++;
+            chrome.runtime.sendMessage({ 
+                type: 'automationProgress', 
+                payload: { tasksCompleted, totalTasks, status, user } 
+            });
         };
 
         try {
-            console.log("--- Pre-fetching data with initial admin session ---");
+            console.log("--- Pre-fetching data & calculating tasks ---");
             initialCsrfToken = await getFreshCsrfToken();
             
             if (options.surveys) {
@@ -219,8 +217,7 @@ export function automationScript(users, apiToken, adminId, options) {
             if (options.chats) {
                 chatInstallationId = await getChatInstallationId(initialCsrfToken);
                 if (chatInstallationId && adminId) {
-                    const nonAdminUsers = users.filter(u => u.id !== adminId);
-                    totalTasks += nonAdminUsers.length * 2;
+                    totalTasks += users.filter(u => u.id !== adminId).length * 2;
                 }
             }
 
@@ -232,69 +229,59 @@ export function automationScript(users, apiToken, adminId, options) {
             if (options.reactions) totalTasks += users.length * 10;
             if (options.comments) totalTasks += users.length * 4;
 
-            chrome.runtime.sendMessage({ type: 'automationProgress', payload: { tasksCompleted: 0, totalTasks } });
+            updateProgress({ status: "Initializing..." });
             
             if (options.chats && chatInstallationId && adminId) {
-                console.log(`[CHAT PRE-FETCH] Admin (${adminId}) is sending initial messages...`);
+                updateProgress({ status: "Admin is sending initial chats..." });
                 for (const user of users) {
                     if (user.id === adminId) continue;
                     const chatPair = getUniqueRandomItem(availableChats, MASTER_CHAT_MESSAGE_PAIRS);
-                    const initiatorMessage = chatPair.initiator(user.firstName || 'there');
                     try {
                         const endpoint = `/api/installations/${chatInstallationId}/conversations/direct/${user.id}`;
                         const response = await fetch(endpoint, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'x-csrf-token': initialCsrfToken },
-                            body: JSON.stringify({ message: initiatorMessage })
+                            method: 'POST', headers: { 'Content-Type': 'application/json', 'x-csrf-token': initialCsrfToken },
+                            body: JSON.stringify({ message: chatPair.initiator(user.firstName || 'there') })
                         });
                         if (response.ok) {
                             pendingChats.push({ recipientId: user.id, initiatorId: adminId, replyText: chatPair.reply });
-                            updateProgress();
-                        } else {
-                           const errorData = await response.json();
-                           console.warn(`  - Failed to pre-send chat to ${user.id}. Status: ${response.status}`, errorData.message);
+                            updateProgress({ increment: true });
                         }
                         await sleep(500);
-                    } catch (error) {
-                        console.error(`  - ❌ Error pre-sending chat to ${user.id}:`, error.message);
-                    }
+                    } catch (error) { console.error(`  - ❌ Error pre-sending chat to ${user.id}:`, error.message); }
                 }
             }
             console.log(`✅ Pre-fetch complete. Total tasks to run: ${totalTasks}`);
-        } catch (error) {
-            alert(`Failed to pre-fetch data: ${error.message}. Aborting.`); return;
-        }
+        } catch (error) { alert(`Failed to pre-fetch data: ${error.message}. Aborting.`); return; }
         
         for (const [index, user] of users.entries()) {
             let freshCsrfToken = null;
+            const userFullName = `${user.firstName} ${user.lastName}`;
             try {
+                updateProgress({ user: userFullName, status: "Logging in..." });
                 const identifier = user.emails?.find(e => e.primary)?.value || user.emails?.[0]?.value;
                 if (!identifier) throw new Error(`User ID ${user.id} has no email.`);
                 
-                console.log(`--- [${index + 1}/${users.length}] Processing: ${user.firstName} ${user.lastName} ---`);
                 const loginResponse = await fetch('/api/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier, secret: 'Clone12345', locale: 'en_US' }) });
                 if (!loginResponse.ok) throw new Error(`Login failed for ${identifier}`);
                 freshCsrfToken = await getFreshCsrfToken();
-                console.log(`✅ Login successful.`);
                 await sleep(1000);
 
                 if (options.surveys) await handleSurveys(surveysWithQuestions, freshCsrfToken, updateProgress);
                 
                 if (options.reactions) {
-                    console.log("[REACTIONS] Starting post reactions...");
+                    updateProgress({ status: "Adding reactions..." });
                     for (let i = 0; i < 10; i++) {
                         await fetch('/api/reactions', {
                             method: 'POST', headers: { 'Content-Type': 'application/json', 'x-csrf-token': freshCsrfToken },
                             body: JSON.stringify({ parentId: getRandomItem(publishedPosts).id, parentType: 'post', type: getRandomItem(MASTER_REACTION_TYPES) })
                         });
-                        updateProgress();
+                        updateProgress({ increment: true });
                         await sleep(500);
                     }
-                    console.log(`✅ Finished reacting.`);
                 }
 
                 if (options.comments) {
-                    console.log(`[COMMENTS] Starting conversational commenting...`);
+                    updateProgress({ status: "Posting comments..." });
                     const postComment = async (text, postId, parentId = null) => {
                         const url = parentId ? `/api/comments/${parentId}/comments` : `/api/articles/${postId}/comments`;
                         const response = await fetch(url, {
@@ -302,7 +289,7 @@ export function automationScript(users, apiToken, adminId, options) {
                             body: JSON.stringify({ text: `<p>${text}</p>` })
                         });
                         if (!response.ok) throw new Error(`Failed to post comment`);
-                        updateProgress();
+                        updateProgress({ increment: true });
                         return response.json();
                     };
                     const handlePairedComment = async () => {
@@ -310,34 +297,25 @@ export function automationScript(users, apiToken, adminId, options) {
                         if (replyableIndex > -1) {
                             const [replyable] = pendingReplies.splice(replyableIndex, 1);
                             await postComment(replyable.replyText, null, replyable.parentId);
-                            console.log(`  - Posted reply to comment ${replyable.parentId}.`);
                         } else {
                             const pair = getUniqueRandomItem(availableParentReplyPairs, MASTER_PARENT_REPLY_PAIRS);
-                            const post = getRandomItem(publishedPosts);
-                            const newParent = await postComment(pair.parent, post.id);
+                            const newParent = await postComment(pair.parent, getRandomItem(publishedPosts).id);
                             pendingReplies.push({ parentId: newParent.id, replyText: pair.reply, authorId: user.id });
-                            console.log(`  - Posted new parent comment. Waiting for reply.`);
                         }
                     };
-
                     await postComment(getUniqueRandomItem(availableSingleComments, MASTER_SINGLE_COMMENTS), getRandomItem(publishedPosts).id);
-                    console.log("  - Posted single comment 1/2.");
                     await sleep(1500);
                     await postComment(getUniqueRandomItem(availableSingleComments, MASTER_SINGLE_COMMENTS), getRandomItem(publishedPosts).id);
-                    console.log("  - Posted single comment 2/2.");
                     await sleep(1500);
                     if (Math.random() < 0.8) { await handlePairedComment(); await sleep(1500); }
                     if (Math.random() < 0.4) { await handlePairedComment(); }
-                    console.log(`✅ Finished commenting tasks.`);
                 }
                 
                 if (options.chats) {
                     await handleChats(user, chatInstallationId, freshCsrfToken, pendingChats, updateProgress);
                     await sleep(1500);
                 }
-            } catch (error) {
-                console.error(`❌ An error occurred for user ${user?.id || 'Unknown User'}:`, error.message);
-            }
+            } catch (error) { console.error(`❌ An error occurred for user ${user.id}:`, error.message); }
             console.log("----------------------------------------");
             await sleep(2000);
         }
