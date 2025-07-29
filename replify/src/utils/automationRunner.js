@@ -47,7 +47,6 @@ export function automationScript(users, apiToken, adminId) {
     const REACTION_TYPES = ['LIKE', 'CELEBRATE', 'SUPPORT', 'INSIGHTFUL', 'THANKS'];
 
     const CHAT_MESSAGE_PAIRS = [
-        // --- Existing Pairs ---
         { 
             initiator: (name) => `Hey ${name}, just a heads up that your shift starts in about an hour. See you soon!`, 
             reply: "Got it, thanks for the reminder! I'm on my way." 
@@ -68,7 +67,6 @@ export function automationScript(users, apiToken, adminId) {
             initiator: (name) => `Friendly reminder that our weekly team sync is tomorrow at 10 AM.`, 
             reply: "Thanks! I have it on my calendar." 
         },
-        // --- New Additions ---
         {
             initiator: (name) => `Are you free for a quick call this afternoon, ${name}? I'd like to go over the launch plan.`,
             reply: "Yep, my calendar is open after 2 PM. Just send an invite."
@@ -139,8 +137,6 @@ export function automationScript(users, apiToken, adminId) {
         return surveysWithQuestions;
     }
 
-
-
     function generateSurveyResponse(questions) {
         const payload = { content: {} };
         if (!questions) return payload;
@@ -177,16 +173,12 @@ export function automationScript(users, apiToken, adminId) {
         for (const survey of surveysWithQuestions) {
             try {
                 if (!survey?.questions) continue;
-
-                // 1. Trigger the fetch. We don't wait for it or care that it fails.
-                // Its only job is to create the redirect for the background script to see.
                 fetch(survey.links.frontend_forward.href, { headers: { 'x-csrf-token': csrfToken } })
                     .catch(err => { /* This error is expected and normal */ });
                 
-                // 2. Poll storage for the JWT that the background script placed there.
                 const jwt = await pollForJwtInStorage(survey.id);
-
                 const responsePayload = generateSurveyResponse(survey.questions);
+
                 if (Object.keys(responsePayload.content).length > 0) {
                     await submitSurveyFeedback(jwt, responsePayload);
                     console.log(`  ✅ Survey response submitted for "${survey.config?.localization?.en_US?.title}".`);
@@ -198,25 +190,102 @@ export function automationScript(users, apiToken, adminId) {
         }
     }
 
+    // --- 💬 NEW: Chat Handling Functions ---
+    async function getChatInstallationId(csrfToken) {
+        console.log("  - Fetching chat installation ID...");
+        try {
+            const response = await fetch('/api/installations/administrated?pluginID=chat', {
+                headers: { 'x-csrf-token': csrfToken }
+            });
+            if (!response.ok) throw new Error('Failed to fetch chat installation.');
+            const { data } = await response.json();
+            if (data && data.length > 0) {
+                console.log("  - ✅ Found chat installation ID.");
+                return data[0].id;
+            }
+            throw new Error('Chat installation not found in API response.');
+        } catch (error) {
+            console.warn(`Could not retrieve chat installation ID. Skipping chat actions. Reason: ${error.message}`);
+            return null;
+        }
+    }
+
+    async function handleChats(currentUser, allUsers, chatInstallationId, csrfToken, pendingChats) {
+        if (!chatInstallationId) return; // Don't run if chat isn't configured.
+
+        console.log(`[CHAT] Starting chat actions for ${currentUser.firstName}...`);
+        
+        const pendingChatIndex = pendingChats.findIndex(c => c.recipientId === currentUser.id);
+
+        if (pendingChatIndex > -1) {
+            // This user has a message to reply to.
+            const [chatToReplyTo] = pendingChats.splice(pendingChatIndex, 1); // Atomically claim and remove
+            try {
+                const endpoint = `/api/installations/${chatInstallationId}/conversations/direct/${chatToReplyTo.initiatorId}`;
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+                    body: JSON.stringify({ message: chatToReplyTo.replyText })
+                });
+                if (!response.ok) throw new Error(`Failed to send reply. Status: ${response.status}`);
+                console.log(`  - 💬 Replied to chat from user ${chatToReplyTo.initiatorId}.`);
+            } catch (error) {
+                console.error(`  - ❌ Failed to reply to chat:`, error.message);
+            }
+        } else {
+            // This user will initiate a new conversation (with a 60% chance).
+            if (Math.random() < 0.6) {
+                const otherUsers = allUsers.filter(u => u.id !== currentUser.id);
+                if (otherUsers.length === 0) return;
+
+                const recipient = getRandomItem(otherUsers);
+                const chatPair = getRandomItem(CHAT_MESSAGE_PAIRS);
+                const initiatorMessage = chatPair.initiator(recipient.firstName || 'there');
+
+                try {
+                    const endpoint = `/api/installations/${chatInstallationId}/conversations/direct/${recipient.id}`;
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+                        body: JSON.stringify({ message: initiatorMessage })
+                    });
+                    if (!response.ok) throw new Error(`Failed to start chat. Status: ${response.status}`);
+                    
+                    pendingChats.push({
+                        recipientId: recipient.id,
+                        initiatorId: currentUser.id,
+                        replyText: chatPair.reply
+                    });
+                    console.log(`  - 💬 Started new chat with ${recipient.firstName}. Waiting for reply.`);
+                } catch (error) {
+                     console.error(`  - ❌ Failed to start a new chat:`, error.message);
+                }
+            } else {
+                console.log("  - 🤷 No pending chats and decided not to start a new one this time.");
+            }
+        }
+    }
+
     // --- Main Execution ---
     async function run() {
         console.log("🚀 Automation Script Started 🚀");
         alert("Automation has started! This tab will now perform actions automatically. Please monitor the developer console for progress.");
 
-        let initialCsrfToken, surveysWithQuestions, publishedPosts;
-        // ✨ NEW: Queue for paired comments { parentId, replyText, authorId }
+        let initialCsrfToken, surveysWithQuestions, publishedPosts, chatInstallationId;
         let pendingReplies = []; 
+        let pendingChats = []; // ✨ NEW: Queue for paired chats { recipientId, initiatorId, replyText }
 
         // --- Pre-fetch all data with the initial admin session ---
         try {
             console.log("--- Pre-fetching data with initial admin session ---");
             initialCsrfToken = await getFreshCsrfToken();
             surveysWithQuestions = await getSurveysWithQuestions(initialCsrfToken);
+            chatInstallationId = await getChatInstallationId(initialCsrfToken); // ✨ NEW
             const postsResponse = await fetch('/api/posts?limit=20&sort=published_DESC&publicationState=published', { headers: { 'x-csrf-token': initialCsrfToken } });
             publishedPosts = (await postsResponse.json()).data;
             if (!publishedPosts?.length) { alert("No published posts found. Aborting."); return; }
             if (!users?.length) { alert("No users provided for automation. Aborting."); return; }
-            console.log(`✅ Pre-fetched ${surveysWithQuestions.length} surveys and ${publishedPosts.length} posts.`);
+            console.log(`✅ Pre-fetched ${surveysWithQuestions.length} surveys, ${publishedPosts.length} posts. Chat enabled: ${!!chatInstallationId}`);
         } catch (error) {
             alert(`Failed to pre-fetch data: ${error.message}. Aborting.`); return;
         }
@@ -228,7 +297,7 @@ export function automationScript(users, apiToken, adminId) {
                 const identifier = user.emails?.find(e => e.primary)?.value || user.emails?.[0]?.value;
                 if (!identifier) throw new Error(`User ID ${user.id} has no email.`);
                 
-                console.log(`--- [${index + 1}/${users.length}] Processing: ${identifier} ---`);
+                console.log(`--- [${index + 1}/${users.length}] Processing: ${user.firstName} ${user.lastName} (${identifier}) ---`);
 
                 // Login
                 const loginResponse = await fetch('/api/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier, secret: 'Clone12345', locale: 'en_US' }) });
@@ -251,8 +320,8 @@ export function automationScript(users, apiToken, adminId) {
                 }
                 console.log(`✅ Finished reacting.`);
 
-                // 🔄 NEW PAIRED COMMENTING LOGIC 🔄
-                console.log(`[COMMENTS] Starting conversational commenting for ${identifier}...`);
+                // Comments
+                console.log(`[COMMENTS] Starting conversational commenting...`);
                 const postComment = async (text, postId, parentId = null) => {
                     const url = parentId ? `/api/comments/${parentId}/comments` : `/api/articles/${postId}/comments`;
                     const response = await fetch(url, {
@@ -262,22 +331,13 @@ export function automationScript(users, apiToken, adminId) {
                     if (!response.ok) throw new Error(`Failed to post comment`);
                     return response.json();
                 };
-
-            
-
-                // Helper for posting a paired comment (either reply or new parent)
                 const handlePairedComment = async () => {
                     const replyableIndex = pendingReplies.findIndex(p => p.authorId !== user.id);
-
                     if (replyableIndex > -1) {
-                        // Atomically remove the item from the queue to "claim" it
                         const [replyable] = pendingReplies.splice(replyableIndex, 1);
-                        
-                        // Now, safely post the reply
                         await postComment(replyable.replyText, null, replyable.parentId);
                         console.log(`  - Posted reply to comment ${replyable.parentId}.`);
                     } else {
-                        // Otherwise, create a new parent/reply pair.
                         const pair = getRandomItem(PARENT_REPLY_PAIRS);
                         const post = getRandomItem(publishedPosts);
                         const newParent = await postComment(pair.parent, post.id);
@@ -285,26 +345,25 @@ export function automationScript(users, apiToken, adminId) {
                         console.log(`  - Posted new parent comment. Waiting for reply.`);
                     }
                 };
-
-                // 1. Post two single comments
                 await postComment(getRandomItem(SINGLE_COMMENTS), getRandomItem(publishedPosts).id);
                 console.log("  - Posted single comment 1/2.");
                 await sleep(1500);
                 await postComment(getRandomItem(SINGLE_COMMENTS), getRandomItem(publishedPosts).id);
                 console.log("  - Posted single comment 2/2.");
                 await sleep(1500);
-                
-                // 2. 80% chance to post a 3rd (paired) comment
                 if (Math.random() < 0.8) {
                     await handlePairedComment();
                     await sleep(1500);
                 }
-
-                // 3. 40% chance to post a 4th (paired) comment
                 if (Math.random() < 0.4) {
                     await handlePairedComment();
                 }
-                console.log(`✅ Finished commenting tasks for ${identifier}.`);
+                console.log(`✅ Finished commenting tasks.`);
+
+                // ✨ NEW: Chat
+                await handleChats(user, users, chatInstallationId, freshCsrfToken, pendingChats);
+                await sleep(1500);
+
 
             } catch (error) {
                 console.error(`❌ An error occurred for user ${user?.id || 'Unknown User'}:`, error.message);
