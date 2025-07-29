@@ -10,7 +10,7 @@ export function automationScript(users, apiToken, adminId) {
             const data = await chrome.storage.local.get(surveyId);
             if (data && data[surveyId]) {
                 // Found it! Clean up the storage and return the JWT.
-                await chrome.storage.local.remove(surveyId); 
+                await chrome.storage.local.remove(surveyId);
                 console.log(`  - ✅ Found JWT in storage for survey ${surveyId}.`);
                 return data[surveyId];
             }
@@ -190,14 +190,26 @@ export function automationScript(users, apiToken, adminId) {
         }
     }
 
-    // --- 💬 NEW: Chat Handling Functions ---
+    // --- 💬 Chat Handling Functions ---
     async function getChatInstallationId(csrfToken) {
         console.log("  - Fetching chat installation ID...");
         try {
+            // This endpoint works for admins to find installations they manage.
             const response = await fetch('/api/installations/administrated?pluginID=chat', {
                 headers: { 'x-csrf-token': csrfToken }
             });
-            if (!response.ok) throw new Error('Failed to fetch chat installation.');
+            if (!response.ok) {
+                 // Fallback for non-admins who might not see administrated plugins
+                const fallbackResponse = await fetch('/api/plugins/chat/installations', {
+                    headers: { 'x-csrf-token': csrfToken }
+                });
+                if (!fallbackResponse.ok) throw new Error('Failed to fetch chat installation via primary or fallback method.');
+                 const fallbackData = await fallbackResponse.json();
+                 if (fallbackData && fallbackData.data.length > 0) {
+                    console.log("  - ✅ Found chat installation ID via fallback.");
+                    return fallbackData.data[0].id;
+                }
+            }
             const { data } = await response.json();
             if (data && data.length > 0) {
                 console.log("  - ✅ Found chat installation ID.");
@@ -210,17 +222,20 @@ export function automationScript(users, apiToken, adminId) {
         }
     }
 
-    async function handleChats(currentUser, allUsers, chatInstallationId, csrfToken, pendingChats) {
-        if (!chatInstallationId) return; // Don't run if chat isn't configured.
+    async function handleChats(currentUser, chatInstallationId, csrfToken, pendingChats) {
+        if (!chatInstallationId || currentUser.id === adminId) {
+            if (currentUser.id === adminId) console.log(`[CHAT] Skipping chat reply for admin user.`);
+            return; 
+        }
 
-        console.log(`[CHAT] Starting chat actions for ${currentUser.firstName}...`);
+        console.log(`[CHAT] Checking for chat messages for ${currentUser.firstName}...`);
         
         const pendingChatIndex = pendingChats.findIndex(c => c.recipientId === currentUser.id);
 
         if (pendingChatIndex > -1) {
-            // This user has a message to reply to.
             const [chatToReplyTo] = pendingChats.splice(pendingChatIndex, 1); // Atomically claim and remove
             try {
+                // The endpoint is for the *other* user (the admin) in the conversation
                 const endpoint = `/api/installations/${chatInstallationId}/conversations/direct/${chatToReplyTo.initiatorId}`;
                 const response = await fetch(endpoint, {
                     method: 'POST',
@@ -228,41 +243,12 @@ export function automationScript(users, apiToken, adminId) {
                     body: JSON.stringify({ message: chatToReplyTo.replyText })
                 });
                 if (!response.ok) throw new Error(`Failed to send reply. Status: ${response.status}`);
-                console.log(`  - 💬 Replied to chat from user ${chatToReplyTo.initiatorId}.`);
+                console.log(`  - 💬 Replied to chat from admin (user ${chatToReplyTo.initiatorId}).`);
             } catch (error) {
                 console.error(`  - ❌ Failed to reply to chat:`, error.message);
             }
         } else {
-            // This user will initiate a new conversation (with a 60% chance).
-            if (Math.random() < 0.6) {
-                const otherUsers = allUsers.filter(u => u.id !== currentUser.id);
-                if (otherUsers.length === 0) return;
-
-                const recipient = getRandomItem(otherUsers);
-                const chatPair = getRandomItem(CHAT_MESSAGE_PAIRS);
-                const initiatorMessage = chatPair.initiator(recipient.firstName || 'there');
-
-                try {
-                    const endpoint = `/api/installations/${chatInstallationId}/conversations/direct/${recipient.id}`;
-                    const response = await fetch(endpoint, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
-                        body: JSON.stringify({ message: initiatorMessage })
-                    });
-                    if (!response.ok) throw new Error(`Failed to start chat. Status: ${response.status}`);
-                    
-                    pendingChats.push({
-                        recipientId: recipient.id,
-                        initiatorId: currentUser.id,
-                        replyText: chatPair.reply
-                    });
-                    console.log(`  - 💬 Started new chat with ${recipient.firstName}. Waiting for reply.`);
-                } catch (error) {
-                     console.error(`  - ❌ Failed to start a new chat:`, error.message);
-                }
-            } else {
-                console.log("  - 🤷 No pending chats and decided not to start a new one this time.");
-            }
+            console.log(`  - 🤷 No pending chat messages found for this user.`);
         }
     }
 
@@ -273,14 +259,50 @@ export function automationScript(users, apiToken, adminId) {
 
         let initialCsrfToken, surveysWithQuestions, publishedPosts, chatInstallationId;
         let pendingReplies = []; 
-        let pendingChats = []; // ✨ NEW: Queue for paired chats { recipientId, initiatorId, replyText }
+        let pendingChats = []; // Queue for chat replies
 
-        // --- Pre-fetch all data with the initial admin session ---
+        // --- Pre-fetch all data and initiate chats from Admin ---
         try {
             console.log("--- Pre-fetching data with initial admin session ---");
             initialCsrfToken = await getFreshCsrfToken();
             surveysWithQuestions = await getSurveysWithQuestions(initialCsrfToken);
-            chatInstallationId = await getChatInstallationId(initialCsrfToken); // ✨ NEW
+            chatInstallationId = await getChatInstallationId(initialCsrfToken); 
+            
+            // Pre-populate chats from the admin user
+            if (chatInstallationId && adminId) {
+                console.log(`[CHAT PRE-FETCH] Admin (${adminId}) is sending initial messages to all users...`);
+                let messagesSent = 0;
+                for (const user of users) {
+                    if (user.id === adminId) continue; // Admin doesn't message themselves
+
+                    const chatPair = getRandomItem(CHAT_MESSAGE_PAIRS);
+                    const initiatorMessage = chatPair.initiator(user.firstName || 'there');
+                    try {
+                        const endpoint = `/api/installations/${chatInstallationId}/conversations/direct/${user.id}`;
+                        const response = await fetch(endpoint, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'x-csrf-token': initialCsrfToken },
+                            body: JSON.stringify({ message: initiatorMessage })
+                        });
+                        if (response.ok) {
+                            pendingChats.push({
+                                recipientId: user.id,
+                                initiatorId: adminId,
+                                replyText: chatPair.reply
+                            });
+                            messagesSent++;
+                        } else {
+                           const errorData = await response.json();
+                           console.warn(`  - Failed to pre-send chat to ${user.id}. Status: ${response.status}`, errorData.message);
+                        }
+                        await sleep(500); // Pace the API calls
+                    } catch (error) {
+                        console.error(`  - ❌ Error pre-sending chat to ${user.id}:`, error.message);
+                    }
+                }
+                console.log(`  - ✅ Admin sent ${messagesSent} initial chat messages.`);
+            }
+
             const postsResponse = await fetch('/api/posts?limit=20&sort=published_DESC&publicationState=published', { headers: { 'x-csrf-token': initialCsrfToken } });
             publishedPosts = (await postsResponse.json()).data;
             if (!publishedPosts?.length) { alert("No published posts found. Aborting."); return; }
@@ -360,10 +382,9 @@ export function automationScript(users, apiToken, adminId) {
                 }
                 console.log(`✅ Finished commenting tasks.`);
 
-                // ✨ NEW: Chat
-                await handleChats(user, users, chatInstallationId, freshCsrfToken, pendingChats);
+                // Chat (Users will only reply now)
+                await handleChats(user, chatInstallationId, freshCsrfToken, pendingChats);
                 await sleep(1500);
-
 
             } catch (error) {
                 console.error(`❌ An error occurred for user ${user?.id || 'Unknown User'}:`, error.message);

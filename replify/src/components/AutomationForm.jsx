@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import { brandingButtonStyle, psaStyle } from "../styles";
 import ProgressBar from "./ProgressBar"; // 👈 Import the new component
 
-// ... (styles remain the same) ...
 const userListStyle = {
   maxHeight: "300px",
   overflowY: "auto",
@@ -36,7 +35,6 @@ export default function AutomationForm({
 }) {
   const [selectedUserIds, setSelectedUserIds] = useState([]);
 
-  // ... (handleToggleUser and timeEstimate functions remain the same) ...
   const handleToggleUser = (userId) => {
     setSelectedUserIds((prev) =>
       prev.includes(userId)
@@ -48,7 +46,7 @@ export default function AutomationForm({
   const timeEstimate = () => {
     const count = selectedUserIds.length;
     if (count === 0) return "";
-    const minSeconds = count * 30; // Updated time
+    const minSeconds = count * 30; 
     const maxMinutes = count * 1;
     const minDisplay =
       minSeconds < 60 ? `${minSeconds}s` : `${(minSeconds / 60).toFixed(1)}m`;
