@@ -1,88 +1,91 @@
-// components/AutomationForm.jsx
-
 import React, { useState } from "react";
-import { brandingButtonStyle, psaStyle } from "../styles";
-import ProgressBar from "./ProgressBar"; // 👈 Import the new component
+import { brandingButtonStyle, psaStyle, subDescriptionStyle } from "../styles";
+import ProgressBar from "./ProgressBar";
 
-const userListStyle = {
-  maxHeight: "300px",
-  overflowY: "auto",
-  border: "1px solid #e0e0e0",
-  borderRadius: "4px",
-  padding: "10px",
-  marginBottom: "15px",
-};
+// --- Styles ---
+const userListStyle = { maxHeight: "250px", overflowY: "auto", border: "1px solid #e0e0e0", borderRadius: "4px", padding: "10px", marginBottom: "15px" };
+const userItemStyle = { display: "flex", alignItems: "center", padding: "8px 5px", borderBottom: "1px solid #f0f0f0" };
+const labelStyle = { cursor: "pointer" };
+const checkboxContainerStyle = { display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px', border: '1px solid #ddd', padding: '15px', borderRadius: '4px' };
 
-const userItemStyle = {
-  display: "flex",
-  alignItems: "center",
-  padding: "8px 5px",
-  borderBottom: "1px solid #f0f0f0",
-};
+// --- Constants ---
+const AUTOMATION_OPTIONS = [
+  { id: 'surveys', label: 'Fill Surveys', timePerUser: 10 },
+  { id: 'reactions', label: 'Add Reactions (10x)', timePerUser: 15 },
+  { id: 'comments', label: 'Post and Reply to Comments (2-4x)', timePerUser: 25 },
+  { id: 'chats', label: 'Send and Reply to Chats', timePerUser: 5 },
+];
 
-const labelStyle = {
-  cursor: "pointer",
-};
-
-
-export default function AutomationForm({ 
-  users, 
-  isStaffbaseTab, 
-  onRun, 
-  automationRunning, 
-  progress, 
-  totalTasks 
-}) {
+export default function AutomationForm({ users, isStaffbaseTab, onRun, automationRunning, progress, totalTasks }) {
   const [selectedUserIds, setSelectedUserIds] = useState([]);
+  const [options, setOptions] = useState({
+    surveys: true,
+    reactions: true,
+    comments: true,
+    chats: true,
+  });
 
   const handleToggleUser = (userId) => {
     setSelectedUserIds((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
     );
   };
 
+  const handleOptionChange = (optionId) => {
+    setOptions(prev => ({ ...prev, [optionId]: !prev[optionId] }));
+  };
+
   const timeEstimate = () => {
-    const count = selectedUserIds.length;
-    if (count === 0) return "";
-    const minSeconds = count * 30; 
-    const maxMinutes = count * 1;
-    const minDisplay =
-      minSeconds < 60 ? `${minSeconds}s` : `${(minSeconds / 60).toFixed(1)}m`;
-    return `Est. time: ${minDisplay} - ${maxMinutes}m`;
+    const userCount = selectedUserIds.length;
+    if (userCount === 0) return "";
+
+    const totalSecondsPerUser = AUTOMATION_OPTIONS.reduce((acc, option) => {
+      if (options[option.id]) {
+        return acc + option.timePerUser;
+      }
+      return acc;
+    }, 0);
+
+    const totalSeconds = totalSecondsPerUser * userCount;
+    if (totalSeconds === 0) return "No tasks selected.";
+
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    
+    return `Est. time: ${minutes > 0 ? `${minutes}m ` : ''}${seconds}s`;
   };
 
   return (
     <div>
       <h2>Select Users for Automation</h2>
-      <p>Select one or more users to include in the automation process.</p>
-
-      {/* ... (user list JSX remains the same) ... */}
-       <div style={userListStyle}>
+      <p>Select users to include in the automation process.</p>
+      <div style={userListStyle}>
         {users.map((user) => (
           <div key={user.id} style={userItemStyle}>
-            <input
-              type="checkbox"
-              id={`user-${user.id}`}
-              checked={selectedUserIds.includes(user.id)}
-              onChange={() => handleToggleUser(user.id)}
-              style={{ marginRight: "12px", cursor: "pointer" }}
-            />
-            <label htmlFor={`user-${user.id}`} style={labelStyle}>
-              {`${user.firstName} ${user.lastName} ${
-                user.username ? `(${user.username})` : ""
-              }`.trim()}
-            </label>
+            <input type="checkbox" id={`user-${user.id}`} checked={selectedUserIds.includes(user.id)} onChange={() => handleToggleUser(user.id)} style={{ marginRight: "12px", cursor: "pointer" }} />
+            <label htmlFor={`user-${user.id}`} style={labelStyle}>{`${user.firstName} ${user.lastName} ${user.username ? `(${user.username})` : ""}`.trim()}</label>
           </div>
         ))}
       </div>
 
+      <h2>Select Tasks to Run</h2>
+      <div style={checkboxContainerStyle}>
+        {AUTOMATION_OPTIONS.map(option => (
+          <div key={option.id}>
+            <input
+              type="checkbox"
+              id={`option-${option.id}`}
+              checked={options[option.id]}
+              onChange={() => handleOptionChange(option.id)}
+              style={{ marginRight: "12px", cursor: "pointer" }}
+            />
+            <label htmlFor={`option-${option.id}`} style={labelStyle}>{option.label}</label>
+          </div>
+        ))}
+      </div>
 
-      {/* ... (PSA note JSX remains the same) ... */}
       <div style={psaStyle}>
-        <strong>Note:</strong> Each user added will add 30 seconds - 1 min to
-        the total run time.
+        <strong>Heads up!</strong> This process will open and control a new tab. Please leave the new tab open and stay on this page. You can open another Chrome window to continue working while the automation runs.
         {selectedUserIds.length > 0 && (
           <div style={{ marginTop: "5px" }}>
             <strong>{timeEstimate()}</strong>
@@ -90,17 +93,14 @@ export default function AutomationForm({
         )}
       </div>
 
-
       <button
         style={brandingButtonStyle}
-        onClick={() => onRun(selectedUserIds)}
-        // 👇 Disable button if automation is running
+        onClick={() => onRun(selectedUserIds, options)}
         disabled={selectedUserIds.length === 0 || !isStaffbaseTab || automationRunning}
       >
-        {automationRunning ? 'Running...' : 'Run Automation'}
+        {automationRunning ? 'Running...' : `Run Automation for ${selectedUserIds.length} Users`}
       </button>
 
-      {/* 👇 Conditionally render the progress bar */}
       {automationRunning && (
         <ProgressBar current={progress} total={totalTasks} />
       )}

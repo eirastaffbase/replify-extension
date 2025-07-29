@@ -233,7 +233,7 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
     }
   };
 
-  const handleRunAutomation = async (selectedUserIds) => {
+  const handleRunAutomation = async (selectedUserIds, automationOptions) => { // 👈 automationOptions added
     if (selectedUserIds.length === 0) {
       setResponse("⚠️ Please select at least one user.");
       return;
@@ -241,9 +241,8 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
 
     setResponse("🚀 Starting automation... preparing new tab.");
     setProgress(0);
-    setTotalTasks(selectedUserIds.length * 14); // 3 tasks per user
+    setTotalTasks(0); // The script will now calculate and send the total
     setAutomationRunning(true);
-    setIsLoading(true); // Keep existing loading state for initial setup
     setIsLoading(true);
 
     const selectedUsers = usersList.filter(user => selectedUserIds.includes(user.id));
@@ -254,26 +253,22 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
     }
 
     try {
-      // 1. Get the origin URL from the current tab.
       const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
       const origin = new URL(currentTab.url).origin;
       const rootUrl = `${origin}/`;
 
-      // 2. Create a new tab at the root URL. The script will be injected here.
       const newTab = await chrome.tabs.create({ url: rootUrl, active: true });
 
-      // 3. Listen for the tab to be ready before injecting the script.
       const listener = (tabId, changeInfo, tab) => {
         if (tabId === newTab.id && changeInfo.status === 'complete') {
-          chrome.tabs.onUpdated.removeListener(listener); // Clean up the listener!
+          chrome.tabs.onUpdated.removeListener(listener);
 
           setResponse(`Tab ready. Injecting main automation script...`);
           
-          // 4. Inject the single, powerful automation script that handles the entire lifecycle.
           chrome.scripting.executeScript({
             target: { tabId: newTab.id },
             func: automationScript,
-            args: [selectedUsers, apiToken, adminUserId],
+            args: [selectedUsers, apiToken, adminUserId, automationOptions], // 👈 Pass options here
           });
           
           setResponse(`✅ Script injected. The new tab will now run the automation.`);
@@ -285,8 +280,10 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
     } catch (err) {
       setResponse(`❌ Automation failed: ${err.message}`);
       setIsLoading(false);
+      setAutomationRunning(false);
     }
   };
+
 
   /** Returns CTA label for the “Create” button depending on the two checkboxes. */
   const getCreateLabel = () => {
