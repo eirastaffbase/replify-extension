@@ -11,7 +11,8 @@
   ],
   "host_permissions": [
     "https://app.staffbase.com/*",
-    "https://sb-news-generator.uc.r.appspot.com/*"
+    "https://sb-news-generator.uc.r.appspot.com/*",
+    "https://pluginsurveys-us1.staffbase.com/*"
   ],
   "content_scripts": [
     {

@@ -155,6 +155,83 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
     };
   }, []); // The empty array ensures this effect runs only once
   
+  const handleLoginAsUser = async () => {
+    if (!selectedUserId) {
+      setResponse("⚠️ Please select a user to log in as.");
+      return;
+    }
+    if (!isStaffbaseTab) {
+      setResponse("❌ This action can only be run on a Staffbase tab.");
+      return;
+    }
+
+    const userToLogin = usersList.find((user) => user.id === selectedUserId);
+    const identifier =
+      userToLogin?.emails?.find((e) => e.primary)?.value ||
+      userToLogin?.emails?.[0]?.value;
+
+    if (!identifier) {
+      setResponse(`❌ Could not find a primary email for user ID ${selectedUserId}.`);
+      return;
+    }
+
+    setResponse(`Attempting to log in as ${identifier}...`);
+    setIsLoading(true);
+
+    try {
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+
+      // This function will be executed in the page's context
+      const scriptToInject = (userIdentifier) => {
+        const loginAndReload = async () => {
+          try {
+            console.log(`Inject: Attempting login for ${userIdentifier}`);
+            const loginResponse = await fetch("/api/sessions", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                identifier: userIdentifier,
+                secret: "Clone12345", // Using the same hardcoded password as the automation script
+                locale: "en_US",
+              }),
+            });
+
+            if (!loginResponse.ok) {
+              const errorData = await loginResponse.json();
+              throw new Error(
+                `Login API failed with status ${loginResponse.status}: ${
+                  errorData.message || "Unknown error"
+                }`
+              );
+            }
+
+            console.log("Inject: Login successful. Reloading page...");
+            alert(`Successfully logged in as ${userIdentifier}. The page will now reload.`);
+            window.location.reload();
+          } catch (error) {
+            console.error("Inject: Login script failed.", error);
+            alert(`Failed to log in as ${userIdentifier}. See console for details. Error: ${error.message}`);
+          }
+        };
+        loginAndReload();
+      };
+
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: scriptToInject,
+        args: [identifier],
+      });
+
+      setResponse(`✅ Login script injected for ${identifier}. Check the tab.`);
+    } catch (err) {
+      setResponse(`❌ Script injection failed: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleRunAutomation = async (selectedUserIds) => {
     if (selectedUserIds.length === 0) {
@@ -415,7 +492,6 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
     if (mode === "users") {
       fetchUsers(token); // Fetch users when entering this mode
       fetchAllProfileFields(token, branchId); 
-      fetchAdminUserId(token);              
     }
 
     // For existing envs we also flag if a Replify block already lives in CSS
@@ -1086,18 +1162,19 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
 
           {userManagementView === 'profile' && (
             <UpdateUserForm
-              users={usersList}
-              selectedUserId={selectedUserId}
-              onUserSelect={setSelectedUserId}
-              userProfile={userProfile}
-              fieldToUpdate={fieldToUpdate}
-              onFieldChange={setFieldToUpdate}
-              newValue={newValue}
-              onNewValueChange={setNewValue}
-              onUpdate={handleUpdateUser}
-              isLoading={isLoading}
-              allProfileFields={allProfileFields}
-            />
+            users={usersList}
+            selectedUserId={selectedUserId}
+            onUserSelect={setSelectedUserId}
+            userProfile={userProfile}
+            fieldToUpdate={fieldToUpdate}
+            onFieldChange={setFieldToUpdate}
+            newValue={newValue}
+            onNewValueChange={setNewValue}
+            onUpdate={handleUpdateUser}
+            isLoading={isLoading}
+            allProfileFields={allProfileFields}
+            onLoginAsUser={handleLoginAsUser} 
+          />
           )}
         </>
       )}
