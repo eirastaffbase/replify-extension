@@ -1,46 +1,36 @@
 // background.js
 
-// side-panel on install
+console.log("Background script loaded. Storage-based communication enabled.");
+
+chrome.webRequest.onBeforeRedirect.addListener(
+  (details) => {
+    // Extract the survey ID from the original URL (e.g., '68883da52e127624193aab12')
+    const match = details.url.match(/installations\/([a-f0-9]+)\/service/);
+    if (!match) return;
+    
+    const surveyId = match[1];
+
+    // Check if it's the redirect we're looking for
+    if (details.redirectUrl.includes("pluginsurveys-us1.staffbase.com/register?jwt=")) {
+      const url = new URL(details.redirectUrl);
+      const jwt = url.searchParams.get("jwt");
+
+      if (jwt && surveyId) {
+        // ✅ Store the JWT in chrome.storage, keyed by the survey ID
+        const dataToStore = { [surveyId]: jwt };
+        chrome.storage.local.set(dataToStore);
+        console.log(`[Background] Stored JWT in storage for survey ID: ${surveyId}`);
+      }
+    }
+  },
+  { urls: ["*://app.staffbase.com/api/installations/*/service/frontend/forward"] }
+);
+
+// Side panel code
 chrome.runtime.onInstalled.addListener(() => {
   if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
     chrome.sidePanel
       .setPanelBehavior({ openPanelOnActionClick: true })
       .catch(console.error);
-  } else {
-    console.warn('chrome.sidePanel.setPanelBehavior not available');
-  }
-});
-
-// NEW: Listener to handle fetching the survey JWT, bypassing CORS
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.type === 'GET_SURVEY_JWT') {
-    const { forwardLink, csrfToken } = request.payload;
-
-    const fetchJwt = async () => {
-      try {
-        const response = await fetch(forwardLink, {
-          headers: { 'x-csrf-token': csrfToken },
-          redirect: 'manual', // We need to read the redirect header
-        });
-
-        const locationHeader = response.headers.get('Location');
-        if (!locationHeader) {
-          throw new Error('Redirect location header not found in background fetch.');
-        }
-
-        const jwt = new URL(locationHeader).searchParams.get('jwt');
-        if (!jwt) {
-          throw new Error('JWT not found in redirect URL.');
-        }
-
-        sendResponse({ success: true, jwt: jwt });
-      } catch (error) {
-        console.error('Background script fetch failed:', error);
-        sendResponse({ success: false, error: error.message });
-      }
-    };
-
-    fetchJwt();
-    return true; // Indicates that the response is sent asynchronously
   }
 });

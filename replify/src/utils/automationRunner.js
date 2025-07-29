@@ -3,6 +3,21 @@
 export function automationScript(users, apiToken, adminId) {
     // --- Helper Functions & Constants ---
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    async function pollForJwtInStorage(surveyId, timeout = 10000) {
+        const startTime = Date.now();
+        console.log(`  - [Page Script] Polling storage for JWT for survey ${surveyId}...`);
+        while (Date.now() - startTime < timeout) {
+            const data = await chrome.storage.local.get(surveyId);
+            if (data && data[surveyId]) {
+                // Found it! Clean up the storage and return the JWT.
+                await chrome.storage.local.remove(surveyId); 
+                console.log(`  - ✅ Found JWT in storage for survey ${surveyId}.`);
+                return data[surveyId];
+            }
+            await sleep(250); // Wait 250ms before checking again
+        }
+        throw new Error(`Timeout polling storage for JWT for survey ${surveyId}.`);
+    }
 
     const getFreshCsrfToken = async () => {
       console.log("  - Fetching /auth/discover to get a definitive CSRF token...");
@@ -22,13 +37,6 @@ export function automationScript(users, apiToken, adminId) {
       }
     };
     
-    const shuffleArray = (array) => {
-      for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-      }
-      return array;
-    };
     const getRandomItem = (array) => {
         if (!array || array.length === 0) return null;
         return array[Math.floor(Math.random() * array.length)];
@@ -37,8 +45,31 @@ export function automationScript(users, apiToken, adminId) {
 
     // --- Configuration ---
     const REACTION_TYPES = ['LIKE', 'CELEBRATE', 'SUPPORT', 'INSIGHTFUL', 'THANKS'];
+
+    const CHAT_MESSAGE_PAIRS = [
+        { 
+            initiator: (name) => `Hey ${name}, just a heads up that your shift starts in about an hour. See you soon!`, 
+            reply: "Got it, thanks for the reminder! I'm on my way." 
+        },
+        { 
+            initiator: (name) => `Hi ${name}, could you double-check the inventory report when you get a chance? I think there might be a discrepancy.`, 
+            reply: "Sure thing, I'll take a look at it now and let you know what I find." 
+        },
+        { 
+            initiator: (name) => `Hey, Emily’s birthday is next week! I was thinking we could all pitch in for a cake. Let me know if you're in.`, 
+            reply: "Great idea! I'm definitely in for the cake." 
+        },
+        { 
+            initiator: (name) => `Quick question, ${name} - do you have the final specs for the Q3 project proposal?`, 
+            reply: "Yes, I just got them this morning. I'll forward the email to you right now." 
+        },
+        { 
+            initiator: (name) => `Friendly reminder that our weekly team sync is tomorrow at 10 AM.`, 
+            reply: "Thanks! I have it on my calendar." 
+        }
+    ];
     
-    // --- Comment Banks (Unchanged) ---
+    // --- Comment Banks ---
     const PARENT_REPLY_PAIRS = [ { parent: "Could we get more details on the process for this?", reply: "I would like to second this! More detail would be great." }, { parent: "Is there a deadline for providing feedback on this?", reply: "Good question, I was wondering the same thing." }, { parent: "This looks promising. Who is the main point of contact for questions?", reply: "Thanks for asking, I'd also like to know who to reach out to." }, { parent: "Will there be a follow-up session or Q&A about this topic?", reply: "A Q&A session would be incredibly helpful." }, { parent: "Can you share the presentation slides from the meeting?", reply: "Yes, please! I'd love to review the slides." }, { parent: "What are the key metrics for success on this project?", reply: "Understanding the success metrics would provide a lot of clarity." }, { parent: "Is the documentation for this available on the company intranet?", reply: "A direct link to the documentation would be perfect." }, { parent: "This is a great initiative! How can other teams get involved?", reply: "My team would be very interested in contributing as well." }, { parent: "What was the biggest challenge the team faced during this rollout?", reply: "I'm curious about the lessons learned from this process." }, { parent: "Are there any plans to expand this program to other departments?", reply: "That's a great question; our team would be very interested." } ];
     const SINGLE_COMMENTS = [ "This is fantastic news!", "Thank you for the clear and concise update.", "Great work, everyone involved!", "Looking forward to the positive impact this will have.", "Appreciate the transparency.", "This is a huge step forward for us.", "Excellent communication on this matter.", "Very well explained.", "Excited to see this in action.", "Thanks for keeping us in the loop.", "This aligns perfectly with our company goals.", "Incredibly helpful, thank you.", "A much-needed improvement.", "The team has done an outstanding job.", "This will definitely streamline our workflow.", "Kudos to the project team!", "So glad to see this being implemented.", "This makes a lot of sense.", "Simple, effective, and user-friendly. Great job!", "Can't wait to start using this.", "This is a game-changer.", "Well done on a successful launch.", "The results speak for themselves.", "Thrilled with this announcement.", "This is exactly what we needed.", "Informative and to the point.", "Big congratulations to the team!", "This is going to make a big difference.", "A welcome development.", "Really impressive work." ];
     const SURVEY_COMMENT_BANK = [ "Very clear and helpful, thank you!", "This was great, no complaints from me.", "Excellent initiative.", "I'm really happy with this.", "Keep up the great work!", "Very satisfied with the process.", "The communication was fantastic.", "This exceeded my expectations.", "Found this very valuable.", "A positive experience all around.", "Well organized and efficient.", "No issues, everything went smoothly.", "This is a welcome change.", "I appreciate the effort that went into this.", "Very user-friendly.", "It was adequate for my needs.", "No strong feelings either way.", "The process was straightforward.", "It served its purpose.", "This is a good starting point.", "Looking forward to see how this develops.", "The information provided was sufficient.", "An interesting approach.", "I was able to complete it without issues.", "Standard procedure, nothing to add.", "As expected.", "It worked.", "Could use a bit more insight on the metrics.", "The instructions could have been clearer.", "I think there's room for improvement here.", "Felt a bit rushed.", "Would be nice to have more context.", "The platform was a little slow at times.", "Some of the questions were a bit ambiguous.", "Hopefully, the next iteration will be more refined.", "A few minor usability issues.", "It was okay, but not amazing.", "More detailed follow-up would be appreciated.", "Could be more engaging." ];
@@ -66,37 +97,7 @@ export function automationScript(users, apiToken, adminId) {
         return surveysWithQuestions;
     }
 
-    /**
-     * ❗ NEW "SPY" METHOD: Intercepts fetch requests to find the JWT.
-     */
-    async function getSurveyJwtBySniffing(survey, csrfToken) {
-        const originalFetch = window.fetch;
-        let timeoutId;
 
-        const promise = new Promise((resolve, reject) => {
-            timeoutId = setTimeout(() => {
-                window.fetch = originalFetch; // Restore fetch on timeout
-                reject(new Error(`Timeout: Did not capture survey JWT for ${survey.id} within 10 seconds.`));
-            }, 10000);
-
-            window.fetch = async (...args) => {
-                const url = args[0] instanceof Request ? args[0].url : args[0];
-                if (typeof url === 'string' && url.includes('pluginsurveys-us1.staffbase.com/register?jwt=')) {
-                    console.log('  - Intercepted register call, extracting JWT...');
-                    const capturedJwt = new URL(url).searchParams.get('jwt');
-                    clearTimeout(timeoutId);
-                    window.fetch = originalFetch; // Restore fetch immediately
-                    resolve(capturedJwt);
-                }
-                return originalFetch.apply(this, args);
-            };
-        });
-
-        // Trigger the redirect, which our spy will catch
-        fetch(survey.links.frontend_forward.href, { headers: { 'x-csrf-token': csrfToken }, credentials: 'include' });
-        
-        return promise;
-    }
 
     function generateSurveyResponse(questions) {
         const payload = { content: {} };
@@ -134,11 +135,15 @@ export function automationScript(users, apiToken, adminId) {
         for (const survey of surveysWithQuestions) {
             try {
                 if (!survey?.questions) continue;
-                const jwt = await getSurveyJwtBySniffing(survey, csrfToken);
-                if (!jwt) {
-                    console.warn(`  - Could not get JWT for survey "${survey.id}". Skipping.`);
-                    continue;
-                }
+
+                // 1. Trigger the fetch. We don't wait for it or care that it fails.
+                // Its only job is to create the redirect for the background script to see.
+                fetch(survey.links.frontend_forward.href, { headers: { 'x-csrf-token': csrfToken } })
+                    .catch(err => { /* This error is expected and normal */ });
+                
+                // 2. Poll storage for the JWT that the background script placed there.
+                const jwt = await pollForJwtInStorage(survey.id);
+
                 const responsePayload = generateSurveyResponse(survey.questions);
                 if (Object.keys(responsePayload.content).length > 0) {
                     await submitSurveyFeedback(jwt, responsePayload);
@@ -216,12 +221,66 @@ export function automationScript(users, apiToken, adminId) {
                     return response.json();
                 };
 
+                const handleChatting = async (currentUser, allUsers, chatInstallationId, csrfToken, pendingChatReplies) => {
+                    // Find a pending reply where this user is the recipient
+                    const replyableIndex = pendingChatReplies.findIndex(p => p.recipientId === currentUser.id);
+            
+                    if (replyableIndex > -1) {
+                        // A message is waiting for this user to reply to.
+                        const [replyable] = pendingChatReplies.splice(replyableIndex, 1);
+                        
+                        console.log(`  - Found a pending chat from user ${replyable.authorId}. Replying...`);
+                        await fetch(`/api/installations/${chatInstallationId}/conversations/direct/${replyable.authorId}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+                            body: JSON.stringify({ message: replyable.replyText })
+                        });
+                        console.log(`  - 💬 Sent chat reply to user ${replyable.authorId}.`);
+                    } else {
+                        // No pending replies, so start a new conversation.
+                        let recipient;
+                        do {
+                            recipient = getRandomItem(allUsers);
+                        } while (recipient && recipient.id === currentUser.id);
+            
+                        if (!recipient) {
+                            console.log("  - Could not find a valid recipient for chat.");
+                            return;
+                        }
+            
+                        const pair = getRandomItem(CHAT_MESSAGE_PAIRS);
+                        const initialMessage = pair.initiator(recipient.firstName);
+            
+                        const response = await fetch(`/api/installations/${chatInstallationId}/conversations/direct/${recipient.id}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+                            body: JSON.stringify({ message: initialMessage })
+                        });
+            
+                        if (!response.ok) throw new Error('Failed to send initial chat message.');
+                        const newConvoData = await response.json();
+            
+                        // Add the reply to the queue for the other user to handle later
+                        pendingChatReplies.push({
+                            conversationId: newConvoData.conversationID,
+                            replyText: pair.reply,
+                            authorId: currentUser.id, // The current user sent the first message
+                            recipientId: recipient.id  // The other user needs to reply
+                        });
+                        console.log(`  - 💬 Started new chat with ${recipient.firstName} (${recipient.id}). Waiting for reply.`);
+                    }
+                };
+            
+
                 // Helper for posting a paired comment (either reply or new parent)
                 const handlePairedComment = async () => {
-                    const replyable = pendingReplies.find(p => p.authorId !== user.id);
-                    if (replyable) {
-                        // If there's a pending reply from another user, answer it.
-                        pendingReplies = pendingReplies.filter(p => p.parentId !== replyable.parentId); // Remove from queue
+                    const replyableIndex = pendingReplies.findIndex(p => p.authorId !== user.id);
+
+                    if (replyableIndex > -1) {
+                        // Atomically remove the item from the queue to "claim" it
+                        const [replyable] = pendingReplies.splice(replyableIndex, 1);
+                        
+                        // Now, safely post the reply
                         await postComment(replyable.replyText, null, replyable.parentId);
                         console.log(`  - Posted reply to comment ${replyable.parentId}.`);
                     } else {
