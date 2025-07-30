@@ -87,6 +87,8 @@ function App() {
   /* 🏗️  Environment setup toggles ---------------------------------------- */
   const [chatEnabled, setChatEnabled] = useState(false);
   const [microsoftEnabled, setMicrosoftEnabled] = useState(false);
+  const [journeysEnabled, setJourneysEnabled] = useState(false); // New state for Journeys
+  const [loggedInUserId, setLoggedInUserId] = useState(null); // New state for user ID
   const [campaignsEnabled, setCampaignsEnabled] = useState(false);
   const [customWidgetsChecked, setCustomWidgetsChecked] = useState(false);
   const [mergeIntegrationsChecked, setMergeIntegrationsChecked] =
@@ -487,6 +489,32 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
    SAVED-TOKEN INTERACTIONS
    ────────────────────────────────────────────────────────────── */
 
+  /** Pre-configures the "New Environment" form with default email and user ID. */
+  const prepareNewEnvironmentSetup = async (token, slug) => {
+    if (!slug) {
+      setResponse("⚠️ Slug not found, cannot set up default email.");
+      return;
+    }
+  
+    // Set default email immediately
+    const defaultEmail = `admin+${slug}@staffbase.com`;
+    setSbEmail(defaultEmail);
+    setResponse(`Default email set to ${defaultEmail}. Fetching user ID...`);
+  
+    // Fetch user ID for journeys
+    try {
+      const meResponse = await fetch('https://app.staffbase.com/api/users/me', {
+        headers: { Authorization: `Basic ${token}` }
+      });
+      if (!meResponse.ok) throw new Error('Failed to fetch current user ID');
+      const meData = await meResponse.json();
+      setLoggedInUserId(meData.id);
+      setResponse(prev => prev + `\n✅ User ID for Journeys is ${meData.id}.`);
+    } catch (error) {
+      setResponse(prev => prev + `\n⚠️ Could not fetch user ID for Journeys. Error: ${error.message}`);
+    }
+  };
+
   /** “Set Up” or “Brand” button inside <UseEnvironmentOptions>. */
   const handleUseOptionClick = async ({ mode, token, branchId }) => {
     setApiToken(token);
@@ -495,13 +523,12 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
     setUseOption({ type: mode, token, branchId });
     setUserManagementView('selection'); // Reset to main selection view
 
-    if (mode === "users") {
+    if (mode === 'new') {
+      prepareNewEnvironmentSetup(token, useOption.slug);
+    } else if (mode === "users") {
       fetchUsers(token); // Fetch users when entering this mode
       fetchAllProfileFields(token, branchId); 
-    }
-
-    // For existing envs we also flag if a Replify block already lives in CSS
-    if (mode === "existing") {
+    } else if (mode === "existing") {
       try {
         const css = await fetchCurrentCSS(token);
         const hasBlock =
@@ -722,57 +749,68 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
 
   /** POST to Replify backend to spin up a fresh environment with selected extras. */
   async function handleSetupNewEnv() {
-    setResponse("Setting up new environment! This may take a minute or two...");
+    setResponse("Processing setup request...");
     setIsLoading(true);
   
-    const body = {
-      chat: chatEnabled,
-      microsoft: microsoftEnabled,
-      campaigns: campaignsEnabled,
-    };
-    if (launchpadSel.length) body.launchpad = launchpadSel;
-    if (quickLinksEnabled) {
-      body.mobileQuickLinks = Object.fromEntries(
-        mobileQuickLinks
-          .filter((l) => l.name.trim())
-          .map((l) => [l.name, { title: l.title, position: l.position }])
-      );
-    }
-    if (customWidgetsChecked) body.customWidgets = [sbEmail, sbPassword];
-    if (mergeIntegrationsChecked)
-      body.workdayMerge = [sbEmail, sbPassword, mergeField];
-  
+    const messages = [];
+    
+    // Determine if the installations endpoint needs to be called
+    const isInstallationSetupNeeded =
+      chatEnabled ||
+      microsoftEnabled ||
+      (journeysEnabled && loggedInUserId) ||
+      launchpadSel.length > 0 ||
+      quickLinksEnabled ||
+      customWidgetsChecked ||
+      mergeIntegrationsChecked;
+
     try {
-      // 1. Create the environment
-      const envResponse = await fetch(
-        "https://sb-news-generator.uc.r.appspot.com/api/v1/installations",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiToken}`,
-          },
-          body: JSON.stringify(body),
+      // 1. Conditionally set up environment features (installations)
+      if (isInstallationSetupNeeded) {
+        setResponse("Setting up environment features...");
+        const body = {
+          chat: chatEnabled,
+          microsoft: microsoftEnabled,
+          campaigns: campaignsEnabled,
+        };
+        if (launchpadSel.length) body.launchpad = launchpadSel;
+        if (journeysEnabled && loggedInUserId) {
+          body.journeys = { user: loggedInUserId, desired: ["all"] };
         }
-      );
+        if (quickLinksEnabled) {
+          body.mobileQuickLinks = Object.fromEntries(
+            mobileQuickLinks
+              .filter((l) => l.name.trim())
+              .map((l) => [l.name, { title: l.title, position: l.position }])
+          );
+        }
+        if (customWidgetsChecked) body.customWidgets = [sbEmail, sbPassword];
+        if (mergeIntegrationsChecked) {
+          body.workdayMerge = [sbEmail, sbPassword, mergeField];
+        }
   
-      if (!envResponse.ok) {
-        throw new Error(`Environment setup failed: ${envResponse.statusText}`);
+        const envResponse = await fetch(
+          "https://sb-news-generator.uc.r.appspot.com/api/v1/installations",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiToken}`,
+            },
+            body: JSON.stringify(body),
+          }
+        );
+  
+        if (envResponse.ok) {
+          messages.push("✅ Environment features configured successfully!");
+        } else {
+          throw new Error(`Environment setup failed: ${envResponse.statusText}`);
+        }
       }
   
-      // Assuming the response contains the domain of the new environment
-      const envData = await envResponse.json();
-      const domain = envData.domain; 
-      let finalMessage = "✅ Environment created!";
-  
-      // 2. Set up email templates if requested
+      // 2. Conditionally set up email templates
       if (setupEmailChecked) {
-        if (!domain) {
-          throw new Error("Could not get domain from setup response to configure email.");
-        }
-        
-        setResponse("Environment created. Now setting up email templates...");
-  
+        setResponse("Setting up email templates...");
         const emailResponse = await fetch(
           "https://sb-news-generator.uc.r.appspot.com/api/v1/generate/email-templates",
           {
@@ -781,18 +819,23 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
               "Content-Type": "application/json",
               Authorization: `Bearer ${apiToken}`,
             },
-            body: JSON.stringify({ domain }),
+            body: JSON.stringify({ domain: "app.staffbase.com" }),
           }
         );
   
         if (emailResponse.ok) {
-          finalMessage += " Email templates set up successfully!";
+          messages.push("✅ Email templates set up successfully!");
         } else {
-          finalMessage += ` Failed to set up email templates: ${emailResponse.statusText}`;
+          throw new Error(`Failed to set up email templates: ${emailResponse.statusText}`);
         }
       }
   
-      setResponse(finalMessage);
+      // Set final response message
+      if (messages.length === 0) {
+        setResponse("Nothing to set up. Please check an option.");
+      } else {
+        setResponse(messages.join("\n"));
+      }
       
     } catch (err) {
       setResponse(`❌ Error: ${err.message}`);
@@ -800,7 +843,6 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
       setIsLoading(false);
     }
   }
-  
 
 
   /* ──────────────────────────────────────────────────────────────
@@ -1235,6 +1277,8 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
           setChatEnabled={setChatEnabled}
           microsoftEnabled={microsoftEnabled}
           setMicrosoftEnabled={setMicrosoftEnabled}
+          journeysEnabled={journeysEnabled}
+          setJourneysEnabled={setJourneysEnabled}
           campaignsEnabled={campaignsEnabled}
           setCampaignsEnabled={setCampaignsEnabled}
           /* launchpad */
@@ -1265,7 +1309,7 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
           sbPassword={sbPassword}
           setSbPassword={setSbPassword}
           mergeField={mergeField}
-          setMergeField={setMergeField}
+          setSetMergeField={setMergeField}
           /* submit */
           onSetup={handleSetupNewEnv}
         />
