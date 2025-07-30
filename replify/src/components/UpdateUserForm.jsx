@@ -1,5 +1,3 @@
-// components/UpdateUserForm.jsx
-
 import React from "react";
 import { brandingButtonStyle, inputStyle, psaStyle } from "../styles";
 
@@ -34,13 +32,16 @@ export default function UpdateUserForm({
   allProfileFields,
   onUpdate,
   isLoading,
-  onLoginAsUser, // New prop for the login handler
+  onLoginAsUser, // Prop for the login handler
 }) {
   let currentValue = "";
   if (userProfile && fieldToUpdate) {
     currentValue =
       userProfile.profile?.[fieldToUpdate] ?? userProfile[fieldToUpdate];
   }
+
+  // Find the full user object to get the first name for the button label
+  const selectedUser = users.find((user) => user.id === selectedUserId);
 
   return (
     <div>
@@ -51,37 +52,39 @@ export default function UpdateUserForm({
         <label style={labelStyle} htmlFor="user-select">
           Select User
         </label>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <select
-            id="user-select"
-            style={{ ...selectStyle, flexGrow: 1 }} // Make select take up available space
-            value={selectedUserId}
-            onChange={(e) => {
-              onFieldChange("");
-              onNewValueChange("");
-              onUserSelect(e.target.value);
-            }}
-            disabled={isLoading || !users.length}
-          >
-            <option value="">-- Select a user --</option>
-            {users.map((user) => (
-              <option key={user.id} value={user.id}>
-                {`${user.firstName} ${user.lastName} ${
-                  user.username ? `(${user.username})` : ""
-                }`.trim()}
-              </option>
-            ))}
-          </select>
-          {/* ─── NEW: Login as User Button ─── */}
-          <button
-            style={{ ...brandingButtonStyle, flexShrink: 0, whiteSpace: 'nowrap' }} // Prevent button from shrinking
-            onClick={onLoginAsUser}
-            disabled={!selectedUserId || isLoading}
-            title={!selectedUserId ? "Select a user first" : "Login as selected user"}
-          >
-            Login as User
-          </button>
-        </div>
+        <select
+          id="user-select"
+          style={selectStyle} // This style already has width: 100%
+          value={selectedUserId}
+          onChange={(e) => {
+            onFieldChange("");
+            onNewValueChange("");
+            onUserSelect(e.target.value);
+          }}
+          disabled={isLoading || !users.length}
+        >
+          <option value="">-- Select a user --</option>
+          {users.map((user) => (
+            <option key={user.id} value={user.id}>
+              {`${user.firstName} ${user.lastName} ${
+                user.username ? `(${user.username})` : ""
+              }`.trim()}
+            </option>
+          ))}
+        </select>
+
+        {selectedUser && (
+          <div>
+            <button
+              style={{ ...brandingButtonStyle, width: "100%" }}
+              onClick={onLoginAsUser}
+              disabled={isLoading}
+              title={`Login as ${selectedUser.firstName}`}
+            >
+              {`Login as ${selectedUser.firstName}`}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ─── Step 2: Update Fields (shows after user is selected) ─── */}
