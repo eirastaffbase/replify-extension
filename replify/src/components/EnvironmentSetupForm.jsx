@@ -13,16 +13,16 @@ import MobileQuickLinks from "./MobileQuickLinks";
 
 /**
  * EnvironmentSetupForm Component
- * 
- * This component provides a form for configuring various environment settings, including toggles for enabling features,
+ * * This component provides a form for configuring various environment settings, including toggles for enabling features,
  * managing launchpad items, quick links, custom widgets, merge integrations, and email templates. It also includes a 
  * submit button to finalize the setup.
- * 
- * @param {Object} props - The props object.
+ * * @param {Object} props - The props object.
  * @param {boolean} props.chatEnabled - Indicates if chat is enabled.
  * @param {Function} props.setChatEnabled - Function to toggle chat enabled state.
  * @param {boolean} props.microsoftEnabled - Indicates if Microsoft integration is enabled.
  * @param {Function} props.setMicrosoftEnabled - Function to toggle Microsoft integration enabled state.
+ * @param {boolean} props.journeysEnabled - Indicates if Journeys are enabled.
+ * @param {Function} props.setJourneysEnabled - Function to toggle Journeys enabled state.
  * @param {boolean} props.campaignsEnabled - Indicates if campaigns are enabled. (Note: Endpoint for campaigns is broken.)
  * @param {Function} props.setCampaignsEnabled - Function to toggle campaigns enabled state.
  * @param {Array} props.launchpadSel - Selected launchpad items.
@@ -50,13 +50,13 @@ import MobileQuickLinks from "./MobileQuickLinks";
  * @param {string} props.mergeField - Merge field for integrations.
  * @param {Function} props.setMergeField - Function to set the merge field for integrations.
  * @param {Function} props.onSetup - Function to handle the setup process.
- * 
- * @returns {JSX.Element} The rendered EnvironmentSetupForm component.
+ * * @returns {JSX.Element} The rendered EnvironmentSetupForm component.
  */
 export default function EnvironmentSetupForm({
   /* toggles */
   chatEnabled, setChatEnabled,
   microsoftEnabled, setMicrosoftEnabled,
+  journeysEnabled, setJourneysEnabled, // Destructure new prop
   campaignsEnabled, setCampaignsEnabled,
 
   /* launchpad */
@@ -76,7 +76,7 @@ export default function EnvironmentSetupForm({
   /* widgets / merge */
   customWidgetsChecked, setCustomWidgetsChecked,
   mergeIntegrationsChecked, setMergeIntegrationsChecked,
-  setupEmailChecked, setSetupEmailChecked, // Destructure new prop
+  setupEmailChecked, setSetupEmailChecked, 
   sbEmail, setSbEmail,
   sbPassword, setSbPassword,
   mergeField, setMergeField,
@@ -88,10 +88,11 @@ export default function EnvironmentSetupForm({
     <>
       <h3>Environment Setup</h3>
 
-      {/* Chat / Microsoft / Campaigns */}
+      {/* Chat / Microsoft / Journeys / Campaigns */}
       {[
         ["Enable Chat", chatEnabled, setChatEnabled],
         ["Enable Microsoft Integration", microsoftEnabled, setMicrosoftEnabled],
+        ["Add Journeys", journeysEnabled, setJourneysEnabled], // Add Journeys checkbox
         // ["Enable Campaigns", campaignsEnabled, setCampaignsEnabled],
       ].map(([lbl, val, setter]) => (
         <div key={lbl} style={formGroupStyle}>
@@ -109,7 +110,6 @@ export default function EnvironmentSetupForm({
     )
       }
         
-
       {/* Launchpad */}
       <div style={formGroupStyle}>
         <label style={labelStyle}>Launchpad items:</label>
@@ -152,7 +152,7 @@ export default function EnvironmentSetupForm({
       {[
         ["Custom Widgets?", customWidgetsChecked, setCustomWidgetsChecked],
         [ "Merge Integrations?", mergeIntegrationsChecked, setMergeIntegrationsChecked],
-        ["Email Templates?", setupEmailChecked, setSetupEmailChecked], // Add new checkbox item here
+        ["Email Templates?", setupEmailChecked, setSetupEmailChecked],
       ].map(([lbl, val, setter]) => (
         <div key={lbl} style={formGroupStyle}>
           <label style={labelStyle}>

@@ -99,3 +99,10 @@ export const psaStyle = {
   color: '#333',
   lineHeight: '1.4',
 };
+export const subDescriptionStyle = {
+  fontSize: '13px',
+  color: '#555',
+  marginTop: '5px',
+  marginBottom: '10px',
+  lineHeight: '1.4',
+};
