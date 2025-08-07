@@ -1,4 +1,4 @@
-//App.js
+// App.js
 /* eslint-disable no-undef */
 /* global chrome */
 
@@ -19,11 +19,13 @@ import {
   manageAnalyticsScriptInPage,
   handleToggleAnalyticsChange,
 } from "./utils/analyticsManager"; 
+import { automationScript } from "./utils/automationRunner";
 
 
 /* ───── Constants & styles ───── */
 import { LAUNCHPAD_DICT, blockRegex } from "./constants/appConstants";
-import { responseStyle, containerStyle, headingStyle } from "./styles";
+import { responseStyle, containerStyle, headingStyle, brandingButtonStyle, subDescriptionStyle } from "./styles";
+
 
 /* ───── Components ───── */
 import SavedEnvironments from "./components/SavedEnvironments";
@@ -34,6 +36,8 @@ import UseEnvironmentOptions from "./components/UseEnvironmentOptions";
 import RedirectAnalyticsForm from "./components/RedirectAnalyticsForm";
 import FeedbackBanner from "./components/FeedbackBanner";
 import UpdateUserForm from "./components/UpdateUserForm";
+import AutomationForm from "./components/AutomationForm";
+import ProgressBar from "./components/ProgressBar";
 
 
 function App() {
@@ -83,6 +87,8 @@ function App() {
   /* 🏗️  Environment setup toggles ---------------------------------------- */
   const [chatEnabled, setChatEnabled] = useState(false);
   const [microsoftEnabled, setMicrosoftEnabled] = useState(false);
+  const [journeysEnabled, setJourneysEnabled] = useState(false); // New state for Journeys
+  const [loggedInUserId, setLoggedInUserId] = useState(null); // New state for user ID
   const [campaignsEnabled, setCampaignsEnabled] = useState(false);
   const [customWidgetsChecked, setCustomWidgetsChecked] = useState(false);
   const [mergeIntegrationsChecked, setMergeIntegrationsChecked] =
@@ -90,7 +96,7 @@ function App() {
   const [sbEmail, setSbEmail] = useState("");
   const [sbPassword, setSbPassword] = useState("");
   const [mergeField, setMergeField] = useState("");
-  const [setupEmailChecked, setSetupEmailChecked] = useState(false); // Add this line
+  const [setupEmailChecked, setSetupEmailChecked] = useState(false);
 
 
   /* 📲  Launchpad & mobile quick links ------------------------------------ */
@@ -112,6 +118,7 @@ const [newValue, setNewValue] = useState("");
 const [allProfileFields, setAllProfileFields] = useState([]); 
 const [adminUserId, setAdminUserId] = useState(null);        
 const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
+const [userManagementView, setUserManagementView] = useState('selection'); // 'selection', 'profile', or 'automation'
 
 
   /* 🔄  UI / async status -------------------------------------------------- */
@@ -121,9 +128,173 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
   /* 🌐  Browser-specific --------------------------------------------------- */
   const isStaffbaseTab = useStaffbaseTab(); // are we viewing a Staffbase page?
 
+  /* 🌐  Progress tracking -------------------------------------------------- */
+  const [automationRunning, setAutomationRunning] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [totalTasks, setTotalTasks] = useState(0);
+  const [progressData, setProgressData] = useState({
+    tasksCompleted: 0,
+    totalTasks: 0,
+    currentUser: null,
+    currentStatus: null,
+  });
+
+  
   // --------------------------------------------------
-  //  DERIVED LABELS / SMALL HELPERS
+  //   SMALL HELPERS
   // --------------------------------------------------
+
+
+    useEffect(() => {
+      const messageListener = (message, sender, sendResponse) => {
+          if (message.type === 'automationProgress') {
+              setProgressData(prev => ({
+                  tasksCompleted: message.payload.tasksCompleted,
+                  totalTasks: message.payload.totalTasks,
+                  // Only update user/status if they are provided, otherwise keep the last known value
+                  currentUser: message.payload.user || prev.currentUser,
+                  currentStatus: message.payload.status || prev.currentStatus,
+              }));
+          } else if (message.type === 'automationComplete') {
+              setAutomationRunning(false);
+              setResponse("✅ Automation has finished!");
+          }
+      };
+      
+      chrome.runtime.onMessage.addListener(messageListener);
+      
+      return () => chrome.runtime.onMessage.removeListener(messageListener);
+  }, []); // Empty array ensures this runs only once
+  
+  const handleLoginAsUser = async () => {
+    if (!selectedUserId) {
+      setResponse("⚠️ Please select a user to log in as.");
+      return;
+    }
+    if (!isStaffbaseTab) {
+      setResponse("❌ This action can only be run on a Staffbase tab.");
+      return;
+    }
+
+    const userToLogin = usersList.find((user) => user.id === selectedUserId);
+    const identifier =
+      userToLogin?.emails?.find((e) => e.primary)?.value ||
+      userToLogin?.emails?.[0]?.value;
+
+    if (!identifier) {
+      setResponse(`❌ Could not find a primary email for user ID ${selectedUserId}.`);
+      return;
+    }
+
+    setResponse(`Attempting to log in as ${identifier}...`);
+    setIsLoading(true);
+
+    try {
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+
+      // This function will be executed in the page's context
+      const scriptToInject = (userIdentifier) => {
+        const loginAndReload = async () => {
+          try {
+            console.log(`Inject: Attempting login for ${userIdentifier}`);
+            const loginResponse = await fetch("/api/sessions", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                identifier: userIdentifier,
+                secret: "Clone12345", // Using the same hardcoded password as the automation script
+                locale: "en_US",
+              }),
+            });
+
+            if (!loginResponse.ok) {
+              const errorData = await loginResponse.json();
+              throw new Error(
+                `Login API failed with status ${loginResponse.status}: ${
+                  errorData.message || "Unknown error"
+                }`
+              );
+            }
+
+            console.log("Inject: Login successful. Reloading page...");
+            alert(`Successfully logged in as ${userIdentifier}. The page will now reload.`);
+            window.location.reload();
+          } catch (error) {
+            console.error("Inject: Login script failed.", error);
+            alert(`Failed to log in as ${userIdentifier}. See console for details. Error: ${error.message}`);
+          }
+        };
+        loginAndReload();
+      };
+
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: scriptToInject,
+        args: [identifier],
+      });
+
+      setResponse(`✅ Login script injected for ${identifier}. Check the tab.`);
+    } catch (err) {
+      setResponse(`❌ Script injection failed: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRunAutomation = async (selectedUserIds, automationOptions) => {
+    if (selectedUserIds.length === 0) {
+      setResponse("⚠️ Please select at least one user.");
+      return;
+    }
+
+    setResponse("🚀 Starting automation... preparing new tab.");
+    // Reset progress data
+    setProgressData({ tasksCompleted: 0, totalTasks: 0, currentUser: null, currentStatus: "Initializing..." });
+    setAutomationRunning(true);
+    setIsLoading(true);
+
+    const selectedUsers = usersList.filter(user => selectedUserIds.includes(user.id));
+    if (selectedUsers.length === 0) {
+        setResponse("❌ Error: Could not find user data for the current selection.");
+        setIsLoading(false);
+        return;
+    }
+
+    try {
+      const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const origin = new URL(currentTab.url).origin;
+      const rootUrl = `${origin}/`;
+
+      const newTab = await chrome.tabs.create({ url: rootUrl, active: true });
+
+      const listener = (tabId, changeInfo, tab) => {
+        if (tabId === newTab.id && changeInfo.status === 'complete') {
+          chrome.tabs.onUpdated.removeListener(listener);
+
+          setResponse(`Tab ready. Injecting main automation script...`);
+          
+          chrome.scripting.executeScript({
+            target: { tabId: newTab.id },
+            func: automationScript,
+            args: [selectedUsers, apiToken, adminUserId, automationOptions], // 👈 Pass options here
+          });
+          
+          setResponse(`✅ Script injected. The new tab will now run the automation.`);
+          setIsLoading(false);
+        }
+      };
+      chrome.tabs.onUpdated.addListener(listener);
+      
+    } catch (err) {
+      setResponse(`❌ Automation failed: ${err.message}`);
+      setIsLoading(false);
+      setAutomationRunning(false);
+    }
+  };
+
 
   /** Returns CTA label for the “Create” button depending on the two checkboxes. */
   const getCreateLabel = () => {
@@ -318,21 +489,46 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
    SAVED-TOKEN INTERACTIONS
    ────────────────────────────────────────────────────────────── */
 
+  /** Pre-configures the "New Environment" form with default email and user ID. */
+  const prepareNewEnvironmentSetup = async (token, slug) => {
+    if (!slug) {
+      setResponse("⚠️ Slug not found, cannot set up default email.");
+      return;
+    }
+  
+    // Set default email immediately
+    const defaultEmail = `admin+${slug}@staffbase.com`;
+    setSbEmail(defaultEmail);
+    setResponse(`Default email set to ${defaultEmail}. Fetching user ID...`);
+  
+    // Fetch user ID for journeys
+    try {
+      const meResponse = await fetch('https://app.staffbase.com/api/users/me', {
+        headers: { Authorization: `Basic ${token}` }
+      });
+      if (!meResponse.ok) throw new Error('Failed to fetch current user ID');
+      const meData = await meResponse.json();
+      setLoggedInUserId(meData.id);
+      setResponse(prev => prev + `\n✅ User ID for Journeys is ${meData.id}.`);
+    } catch (error) {
+      setResponse(prev => prev + `\n⚠️ Could not fetch user ID for Journeys. Error: ${error.message}`);
+    }
+  };
+
   /** “Set Up” or “Brand” button inside <UseEnvironmentOptions>. */
   const handleUseOptionClick = async ({ mode, token, branchId }) => {
     setApiToken(token);
     setBranchId(branchId);
     setIsAuthenticated(true);
     setUseOption({ type: mode, token, branchId });
+    setUserManagementView('selection'); // Reset to main selection view
 
-    if (mode === "users") {
+    if (mode === 'new') {
+      prepareNewEnvironmentSetup(token, useOption.slug);
+    } else if (mode === "users") {
       fetchUsers(token); // Fetch users when entering this mode
       fetchAllProfileFields(token, branchId); 
-      fetchAdminUserId(token);              
-    }
-
-    // For existing envs we also flag if a Replify block already lives in CSS
-    if (mode === "existing") {
+    } else if (mode === "existing") {
       try {
         const css = await fetchCurrentCSS(token);
         const hasBlock =
@@ -347,7 +543,7 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
       mode === "existing"
         ? "Using saved environment – ready to brand!"
         : mode === "users"
-        ? "Ready to update users!"
+        ? "Ready for user management!"
         : "Using saved environment – ready to set up!"
       );
   };
@@ -379,8 +575,8 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
 
   /**
    * Create or update demo resources:
-   *  1. Inject / replace Replify CSS block.
-   *  2. Trigger sb-news LinkedIn scraper (optional).
+   * 1. Inject / replace Replify CSS block.
+   * 2. Trigger sb-news LinkedIn scraper (optional).
    */
   async function handleCreateDemo() {
     try {
@@ -553,57 +749,68 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
 
   /** POST to Replify backend to spin up a fresh environment with selected extras. */
   async function handleSetupNewEnv() {
-    setResponse("Setting up new environment! This may take a minute or two...");
+    setResponse("Processing setup request...");
     setIsLoading(true);
   
-    const body = {
-      chat: chatEnabled,
-      microsoft: microsoftEnabled,
-      campaigns: campaignsEnabled,
-    };
-    if (launchpadSel.length) body.launchpad = launchpadSel;
-    if (quickLinksEnabled) {
-      body.mobileQuickLinks = Object.fromEntries(
-        mobileQuickLinks
-          .filter((l) => l.name.trim())
-          .map((l) => [l.name, { title: l.title, position: l.position }])
-      );
-    }
-    if (customWidgetsChecked) body.customWidgets = [sbEmail, sbPassword];
-    if (mergeIntegrationsChecked)
-      body.workdayMerge = [sbEmail, sbPassword, mergeField];
-  
+    const messages = [];
+    
+    // Determine if the installations endpoint needs to be called
+    const isInstallationSetupNeeded =
+      chatEnabled ||
+      microsoftEnabled ||
+      (journeysEnabled && loggedInUserId) ||
+      launchpadSel.length > 0 ||
+      quickLinksEnabled ||
+      customWidgetsChecked ||
+      mergeIntegrationsChecked;
+
     try {
-      // 1. Create the environment
-      const envResponse = await fetch(
-        "https://sb-news-generator.uc.r.appspot.com/api/v1/installations",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiToken}`,
-          },
-          body: JSON.stringify(body),
+      // 1. Conditionally set up environment features (installations)
+      if (isInstallationSetupNeeded) {
+        setResponse("Setting up environment features...");
+        const body = {
+          chat: chatEnabled,
+          microsoft: microsoftEnabled,
+          campaigns: campaignsEnabled,
+        };
+        if (launchpadSel.length) body.launchpad = launchpadSel;
+        if (journeysEnabled && loggedInUserId) {
+          body.journeys = { user: loggedInUserId, desired: ["all"] };
         }
-      );
+        if (quickLinksEnabled) {
+          body.mobileQuickLinks = Object.fromEntries(
+            mobileQuickLinks
+              .filter((l) => l.name.trim())
+              .map((l) => [l.name, { title: l.title, position: l.position }])
+          );
+        }
+        if (customWidgetsChecked) body.customWidgets = [sbEmail, sbPassword];
+        if (mergeIntegrationsChecked) {
+          body.workdayMerge = [sbEmail, sbPassword, mergeField];
+        }
   
-      if (!envResponse.ok) {
-        throw new Error(`Environment setup failed: ${envResponse.statusText}`);
+        const envResponse = await fetch(
+          "https://sb-news-generator.uc.r.appspot.com/api/v1/installations",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiToken}`,
+            },
+            body: JSON.stringify(body),
+          }
+        );
+  
+        if (envResponse.ok) {
+          messages.push("✅ Environment features configured successfully!");
+        } else {
+          throw new Error(`Environment setup failed: ${envResponse.statusText}`);
+        }
       }
   
-      // Assuming the response contains the domain of the new environment
-      const envData = await envResponse.json();
-      const domain = envData.domain; 
-      let finalMessage = "✅ Environment created!";
-  
-      // 2. Set up email templates if requested
+      // 2. Conditionally set up email templates
       if (setupEmailChecked) {
-        if (!domain) {
-          throw new Error("Could not get domain from setup response to configure email.");
-        }
-        
-        setResponse("Environment created. Now setting up email templates...");
-  
+        setResponse("Setting up email templates...");
         const emailResponse = await fetch(
           "https://sb-news-generator.uc.r.appspot.com/api/v1/generate/email-templates",
           {
@@ -612,18 +819,23 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
               "Content-Type": "application/json",
               Authorization: `Bearer ${apiToken}`,
             },
-            body: JSON.stringify({ domain }),
+            body: JSON.stringify({ domain: "app.staffbase.com" }),
           }
         );
   
         if (emailResponse.ok) {
-          finalMessage += " Email templates set up successfully!";
+          messages.push("✅ Email templates set up successfully!");
         } else {
-          finalMessage += ` Failed to set up email templates: ${emailResponse.statusText}`;
+          throw new Error(`Failed to set up email templates: ${emailResponse.statusText}`);
         }
       }
   
-      setResponse(finalMessage);
+      // Set final response message
+      if (messages.length === 0) {
+        setResponse("Nothing to set up. Please check an option.");
+      } else {
+        setResponse(messages.join("\n"));
+      }
       
     } catch (err) {
       setResponse(`❌ Error: ${err.message}`);
@@ -631,7 +843,6 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
       setIsLoading(false);
     }
   }
-  
 
 
   /* ──────────────────────────────────────────────────────────────
@@ -673,7 +884,7 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
       });
       
       setUsersList(cleanedUsers);
-      setResponse("✅ Users loaded. Ready to update.");
+      setResponse("✅ Users loaded. Ready for user management.");
 
     } catch (err) {
       setResponse(`❌ ${err.message}`);
@@ -847,12 +1058,35 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
           padding: 0,
           fontSize: 14,
         }}
-        onClick={() => setUseOption({ type: null })}
+        onClick={() => {
+          setUseOption({ type: null });
+          setUserManagementView('selection'); // Also reset user mgmt view
+        }}
       >
-        ← Back
+        ← Back to Environments
       </button>
     </div>
   );
+  
+  /** Breadcrumb nav for inside the User Management section. */
+  const renderUserMgmtBreadcrumbs = () => (
+    <div style={{ marginBottom: 20 }}>
+      <button
+        style={{
+          background: "none",
+          border: "none",
+          color: "#007bff",
+          cursor: "pointer",
+          padding: 0,
+          fontSize: 14,
+        }}
+        onClick={() => setUserManagementView('selection')}
+      >
+        ← Back to User Options
+      </button>
+    </div>
+  );
+
 
   /* ——— Quick‑link helpers ——— */
   const handleQuickLinkChange = (idx, field, val) => {
@@ -940,21 +1174,55 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
         />
       )}
 
-      {/* ─────────── UPDATE USERS ─────────── */}
+      {/* ─────────── USER MANAGEMENT (AUTOMATION / PROFILE) ─────────── */}
       {isAuthenticated && useOption?.type === "users" && (
-        <UpdateUserForm
-          users={usersList}
-          selectedUserId={selectedUserId}
-          onUserSelect={setSelectedUserId}
-          userProfile={userProfile}
-          fieldToUpdate={fieldToUpdate}
-          onFieldChange={setFieldToUpdate}
-          newValue={newValue}
-          onNewValueChange={setNewValue}
-          onUpdate={handleUpdateUser}
-          isLoading={isLoading}
-          allProfileFields={allProfileFields}
-        />
+        <>
+          {userManagementView !== 'selection' && renderUserMgmtBreadcrumbs()}
+
+          {userManagementView === 'selection' && (
+            <div style={{ marginTop: '10px' }}>
+              <button style={brandingButtonStyle} onClick={() => setUserManagementView('automation')}>
+                Automation
+              </button>
+              <p style={subDescriptionStyle}>
+                This can fill out surveys, forms, comment, create chat groups, and more.
+              </p>
+
+              <button style={{ ...brandingButtonStyle, marginTop: '20px' }} onClick={() => setUserManagementView('profile')}>
+                User Profile
+              </button>
+              <p style={subDescriptionStyle}>
+                Update user profile fields.
+              </p>
+            </div>
+          )}
+          
+          {userManagementView === 'automation' && (
+            <AutomationForm
+              users={usersList}
+              isStaffbaseTab={isStaffbaseTab}
+              onRun={handleRunAutomation}
+              automationRunning={automationRunning}
+              progressData={progressData} 
+            />
+          )}
+          {userManagementView === 'profile' && (
+            <UpdateUserForm
+            users={usersList}
+            selectedUserId={selectedUserId}
+            onUserSelect={setSelectedUserId}
+            userProfile={userProfile}
+            fieldToUpdate={fieldToUpdate}
+            onFieldChange={setFieldToUpdate}
+            newValue={newValue}
+            onNewValueChange={setNewValue}
+            onUpdate={handleUpdateUser}
+            isLoading={isLoading}
+            allProfileFields={allProfileFields}
+            onLoginAsUser={handleLoginAsUser} 
+          />
+          )}
+        </>
       )}
 
       {/* ─────────── BRAND EXISTING ENV ─────────── */}
@@ -1009,6 +1277,8 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
           setChatEnabled={setChatEnabled}
           microsoftEnabled={microsoftEnabled}
           setMicrosoftEnabled={setMicrosoftEnabled}
+          journeysEnabled={journeysEnabled}
+          setJourneysEnabled={setJourneysEnabled}
           campaignsEnabled={campaignsEnabled}
           setCampaignsEnabled={setCampaignsEnabled}
           /* launchpad */
@@ -1039,7 +1309,7 @@ const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
           sbPassword={sbPassword}
           setSbPassword={setSbPassword}
           mergeField={mergeField}
-          setMergeField={setMergeField}
+          setSetMergeField={setMergeField}
           /* submit */
           onSetup={handleSetupNewEnv}
         />

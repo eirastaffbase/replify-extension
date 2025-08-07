@@ -1,5 +1,3 @@
-// components/UpdateUserForm.jsx
-
 import React from "react";
 import { brandingButtonStyle, inputStyle, psaStyle } from "../styles";
 
@@ -22,7 +20,6 @@ const selectStyle = {
   padding: "8px",
 };
 
-
 export default function UpdateUserForm({
   users,
   selectedUserId,
@@ -35,15 +32,21 @@ export default function UpdateUserForm({
   allProfileFields,
   onUpdate,
   isLoading,
+  onLoginAsUser, // Prop for the login handler
 }) {
-  let currentValue = '';
+  let currentValue = "";
   if (userProfile && fieldToUpdate) {
-    currentValue = userProfile.profile?.[fieldToUpdate] ?? userProfile[fieldToUpdate];
+    currentValue =
+      userProfile.profile?.[fieldToUpdate] ?? userProfile[fieldToUpdate];
   }
+
+  // Find the full user object to get the first name for the button label
+  const selectedUser = users.find((user) => user.id === selectedUserId);
 
   return (
     <div>
-      <h2>Update User Profiles</h2>
+      <h2>Update User Profile</h2>
+      <p>Select a single user to view and modify their profile fields.</p>
       {/* ─── Step 1: Select User ─── */}
       <div style={formSectionStyle}>
         <label style={labelStyle} htmlFor="user-select">
@@ -51,11 +54,11 @@ export default function UpdateUserForm({
         </label>
         <select
           id="user-select"
-          style={selectStyle}
+          style={selectStyle} // This style already has width: 100%
           value={selectedUserId}
           onChange={(e) => {
-            onFieldChange(''); 
-            onNewValueChange(''); 
+            onFieldChange("");
+            onNewValueChange("");
             onUserSelect(e.target.value);
           }}
           disabled={isLoading || !users.length}
@@ -63,10 +66,25 @@ export default function UpdateUserForm({
           <option value="">-- Select a user --</option>
           {users.map((user) => (
             <option key={user.id} value={user.id}>
-              {`${user.firstName} ${user.lastName} ${user.username ? `(${user.username})` : ''}`.trim()}
+              {`${user.firstName} ${user.lastName} ${
+                user.username ? `(${user.username})` : ""
+              }`.trim()}
             </option>
           ))}
         </select>
+
+        {selectedUser && (
+          <div>
+            <button
+              style={{ ...brandingButtonStyle, width: "100%" }}
+              onClick={onLoginAsUser}
+              disabled={isLoading}
+              title={`Login as ${selectedUser.firstName}`}
+            >
+              {`Login as ${selectedUser.firstName}`}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ─── Step 2: Update Fields (shows after user is selected) ─── */}
@@ -101,20 +119,26 @@ export default function UpdateUserForm({
                 style={inputStyle}
                 value={newValue}
                 onChange={(e) => onNewValueChange(e.target.value)}
-                // Use the new currentValue variable for the placeholder
-                placeholder={currentValue ? `Current: ${currentValue}` : 'Enter new value'}
+                placeholder={
+                  currentValue ? `Current: ${currentValue}` : "Enter new value"
+                }
                 disabled={isLoading}
               />
             </div>
           )}
-          
+
           <div style={psaStyle}>
-            <strong>Note:</strong> Image fields (avatar, profile header) are excluded. Image updating is coming soon!
+            <strong>Note:</strong> Image fields (avatar, profile header) are
+            excluded. Image updating is coming soon!
           </div>
         </div>
       )}
 
-      <button style={brandingButtonStyle} onClick={onUpdate} disabled={isLoading || !fieldToUpdate || !newValue}>
+      <button
+        style={brandingButtonStyle}
+        onClick={onUpdate}
+        disabled={isLoading || !fieldToUpdate || !newValue}
+      >
         {isLoading ? "Updating..." : "Update User Profile"}
       </button>
     </div>
