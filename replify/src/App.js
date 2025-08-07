@@ -251,7 +251,6 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
     }
 
     setResponse("🚀 Starting automation... preparing new tab.");
-    // Reset progress data
     setProgressData({ tasksCompleted: 0, totalTasks: 0, currentUser: null, currentStatus: "Initializing..." });
     setAutomationRunning(true);
     setIsLoading(true);
@@ -270,6 +269,9 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
 
       const newTab = await chrome.tabs.create({ url: rootUrl, active: true });
 
+      // Prevent Chrome from automatically discarding the tab to save memory
+      await chrome.tabs.update(newTab.id, { autoDiscardable: false });
+
       const listener = (tabId, changeInfo, tab) => {
         if (tabId === newTab.id && changeInfo.status === 'complete') {
           chrome.tabs.onUpdated.removeListener(listener);
@@ -279,7 +281,7 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
           chrome.scripting.executeScript({
             target: { tabId: newTab.id },
             func: automationScript,
-            args: [selectedUsers, apiToken, adminUserId, automationOptions], // 👈 Pass options here
+            args: [selectedUsers, apiToken, adminUserId, automationOptions],
           });
           
           setResponse(`✅ Script injected. The new tab will now run the automation.`);
@@ -856,7 +858,8 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
     setIsLoading(true);
     setResponse("Fetching users...");
     try {
-      const response = await fetch("https://app.staffbase.com/api/users?limit=200", { // Increased limit to get all users
+      const response = await fetch("https://app.staffbase.com/api/users", {
+        credentials: "omit",
         headers: { Authorization: `Basic ${token}` },
       });
       if (!response.ok) throw new Error(`Failed to fetch users: ${response.statusText}`);
