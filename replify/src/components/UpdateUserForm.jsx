@@ -1,4 +1,7 @@
-import React from "react";
+// UpdateUserForm.jsx
+
+// Add useState to the import
+import React, { useState } from "react";
 import { brandingButtonStyle, inputStyle, psaStyle } from "../styles";
 
 const formSectionStyle = {
@@ -32,22 +35,43 @@ export default function UpdateUserForm({
   allProfileFields,
   onUpdate,
   isLoading,
-  onLoginAsUser, // Prop for the login handler
+  onLoginAsUser,
+  onUpdateAvatar,
 }) {
+  // Add state to hold the selected file
+  const [selectedFile, setSelectedFile] = useState(null);
+
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    } else {
+      setSelectedFile(null);
+    }
+  };
+
+  // Trigger the upload process passed from App.js
+  const handleAvatarUpdateClick = () => {
+    if (selectedFile) {
+      onUpdateAvatar(selectedFile);
+      setSelectedFile(null); // Clear the file input after submission
+      document.getElementById('avatar-file-input').value = ""; // Reset file input visually
+    }
+  };
+
   let currentValue = "";
   if (userProfile && fieldToUpdate) {
     currentValue =
       userProfile.profile?.[fieldToUpdate] ?? userProfile[fieldToUpdate];
   }
 
-  // Find the full user object to get the first name for the button label
   const selectedUser = users.find((user) => user.id === selectedUserId);
 
   return (
     <div>
       <h2>Update User Profile</h2>
-      <p>Select a single user to view and modify their profile fields.</p>
-      {/* ─── Step 1: Select User ─── */}
+      <p>Select a user to view and modify their profile data or replace their avatar.</p>
+
+      {/* ─── Step 1: Select User (No changes here) ─── */}
       <div style={formSectionStyle}>
         <label style={labelStyle} htmlFor="user-select">
           Select User
@@ -128,9 +152,30 @@ export default function UpdateUserForm({
           )}
 
           <div style={psaStyle}>
-            <strong>Note:</strong> Image fields (avatar, profile header) are
-            excluded. Image updating is coming soon!
+            <strong>Note:</strong> Standard profile fields can be updated here. For avatar changes, use the section below.
           </div>
+        </div>
+      )}
+
+      {/* ─── NEW: Step 3: Replace Avatar ─── */}
+      {selectedUserId && (
+        <div style={formSectionStyle}>
+          <label style={labelStyle}>Replace Avatar</label>
+          <input
+            id="avatar-file-input"
+            type="file"
+            accept="image/png, image/jpeg, image/gif"
+            onChange={handleFileChange}
+            disabled={isLoading}
+            style={{ display: 'block', width: '100%', marginBottom: '10px' }}
+          />
+          <button
+            style={{...brandingButtonStyle, marginTop: '5px' }}
+            onClick={handleAvatarUpdateClick}
+            disabled={isLoading || !selectedFile}
+          >
+            {isLoading ? 'Uploading...' : 'Upload & Replace Avatar'}
+          </button>
         </div>
       )}
 
@@ -139,7 +184,7 @@ export default function UpdateUserForm({
         onClick={onUpdate}
         disabled={isLoading || !fieldToUpdate || !newValue}
       >
-        {isLoading ? "Updating..." : "Update User Profile"}
+        {isLoading ? "Updating..." : "Update Profile Field"}
       </button>
     </div>
   );
