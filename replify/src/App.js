@@ -118,7 +118,7 @@ const [newValue, setNewValue] = useState("");
 const [allProfileFields, setAllProfileFields] = useState([]); 
 const [adminUserId, setAdminUserId] = useState(null);        
 const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
-const [userManagementView, setUserManagementView] = useState('selection'); // 'selection', 'profile', or 'automation'
+const [userManagementView, setUserManagementView] = useState('selection');
 
 
   /* 🔄  UI / async status -------------------------------------------------- */
@@ -239,6 +239,120 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
       setResponse(`✅ Login script injected for ${identifier}. Check the tab.`);
     } catch (err) {
       setResponse(`❌ Script injection failed: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * Builds the complex image object required by the Staffbase user profile API.
+   * @param {string} fileId - The image ID returned from the media API (e.g., 'abcdef.jpg').
+   * @param {string} imageType - Either 'avatar' or 'profileHeaderImage'.
+   * @returns {object} The structured image payload.
+   */
+  const buildImagePayload = (fileId, imageType) => {
+    const baseUrl = `https://app.staffbase.com/api/media/secure/external/v2/image/upload/`;
+    
+    // Different image transformations based on the examples you provided
+    const transforms = {
+      avatar: 'c_crop,w_2880,h_2880,x_476/',
+      profileHeaderImage: 'c_crop,w_3840,h_2427,y_453/'
+    };
+
+    const transformPath = transforms[imageType] || '';
+
+    // We use dummy/placeholder data for size/width/height as the API doesn't require real values
+    return {
+      original: {
+        url: `${baseUrl}${transformPath}${fileId}`,
+        size: 100000,
+        width: 1920,
+        height: 1080,
+        created: String(Date.now()),
+        format: "jpg",
+        mimeType: "image/jpeg"
+      },
+      icon: {
+        url: `${baseUrl}${transformPath}c_fill,w_200,h_200/w_70,h_70/${fileId}`,
+        format: "jpg",
+        mimeType: "image/jpeg"
+      },
+      thumb: {
+        url: `${baseUrl}${transformPath}c_fill,w_200,h_200/${fileId}`,
+        format: "jpg",
+        mimeType: "image/jpeg"
+      }
+    };
+  };
+
+  /**
+   * A single function to handle uploading either an avatar or a banner.
+   * @param {File} file - The image file to upload.
+   * @param {string} imageType - The key for the payload: 'avatar' or 'profileHeaderImage'.
+   */
+  const handleUpdateImage = async (file, imageType) => {
+    if (!selectedUserId || !adminUserId || !apiToken) {
+      setResponse("⚠️ Cannot update image: Missing user ID, admin ID, or API token.");
+      return;
+    }
+    if (!file) {
+      setResponse("⚠️ Please select an image file to upload.");
+      return;
+    }
+
+    setIsLoading(true);
+    const typeLabel = imageType === 'avatar' ? 'Avatar' : 'Banner';
+    setResponse(`Uploading ${typeLabel}: ${file.name}...`);
+
+    try {
+      // Step 1: Upload the image to the media endpoint
+      const mediaMeta = JSON.stringify({ type: "image", fileName: file.name });
+      const uploadResponse = await fetch('https://app.staffbase.com/api/media', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${apiToken}`,
+          'Content-Type': file.type,
+          'staffbase-media-meta': mediaMeta,
+        },
+        body: file,
+      });
+
+      if (!uploadResponse.ok) throw new Error(`Media upload failed: ${uploadResponse.statusText}`);
+      
+      // The API returns a JSON object with an 'id' field, which is the raw file name.
+      const mediaData = await uploadResponse.json();
+      const rawFileId = mediaData.id;
+
+      if (!rawFileId) {
+        throw new Error("Media API did not return an ID.");
+      }
+      
+      // Step 2: Manually construct the required payload object
+      const fileIdWithExt = `${rawFileId}.jpg`; // Append the assumed .jpg extension
+      const payloadObject = buildImagePayload(fileIdWithExt, imageType);
+      const finalBody = { [imageType]: payloadObject };
+      
+      setResponse(`✅ Image uploaded. Updating user profile...`);
+
+      // Step 3: Update the user with the constructed payload
+      const updateUserResponse = await fetch(`https://app.staffbase.com/api/users/${selectedUserId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${apiToken}`,
+          'USERID': adminUserId,
+        },
+        body: JSON.stringify(finalBody),
+      });
+      
+      if (!updateUserResponse.ok) throw new Error(`User update failed: ${updateUserResponse.statusText}`);
+
+      const updatedUserData = await updateUserResponse.json();
+      setResponse(`✅ ${typeLabel} updated successfully!`);
+      setUserProfile(updatedUserData);
+
+    } catch (err) {
+      setResponse(`❌ ${typeLabel} update failed: ${err.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -1209,22 +1323,23 @@ const [userManagementView, setUserManagementView] = useState('selection'); // 's
               progressData={progressData} 
             />
           )}
-          {userManagementView === 'profile' && (
-            <UpdateUserForm
-            users={usersList}
-            selectedUserId={selectedUserId}
-            onUserSelect={setSelectedUserId}
-            userProfile={userProfile}
-            fieldToUpdate={fieldToUpdate}
-            onFieldChange={setFieldToUpdate}
-            newValue={newValue}
-            onNewValueChange={setNewValue}
-            onUpdate={handleUpdateUser}
-            isLoading={isLoading}
-            allProfileFields={allProfileFields}
-            onLoginAsUser={handleLoginAsUser} 
-          />
-          )}
+    {userManagementView === 'profile' && (
+        <UpdateUserForm
+          users={usersList}
+          selectedUserId={selectedUserId}
+          onUserSelect={setSelectedUserId}
+          userProfile={userProfile}
+          fieldToUpdate={fieldToUpdate}
+          onFieldChange={setFieldToUpdate}
+          newValue={newValue}
+          onNewValueChange={setNewValue}
+          onUpdate={handleUpdateUser}
+          isLoading={isLoading}
+          allProfileFields={allProfileFields}
+          onLoginAsUser={handleLoginAsUser}
+          onUpdateImage={handleUpdateImage} 
+        />
+      )}
         </>
       )}
 

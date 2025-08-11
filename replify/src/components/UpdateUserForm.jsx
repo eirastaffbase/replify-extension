@@ -1,6 +1,3 @@
-// UpdateUserForm.jsx
-
-// Add useState to the import
 import React, { useState } from "react";
 import { brandingButtonStyle, inputStyle, psaStyle } from "../styles";
 
@@ -15,6 +12,12 @@ const labelStyle = {
   display: "block",
   fontWeight: "bold",
   marginBottom: "5px",
+};
+
+const radioContainerStyle = {
+  display: 'flex',
+  gap: '15px',
+  marginBottom: '15px',
 };
 
 const selectStyle = {
@@ -36,25 +39,23 @@ export default function UpdateUserForm({
   onUpdate,
   isLoading,
   onLoginAsUser,
-  onUpdateAvatar,
+  onUpdateImage, // Receive the single handler
 }) {
-  // Add state to hold the selected file
+  // State for the single file input
   const [selectedFile, setSelectedFile] = useState(null);
+  // State to track whether to update 'avatar' or 'profileHeaderImage'
+  const [imageType, setImageType] = useState('avatar');
 
   const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-    } else {
-      setSelectedFile(null);
-    }
+    setSelectedFile(e.target.files?.[0] || null);
   };
 
-  // Trigger the upload process passed from App.js
-  const handleAvatarUpdateClick = () => {
+  // This single click handler calls the function from App.js with the correct type
+  const handleImageUpdateClick = () => {
     if (selectedFile) {
-      onUpdateAvatar(selectedFile);
-      setSelectedFile(null); // Clear the file input after submission
-      document.getElementById('avatar-file-input').value = ""; // Reset file input visually
+      onUpdateImage(selectedFile, imageType);
+      setSelectedFile(null);
+      document.getElementById('image-file-input').value = "";
     }
   };
 
@@ -69,7 +70,7 @@ export default function UpdateUserForm({
   return (
     <div>
       <h2>Update User Profile</h2>
-      <p>Select a user to view and modify their profile data or replace their avatar.</p>
+      <p>Modify profile data or replace user images.</p>
 
       {/* ─── Step 1: Select User (No changes here) ─── */}
       <div style={formSectionStyle}>
@@ -110,7 +111,7 @@ export default function UpdateUserForm({
           </div>
         )}
       </div>
-
+      
       {/* ─── Step 2: Update Fields (shows after user is selected) ─── */}
       {selectedUserId && (
         <div style={formSectionStyle}>
@@ -152,17 +153,41 @@ export default function UpdateUserForm({
           )}
 
           <div style={psaStyle}>
-            <strong>Note:</strong> Standard profile fields can be updated here. For avatar changes, use the section below.
+            <strong>Note:</strong> Standard profile fields can be updated here. For image changes, use the section below.
           </div>
         </div>
       )}
 
-      {/* ─── NEW: Step 3: Replace Avatar ─── */}
+      {/* --- CONSOLIDATED Image Upload Section --- */}
       {selectedUserId && (
         <div style={formSectionStyle}>
-          <label style={labelStyle}>Replace Avatar</label>
+          <label style={labelStyle}>Update Image</label>
+          
+          <div style={radioContainerStyle}>
+            <label>
+              <input
+                type="radio"
+                name="imageType"
+                value="avatar"
+                checked={imageType === 'avatar'}
+                onChange={(e) => setImageType(e.target.value)}
+              />
+              Avatar
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="imageType"
+                value="profileHeaderImage"
+                checked={imageType === 'profileHeaderImage'}
+                onChange={(e) => setImageType(e.target.value)}
+              />
+              Banner
+            </label>
+          </div>
+
           <input
-            id="avatar-file-input"
+            id="image-file-input"
             type="file"
             accept="image/png, image/jpeg, image/gif"
             onChange={handleFileChange}
@@ -171,10 +196,10 @@ export default function UpdateUserForm({
           />
           <button
             style={{...brandingButtonStyle, marginTop: '5px' }}
-            onClick={handleAvatarUpdateClick}
+            onClick={handleImageUpdateClick}
             disabled={isLoading || !selectedFile}
           >
-            {isLoading ? 'Uploading...' : 'Upload & Replace Avatar'}
+            {isLoading ? 'Uploading...' : `Upload ${imageType === 'avatar' ? 'Avatar' : 'Banner'}`}
           </button>
         </div>
       )}
