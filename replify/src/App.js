@@ -1293,14 +1293,14 @@ const [imageType, setImageType] = useState('none');
                 Automation
               </button>
               <p style={subDescriptionStyle}>
-                This can fill out surveys, forms, comment, create chat groups, and more.
+                Populate the platform with simulated comments, chats, and survey responses.
               </p>
 
               <button style={{ ...brandingButtonStyle, marginTop: '20px' }} onClick={() => setUserManagementView('profile')}>
-                User Profile
+                Manage Users
               </button>
               <p style={subDescriptionStyle}>
-                Update user profile fields.
+                Update user profiles, change avatars/banners, or log in as a specific user.
               </p>
             </div>
           )}

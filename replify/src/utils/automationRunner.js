@@ -218,7 +218,7 @@ export function automationScript(users, apiToken, adminId, options) {
     // --- Main Execution ---
     async function run() {
         logger.section("🚀 Automation Script Started 🚀");
-        alert("Automation has started! Please monitor the developer console for progress. You can open a new window to continue working while this tab runs.");
+        alert("Automation will begin once you close this alert. Leave this window open and watch the text below the progress bar for updates. To continue working, open a new window and be sure to leave this tab open.");
 
         let initialCsrfToken, surveysWithQuestions, publishedPosts, chatInstallationId;
         let pendingReplies = [], pendingChats = [];
@@ -366,7 +366,7 @@ export function automationScript(users, apiToken, adminId, options) {
 
         logger.section("✅ Automation Script Finished! ✅");
         chrome.runtime.sendMessage({ type: 'automationComplete' });
-        alert("Automation run has completed successfully! You can close this tab.");
+        alert("Automation run has completed successfully! You can close this tab. NOTE: You are logged in as the last user you selected.");
     }
 
     run();
