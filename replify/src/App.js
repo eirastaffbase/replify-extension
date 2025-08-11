@@ -1293,7 +1293,7 @@ const [imageType, setImageType] = useState('none');
                 Automation
               </button>
               <p style={subDescriptionStyle}>
-                Populate the platform with simulated comments, chats, and survey responses.
+                Populate the platform with comments, reactions, chats, and survey responses.
               </p>
 
               <button style={{ ...brandingButtonStyle, marginTop: '20px' }} onClick={() => setUserManagementView('profile')}>
