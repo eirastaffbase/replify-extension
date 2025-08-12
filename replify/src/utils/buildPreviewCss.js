@@ -35,6 +35,30 @@ export default function buildPreviewCss(o) {
     return 0.299 * r + 0.587 * g + 0.114 * b < 128;
   };
 
+  const hexToHsl = (hex) => {
+    if (!hex || hex.length < 7) return { h: 0, s: 0, l: 0 };
+    let r = parseInt(hex.slice(1, 3), 16);
+    let g = parseInt(hex.slice(3, 5), 16);
+    let b = parseInt(hex.slice(5, 7), 16);
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h, s, l = (max + min) / 2;
+
+    if (max === min) {
+      h = s = 0; // achromatic
+    } else {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+        case g: h = (b - r) / d + 2; break;
+        case b: h = (r - g) / d + 4; break;
+      }
+      h /= 6;
+    }
+    return { h: h * 360, s: s * 100, l: l * 100 };
+  };
+
   /* --------------------------------------------------
     Persist the prospect name so we can read it later
     -------------------------------------------------- */
@@ -53,9 +77,22 @@ export default function buildPreviewCss(o) {
     ? "rgba(255,255,255,0.7)"
     : "rgba(0,0,0,0.7)";
 
-  // A "safe" primary color that falls back to the text color if the primary is too light
-  const safePrimary = isDarkColor(o.primary) ? o.primary : o.text;
-  const safePrimaryInverse = isDarkColor(safePrimary) ? '#fff' : 'rgba(0,0,0,0.7)';
+  // A "safe" color for surveys/buttons that prioritizes darkness, then saturation.
+  const getSurveyColor = () => {
+    const primaryIsDark = isDarkColor(o.primary);
+    const textIsDark = isDarkColor(o.text);
+
+    if (primaryIsDark) return o.primary;
+    if (textIsDark) return o.text;
+
+    // If both are light, compare saturation and pick the higher one.
+    const primaryHsl = hexToHsl(o.primary);
+    const textHsl = hexToHsl(o.text);
+    return (primaryHsl.s >= textHsl.s) ? o.primary : o.text;
+  };
+
+  const surveyColor = getSurveyColor();
+  const surveyColorInverse = isDarkColor(surveyColor) ? '#fff' : 'rgba(0,0,0,0.7)';
 
 
   /* ════════════════════════════════════════════
@@ -157,39 +194,62 @@ export default function buildPreviewCss(o) {
         background-color: var(--color-floating-nav-bg) !important;
       }
 
-      /* Text color for all items (active, inactive, folders) in older envs and general links */
-      .wow-header-activated .css-jy0zr7-StyledMegaMenuItem > a,
-      .wow-header-activated .css-jy0zr7-StyledMegaMenuItem > div > a,
-      .wow-header-activated .css-1ltpo8i-StyledMegaMenuItem > a,
-      .wow-header-activated .css-1ltpo8i-StyledMegaMenuItem > div > a,
-      div#mega-menu a,
-      div#mega-menu a:visited,
-      div#mega-menu .branch-colored {
+      /* Text color for TOP-LEVEL items only in older envs */
+      .wow-header-activated .css-1kyaah4-StyledMegaMenuItem > a,
+      .wow-header-activated .css-1kyaah4-StyledMegaMenuItem > div > a,
+      .wow-header-activated .css-6pdc2t-StyledMegaMenuItem > a,
+      .wow-header-activated .css-6pdc2t-StyledMegaMenuItem > div > a {
         color: var(--color-floating-nav-text) !important;
       }
 
-      /* Force text color for newer env nav items by targeting the container */
-      div.items-center.overflow-hidden.rounded-full a,
-      div.items-center.overflow-hidden.rounded-full svg {
-        color: var(--color-floating-nav-text) !important;
+      /* Force text color for TOP-LEVEL items in newer envs */
+      a[class~="!text-menubar-intranet"],
+      a[class~="!text-menubar-intranet"] svg {
+          color: var(--color-floating-nav-text) !important;
       }
 
 
       /* ================= Surveys, Polls & Buttons ================= */
       .survey-custom survey-plugin-employee-block label svg {
-        fill: ${safePrimary} !important;
+        fill: ${surveyColor} !important;
       }
       .survey-custom form > div > div:nth-of-type(3) button {
-        background-color: ${safePrimary} !important;
-        border-color: ${safePrimary} !important;
-        color: ${safePrimaryInverse} !important;
+        background-color: ${surveyColor} !important;
+        border-color: ${surveyColor} !important;
+        color: ${surveyColorInverse} !important;
       }
       .bg-primary-vivid {
-        background-color: ${safePrimary} !important;
+        background-color: ${surveyColor} !important;
       }
       .ds-pill.ds-pill--blue {
-        background-color: color-mix(in srgb, ${safePrimary} 30%, white 70%) !important;
-        color: ${o.primary} !important;
+        background-color: color-mix(in srgb, ${surveyColor} 30%, white 70%) !important;
+        color: ${surveyColor} !important;
+      }
+
+      /* ================= Quick Links & Specific Buttons ================= */
+      /* "Design 2" Tiled Quick Links (that DON'T have an inline background style) */
+      .quick-links-widget.design-2 .quick-links-widget__item:not([style*="background-color"]) {
+          background-color: ${o.primary} !important;
+      }
+      .quick-links-widget.design-2 .quick-links-widget__item:not([style*="background-color"]) a,
+      .quick-links-widget.design-2 .quick-links-widget__item:not([style*="background-color"]) .we-icon {
+          color: ${primaryInverse} !important;
+      }
+
+      /* Tiled Layout-3 Quick Links (that DON'T have an inline background style) */
+      .quick-links-widget.type-tiles .quick-links-widget__list--layout-3 .quick-links-widget__item:not([style*="background-color"]) {
+          background-color: ${o.primary} !important;
+      }
+      .quick-links-widget.type-tiles .quick-links-widget__list--layout-3 .quick-links-widget__item:not([style*="background-color"]) a,
+      .quick-links-widget.type-tiles .quick-links-widget__list--layout-3 .quick-links-widget__item:not([style*="background-color"]) .we-icon {
+          color: ${primaryInverse} !important;
+      }
+
+      /* General .sb-button styling */
+      button.sb-button {
+          background-color: ${o.text} !important;
+          color: ${textOpposite} !important;
+          border-color: ${o.text} !important;
       }
 
       /* ================= card widgets ================= */
