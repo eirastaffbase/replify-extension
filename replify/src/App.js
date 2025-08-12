@@ -21,11 +21,15 @@ import {
 } from "./utils/analyticsManager";
 import { automationScript } from "./utils/automationRunner";
 
-
 /* ───── Constants & styles ───── */
 import { LAUNCHPAD_DICT, blockRegex } from "./constants/appConstants";
-import { responseStyle, containerStyle, headingStyle, brandingButtonStyle, subDescriptionStyle } from "./styles";
-
+import {
+  responseStyle,
+  containerStyle,
+  headingStyle,
+  brandingButtonStyle,
+  subDescriptionStyle,
+} from "./styles";
 
 /* ───── Components ───── */
 import SavedEnvironments from "./components/SavedEnvironments";
@@ -38,7 +42,6 @@ import FeedbackBanner from "./components/FeedbackBanner";
 import UpdateUserForm from "./components/UpdateUserForm";
 import AutomationForm from "./components/AutomationForm";
 import ProgressBar from "./components/ProgressBar";
-
 
 function App() {
   // --------------------------------------------------
@@ -101,7 +104,6 @@ function App() {
   const [mergeField, setMergeField] = useState("");
   const [setupEmailChecked, setSetupEmailChecked] = useState(false);
 
-
   /* 📲  Launchpad & mobile quick links ------------------------------------ */
   const [launchpadSel, setLaunchpadSel] = useState([]);
   const [isLaunchpadDropdownOpen, setIsLaunchpadDropdownOpen] = useState(false);
@@ -112,19 +114,18 @@ function App() {
   ]);
   const [quickLinksEnabled, setQuickLinksEnabled] = useState(false);
 
-/* 👥  User management ---------------------------------------------------- */
-const [usersList, setUsersList] = useState([]);
-const [selectedUserId, setSelectedUserId] = useState("");
-const [userProfile, setUserProfile] = useState(null);
-const [fieldToUpdate, setFieldToUpdate] = useState("");
-const [newValue, setNewValue] = useState("");
-const [allProfileFields, setAllProfileFields] = useState([]);
-const [adminUserId, setAdminUserId] = useState(null);
-const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
-const [userManagementView, setUserManagementView] = useState('selection');
-const [selectedFile, setSelectedFile] = useState(null);
-const [imageType, setImageType] = useState('none');
-
+  /* 👥  User management ---------------------------------------------------- */
+  const [usersList, setUsersList] = useState([]);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [userProfile, setUserProfile] = useState(null);
+  const [fieldToUpdate, setFieldToUpdate] = useState("");
+  const [newValue, setNewValue] = useState("");
+  const [allProfileFields, setAllProfileFields] = useState([]);
+  const [adminUserId, setAdminUserId] = useState(null);
+  const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
+  const [userManagementView, setUserManagementView] = useState("selection");
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [imageType, setImageType] = useState("none");
 
   /* 🔄  UI / async status -------------------------------------------------- */
   const [isLoading, setIsLoading] = useState(false);
@@ -144,31 +145,29 @@ const [imageType, setImageType] = useState('none');
     currentStatus: null,
   });
 
-
   // --------------------------------------------------
   //   SMALL HELPERS
   // --------------------------------------------------
 
+  useEffect(() => {
+    const messageListener = (message, sender, sendResponse) => {
+      if (message.type === "automationProgress") {
+        setProgressData((prev) => ({
+          tasksCompleted: message.payload.tasksCompleted,
+          totalTasks: message.payload.totalTasks,
+          // Only update user/status if they are provided, otherwise keep the last known value
+          currentUser: message.payload.user || prev.currentUser,
+          currentStatus: message.payload.status || prev.currentStatus,
+        }));
+      } else if (message.type === "automationComplete") {
+        setAutomationRunning(false);
+        setResponse("✅ Automation has finished!");
+      }
+    };
 
-    useEffect(() => {
-      const messageListener = (message, sender, sendResponse) => {
-          if (message.type === 'automationProgress') {
-              setProgressData(prev => ({
-                  tasksCompleted: message.payload.tasksCompleted,
-                  totalTasks: message.payload.totalTasks,
-                  // Only update user/status if they are provided, otherwise keep the last known value
-                  currentUser: message.payload.user || prev.currentUser,
-                  currentStatus: message.payload.status || prev.currentStatus,
-              }));
-          } else if (message.type === 'automationComplete') {
-              setAutomationRunning(false);
-              setResponse("✅ Automation has finished!");
-          }
-      };
+    chrome.runtime.onMessage.addListener(messageListener);
 
-      chrome.runtime.onMessage.addListener(messageListener);
-
-      return () => chrome.runtime.onMessage.removeListener(messageListener);
+    return () => chrome.runtime.onMessage.removeListener(messageListener);
   }, []); // Empty array ensures this runs only once
 
   const handleLoginAsUser = async () => {
@@ -187,7 +186,9 @@ const [imageType, setImageType] = useState('none');
       userToLogin?.emails?.[0]?.value;
 
     if (!identifier) {
-      setResponse(`❌ Could not find a primary email for user ID ${selectedUserId}.`);
+      setResponse(
+        `❌ Could not find a primary email for user ID ${selectedUserId}.`
+      );
       return;
     }
 
@@ -225,11 +226,15 @@ const [imageType, setImageType] = useState('none');
             }
 
             console.log("Inject: Login successful. Reloading page...");
-            alert(`Successfully logged in as ${userIdentifier}. The page will now reload.`);
+            alert(
+              `Successfully logged in as ${userIdentifier}. The page will now reload.`
+            );
             window.location.reload();
           } catch (error) {
             console.error("Inject: Login script failed.", error);
-            alert(`Failed to log in as ${userIdentifier}. See console for details. Error: ${error.message}`);
+            alert(
+              `Failed to log in as ${userIdentifier}. See console for details. Error: ${error.message}`
+            );
           }
         };
         loginAndReload();
@@ -258,20 +263,25 @@ const [imageType, setImageType] = useState('none');
     return {
       original: {
         url: `${baseUrl}${fileId}`, // No cropping on original
-        size: 100000, width: 1920, height: 1080, // Placeholder data
-        created: String(Date.now()), format: "jpg", mimeType: "image/jpeg",
+        size: 100000,
+        width: 1920,
+        height: 1080, // Placeholder data
+        created: String(Date.now()),
+        format: "jpg",
+        mimeType: "image/jpeg",
       },
       icon: {
         url: `${baseUrl}c_fill,w_70,h_70/${fileId}`,
-        format: "jpg", mimeType: "image/jpeg",
+        format: "jpg",
+        mimeType: "image/jpeg",
       },
       thumb: {
         url: `${baseUrl}c_fill,w_200,h_200/${fileId}`,
-        format: "jpg", mimeType: "image/jpeg",
+        format: "jpg",
+        mimeType: "image/jpeg",
       },
     };
   };
-
 
   /**
    * Handles all profile updates: text fields, images, or both together.
@@ -281,10 +291,12 @@ const [imageType, setImageType] = useState('none');
       setResponse("⚠️ Please select a user. Admin ID is also required.");
       return;
     }
-    if (!fieldToUpdate && (!selectedFile || imageType === 'none')) {
-      setResponse("⚠️ Nothing to update. Select a field or choose an image and type (Avatar/Banner).");
+    if (!fieldToUpdate && (!selectedFile || imageType === "none")) {
+      setResponse(
+        "⚠️ Nothing to update. Select a field or choose an image and type (Avatar/Banner)."
+      );
       return;
-  }
+    }
 
     setIsLoading(true);
     setResponse("Processing update...");
@@ -292,16 +304,27 @@ const [imageType, setImageType] = useState('none');
     try {
       let profileChanges = {};
 
-      if (selectedFile && imageType !== 'none') {
+      if (selectedFile && imageType !== "none") {
         setResponse("Uploading image...");
-        const mediaMeta = JSON.stringify({ type: "image", fileName: selectedFile.name });
-        const uploadResponse = await fetch('https://app.staffbase.com/api/media', {
-          method: 'POST',
-          headers: { 'Authorization': `Basic ${apiToken}`, 'Content-Type': selectedFile.type, 'staffbase-media-meta': mediaMeta },
-          body: selectedFile,
+        const mediaMeta = JSON.stringify({
+          type: "image",
+          fileName: selectedFile.name,
         });
+        const uploadResponse = await fetch(
+          "https://app.staffbase.com/api/media",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Basic ${apiToken}`,
+              "Content-Type": selectedFile.type,
+              "staffbase-media-meta": mediaMeta,
+            },
+            body: selectedFile,
+          }
+        );
 
-        if (!uploadResponse.ok) throw new Error(`Media upload failed: ${uploadResponse.statusText}`);
+        if (!uploadResponse.ok)
+          throw new Error(`Media upload failed: ${uploadResponse.statusText}`);
 
         const { id: rawFileId } = await uploadResponse.json();
         if (!rawFileId) throw new Error("Media API did not return an ID.");
@@ -317,21 +340,28 @@ const [imageType, setImageType] = useState('none');
       setResponse("Updating user profile...");
       const finalBody = { profile: profileChanges };
 
-      const updateUserResponse = await fetch(`https://app.staffbase.com/api/users/${selectedUserId}`, {
-        method: 'PUT',
-        mode: "cors",
-        credentials: "omit",
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${apiToken}`,
-          'USERID': adminUserId,
-        },
-        body: JSON.stringify(finalBody),
-      });
+      const updateUserResponse = await fetch(
+        `https://app.staffbase.com/api/users/${selectedUserId}`,
+        {
+          method: "PUT",
+          mode: "cors",
+          credentials: "omit",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Basic ${apiToken}`,
+            USERID: adminUserId,
+          },
+          body: JSON.stringify(finalBody),
+        }
+      );
 
       if (!updateUserResponse.ok) {
-         const errorData = await updateUserResponse.json();
-         throw new Error(`User update failed: ${errorData.message || updateUserResponse.statusText}`);
+        const errorData = await updateUserResponse.json();
+        throw new Error(
+          `User update failed: ${
+            errorData.message || updateUserResponse.statusText
+          }`
+        );
       }
 
       const updatedUserData = await updateUserResponse.json();
@@ -341,16 +371,13 @@ const [imageType, setImageType] = useState('none');
       setFieldToUpdate("");
       setNewValue("");
       setSelectedFile(null);
-      setImageType('none'); // Reset image type to 'none'
-
+      setImageType("none"); // Reset image type to 'none'
     } catch (err) {
       setResponse(`❌ Update Failed: ${err.message}`);
     } finally {
       setIsLoading(false);
     }
   };
-
-
 
   const handleRunAutomation = async (selectedUserIds, automationOptions) => {
     if (selectedUserIds.length === 0) {
@@ -359,19 +386,31 @@ const [imageType, setImageType] = useState('none');
     }
 
     setResponse("🚀 Starting automation... preparing new tab.");
-    setProgressData({ tasksCompleted: 0, totalTasks: 0, currentUser: null, currentStatus: "Initializing..." });
+    setProgressData({
+      tasksCompleted: 0,
+      totalTasks: 0,
+      currentUser: null,
+      currentStatus: "Initializing...",
+    });
     setAutomationRunning(true);
     setIsLoading(true);
 
-    const selectedUsers = usersList.filter(user => selectedUserIds.includes(user.id));
+    const selectedUsers = usersList.filter((user) =>
+      selectedUserIds.includes(user.id)
+    );
     if (selectedUsers.length === 0) {
-        setResponse("❌ Error: Could not find user data for the current selection.");
-        setIsLoading(false);
-        return;
+      setResponse(
+        "❌ Error: Could not find user data for the current selection."
+      );
+      setIsLoading(false);
+      return;
     }
 
     try {
-      const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const [currentTab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
       const origin = new URL(currentTab.url).origin;
       const rootUrl = `${origin}/`;
 
@@ -381,7 +420,7 @@ const [imageType, setImageType] = useState('none');
       await chrome.tabs.update(newTab.id, { autoDiscardable: false });
 
       const listener = (tabId, changeInfo, tab) => {
-        if (tabId === newTab.id && changeInfo.status === 'complete') {
+        if (tabId === newTab.id && changeInfo.status === "complete") {
           chrome.tabs.onUpdated.removeListener(listener);
 
           setResponse(`Tab ready. Injecting main automation script...`);
@@ -392,19 +431,19 @@ const [imageType, setImageType] = useState('none');
             args: [selectedUsers, apiToken, adminUserId, automationOptions],
           });
 
-          setResponse(`✅ Script injected. The new tab will now run the automation.`);
+          setResponse(
+            `✅ Script injected. The new tab will now run the automation.`
+          );
           setIsLoading(false);
         }
       };
       chrome.tabs.onUpdated.addListener(listener);
-
     } catch (err) {
       setResponse(`❌ Automation failed: ${err.message}`);
       setIsLoading(false);
       setAutomationRunning(false);
     }
   };
-
 
   /** Returns CTA label for the “Create” button depending on the two checkboxes. */
   const getCreateLabel = () => {
@@ -458,9 +497,7 @@ const [imageType, setImageType] = useState('none');
       const grabRaw = (v) =>
         (block.match(new RegExp(`--${v}\\s*:\\s*([^;]+);`, "i")) ||
           [])[1]?.trim();
-      const clean = (
-        val = ""
-      ) =>
+      const clean = (val = "") =>
         val
           .replace(/!important/i, "")
           .trim()
@@ -475,8 +512,12 @@ const [imageType, setImageType] = useState('none');
       setBackgroundColor(
         clean(grabRaw("color-client-background")) || backgroundColor
       );
-      setFloatingNavBgColor(clean(grabRaw("color-floating-nav-bg")) || floatingNavBgColor);
-      setFloatingNavTextColor(clean(grabRaw("color-floating-nav-text")) || floatingNavTextColor);
+      setFloatingNavBgColor(
+        clean(grabRaw("color-floating-nav-bg")) || floatingNavBgColor
+      );
+      setFloatingNavTextColor(
+        clean(grabRaw("color-floating-nav-text")) || floatingNavTextColor
+      );
 
       setBgURL(extractUrl(grabRaw("bg-image")) || bgUrl);
       setLogoUrl(extractUrl(grabRaw("logo-url")) || logoUrl);
@@ -615,15 +656,21 @@ const [imageType, setImageType] = useState('none');
 
     // Fetch user ID for journeys
     try {
-      const meResponse = await fetch('https://app.staffbase.com/api/users/me', {
-        headers: { Authorization: `Basic ${token}` }
+      const meResponse = await fetch("https://app.staffbase.com/api/users/me", {
+        headers: { Authorization: `Basic ${token}` },
       });
-      if (!meResponse.ok) throw new Error('Failed to fetch current user ID');
+      if (!meResponse.ok) throw new Error("Failed to fetch current user ID");
       const meData = await meResponse.json();
       setLoggedInUserId(meData.id);
-      setResponse(prev => prev + `\n✅ User ID for Journeys is ${meData.id}.`);
+      setResponse(
+        (prev) => prev + `\n✅ User ID for Journeys is ${meData.id}.`
+      );
     } catch (error) {
-      setResponse(prev => prev + `\n⚠️ Could not fetch user ID for Journeys. Error: ${error.message}`);
+      setResponse(
+        (prev) =>
+          prev +
+          `\n⚠️ Could not fetch user ID for Journeys. Error: ${error.message}`
+      );
     }
   };
 
@@ -633,9 +680,9 @@ const [imageType, setImageType] = useState('none');
     setBranchId(branchId);
     setIsAuthenticated(true);
     setUseOption({ type: mode, token, branchId });
-    setUserManagementView('selection'); // Reset to main selection view
+    setUserManagementView("selection"); // Reset to main selection view
 
-    if (mode === 'new') {
+    if (mode === "new") {
       prepareNewEnvironmentSetup(token, useOption.slug);
     } else if (mode === "users") {
       fetchUsers(token); // Fetch users when entering this mode
@@ -657,7 +704,7 @@ const [imageType, setImageType] = useState('none');
         : mode === "users"
         ? "Ready for user management!"
         : "Using saved environment – ready to set up!"
-      );
+    );
   };
 
   /** Trash-can icon next to a saved token. */
@@ -724,6 +771,9 @@ const [imageType, setImageType] = useState('none');
               primary: primaryColor,
               text: textColor,
               background: backgroundColor,
+              // Add floating nav colors for the similarity check
+              floatingNavText: floatingNavTextColor,
+              floatingNavBg: floatingNavBgColor,
             }
           : null;
 
@@ -737,21 +787,126 @@ const [imageType, setImageType] = useState('none');
         setResponse(successMessage);
       }
 
-      /* ---------- 2️⃣  LinkedIn articles ---------------------------------- */
-      // ... (rest of the function is unchanged)
-      // ...
+      /* ---------- 2️⃣ LinkedIn articles ---------------------------------- */
 
+      if (
+        includeArticles &&
+        prospectLinkedInUrl &&
+        /linkedin\.com/i.test(prospectLinkedInUrl)
+      ) {
+        const fixedUrl = normaliseLinkedInUrl(prospectLinkedInUrl);
+
+        if (fixedUrl !== prospectLinkedInUrl) setProspectLinkedInUrl(fixedUrl);
+
+        setResponse(
+          (p) =>
+            p +
+            "\nFetching LinkedIn posts… allow 5-7 min; you can close this panel."
+        );
+
+        /* 2-a) resolve / create “Top News” channel */
+
+        let topNewsChannelId = null;
+
+        try {
+          const r = await fetch(
+            `https://app.staffbase.com/api/spaces/${branchId}/installations?pluginID=news`,
+
+            { headers: { Authorization: `Basic ${apiToken.trim()}` } }
+          );
+
+          if (r.ok) {
+            const hit = (await r.json())?.data?.find((i) =>
+              i.config?.localization?.en_US?.title
+
+                ?.toLowerCase()
+
+                .includes("top news")
+            );
+
+            if (hit) topNewsChannelId = hit.id;
+          }
+        } catch {
+          /* ignore */
+        }
+
+        if (!topNewsChannelId) {
+          const payload = {
+            pluginID: "news",
+
+            contentType: "articles",
+
+            accessorIDs: [branchId],
+
+            config: {
+              localization: {
+                en_US: { title: `Top News // ${prospectName || "Demo"}` },
+              },
+            },
+          };
+
+          const crt = await fetch(
+            `https://app.staffbase.com/api/spaces/${branchId}/installations`,
+
+            {
+              method: "POST",
+
+              headers: {
+                Authorization: `Basic ${apiToken.trim()}`,
+
+                "Content-Type": "application/json",
+              },
+
+              body: JSON.stringify(payload),
+            }
+          );
+
+          if (!crt.ok)
+            throw new Error(`failed to create “Top News” (${crt.status})`);
+
+          topNewsChannelId = (await crt.json()).id;
+        }
+
+        /* 2-b) fire sb-news scraper */
+
+        const payload = {
+          channelID: topNewsChannelId,
+
+          pageURL: fixedUrl,
+
+          totalPosts: linkedInPostsCount || 20,
+        };
+
+        const newsRes = await fetch(
+          "https://sb-news-generator.uc.r.appspot.com/api/v1/bulkscrape/linkedin/article",
+
+          {
+            method: "POST",
+
+            headers: {
+              Authorization: `Basic ${apiToken.trim()}`,
+
+              "Content-Type": "application/json",
+            },
+
+            body: JSON.stringify(payload),
+          }
+        );
+
+        if (!newsRes.ok) throw new Error(`sb-news responded ${newsRes.status}`);
+
+        setResponse("Complete! Refresh for your branded demo!");
+      }
     } catch (err) {
       setResponse(`❌ ${err.message}`);
     }
   }
-  // ...
-
-
 
   /* ──────────────────────────────────────────────────────────────
-   LIVE CSS PREVIEW
-   ────────────────────────────────────────────────────────────── */
+  
+  LIVE CSS PREVIEW
+  
+  ────────────────────────────────────────────────────────────── */
 
   /** Inject (or update) a <style> tag with the current colour config. */
   async function handlePreview() {
@@ -795,8 +950,6 @@ const [imageType, setImageType] = useState('none');
       setResponse(`Preview failed: ${err.message}`);
     }
   }
-
-
 
   /* ──────────────────────────────────────────────────────────────
    ENVIRONMENT CREATION
@@ -859,7 +1012,9 @@ const [imageType, setImageType] = useState('none');
         if (envResponse.ok) {
           messages.push("✅ Environment features configured successfully!");
         } else {
-          throw new Error(`Environment setup failed: ${envResponse.statusText}`);
+          throw new Error(
+            `Environment setup failed: ${envResponse.statusText}`
+          );
         }
       }
 
@@ -881,7 +1036,9 @@ const [imageType, setImageType] = useState('none');
         if (emailResponse.ok) {
           messages.push("✅ Email templates set up successfully!");
         } else {
-          throw new Error(`Failed to set up email templates: ${emailResponse.statusText}`);
+          throw new Error(
+            `Failed to set up email templates: ${emailResponse.statusText}`
+          );
         }
       }
 
@@ -891,14 +1048,12 @@ const [imageType, setImageType] = useState('none');
       } else {
         setResponse(messages.join("\n"));
       }
-
     } catch (err) {
       setResponse(`❌ Error: ${err.message}`);
     } finally {
       setIsLoading(false);
     }
   }
-
 
   /* ──────────────────────────────────────────────────────────────
     USER MANAGEMENT
@@ -915,33 +1070,38 @@ const [imageType, setImageType] = useState('none');
         credentials: "omit",
         headers: { Authorization: `Basic ${token}` },
       });
-      if (!response.ok) throw new Error(`Failed to fetch users: ${response.statusText}`);
+      if (!response.ok)
+        throw new Error(`Failed to fetch users: ${response.statusText}`);
 
       const data = await response.json();
       const allUsers = data.data || [];
 
       // 1. Find the first user with the admin role and set their ID
-      const adminUser = allUsers.find(user => user.branchRole === 'WeBranchAdminRole');
+      const adminUser = allUsers.find(
+        (user) => user.branchRole === "WeBranchAdminRole"
+      );
       if (adminUser) {
         setAdminUserId(adminUser.id);
       } else {
         setAdminUserId(null); // Explicitly set to null if no admin is found
-        setResponse(prev => prev + "\n⚠️ No admin user found. Updates will be disabled.");
+        setResponse(
+          (prev) => prev + "\n⚠️ No admin user found. Updates will be disabled."
+        );
       }
 
       // 2. Clean the username data before setting it to state
-      const cleanedUsers = allUsers.map(user => {
+      const cleanedUsers = allUsers.map((user) => {
         // Safety check: Only call replace if user.username is a string
-        const cleanedUsername = typeof user.username === 'string'
-          ? user.username.replace(/^\(|\)$/g, '')
-          : user.username; // If not a string, leave it as is (e.g., null)
+        const cleanedUsername =
+          typeof user.username === "string"
+            ? user.username.replace(/^\(|\)$/g, "")
+            : user.username; // If not a string, leave it as is (e.g., null)
 
         return { ...user, username: cleanedUsername };
       });
 
       setUsersList(cleanedUsers);
       setResponse("✅ Users loaded. Ready for user management.");
-
     } catch (err) {
       setResponse(`❌ ${err.message}`);
     } finally {
@@ -952,32 +1112,29 @@ const [imageType, setImageType] = useState('none');
   /** Fetches all available, non-read-only profile fields for the branch. */
   const fetchAllProfileFields = async (token, branchId) => {
     // UPDATE: Only exclude image fields for now.
-    const fieldsToExclude = [
-      'avatar',
-      'profileHeaderImage',
-      'apitoken'
-    ];
+    const fieldsToExclude = ["avatar", "profileHeaderImage", "apitoken"];
 
     try {
-      const response = await fetch(`https://app.staffbase.com/api/branches/${branchId}/profilefields`, {
-        headers: { Authorization: `Basic ${token}` },
-      });
+      const response = await fetch(
+        `https://app.staffbase.com/api/branches/${branchId}/profilefields`,
+        {
+          headers: { Authorization: `Basic ${token}` },
+        }
+      );
       if (!response.ok) throw new Error("Failed to fetch profile fields");
 
       const data = await response.json();
       const fields = Object.values(data.schema)
-        .filter(field => !field.readOnly)
-        .map(field => field.slug)
-        .filter(slug => !fieldsToExclude.includes(slug));
+        .filter((field) => !field.readOnly)
+        .map((field) => field.slug)
+        .filter((slug) => !fieldsToExclude.includes(slug));
 
       setAllProfileFields(fields);
     } catch (err) {
       console.error(err.message);
-      setResponse(prev => prev + "\n⚠️ Could not fetch all profile fields.");
+      setResponse((prev) => prev + "\n⚠️ Could not fetch all profile fields.");
     }
   };
-
-
 
   /** Fetch the full profile for a single selected user. */
   useEffect(() => {
@@ -990,10 +1147,14 @@ const [imageType, setImageType] = useState('none');
       setIsLoading(true);
       setResponse(`Fetching profile for user ${selectedUserId}...`);
       try {
-        const response = await fetch(`https://app.staffbase.com/api/users/${selectedUserId}`, {
-          headers: { Authorization: `Basic ${apiToken}` },
-        });
-        if (!response.ok) throw new Error(`Failed to fetch profile: ${response.statusText}`);
+        const response = await fetch(
+          `https://app.staffbase.com/api/users/${selectedUserId}`,
+          {
+            headers: { Authorization: `Basic ${apiToken}` },
+          }
+        );
+        if (!response.ok)
+          throw new Error(`Failed to fetch profile: ${response.statusText}`);
 
         const data = await response.json();
         setUserProfile(data);
@@ -1028,13 +1189,13 @@ const [imageType, setImageType] = useState('none');
 
     // Define the exceptions: fields that are NOT nested under 'profile'.
     const topLevelFields = [
-      'firstName',
-      'lastName', // lastName is often top-level as well
-      'department',
-      'publicEmailAddress',
-      'position',
-      'location',
-      'phoneNumber'
+      "firstName",
+      "lastName", // lastName is often top-level as well
+      "department",
+      "publicEmailAddress",
+      "position",
+      "location",
+      "phoneNumber",
     ];
 
     let body;
@@ -1047,22 +1208,27 @@ const [imageType, setImageType] = useState('none');
     }
 
     try {
-      const response = await fetch(`https://app.staffbase.com/api/users/${selectedUserId}`, {
-        method: 'PUT',
-        mode: "cors",
-        credentials: "omit",
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${apiToken}`,
-          'USERID': adminUserId,
-        },
-        body: JSON.stringify(body),
-      });
+      const response = await fetch(
+        `https://app.staffbase.com/api/users/${selectedUserId}`,
+        {
+          method: "PUT",
+          mode: "cors",
+          credentials: "omit",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Basic ${apiToken}`,
+            USERID: adminUserId,
+          },
+          body: JSON.stringify(body),
+        }
+      );
 
       const updatedUser = await response.json();
 
       if (!response.ok) {
-        throw new Error(updatedUser.message || `API responded with status ${response.status}`);
+        throw new Error(
+          updatedUser.message || `API responded with status ${response.status}`
+        );
       }
 
       let actualValue;
@@ -1080,23 +1246,17 @@ const [imageType, setImageType] = useState('none');
       verificationMessage += `Field: '${fieldToUpdate}'\n`;
       verificationMessage += `Requested: '${newValue}'\n`;
       verificationMessage += `Result: '${actualValue ?? "Not set"}'\n`;
-      verificationMessage += `Status: ${isSuccess ? '✔️ Verified Match' : '❌ Mismatch!'}`;
+      verificationMessage += `Status: ${
+        isSuccess ? "✔️ Verified Match" : "❌ Mismatch!"
+      }`;
 
       setResponse(verificationMessage);
-
     } catch (err) {
       setResponse(`❌ Update Failed: ${err.message}`);
     } finally {
       setIsLoading(false);
     }
   };
-
-
-
-
-
-
-
 
   /* ──────────────────────────────────────────────────────────────
    UI UTILS
@@ -1116,7 +1276,7 @@ const [imageType, setImageType] = useState('none');
         }}
         onClick={() => {
           setUseOption({ type: null });
-          setUserManagementView('selection'); // Also reset user mgmt view
+          setUserManagementView("selection"); // Also reset user mgmt view
         }}
       >
         ← Back to Environments
@@ -1136,13 +1296,12 @@ const [imageType, setImageType] = useState('none');
           padding: 0,
           fontSize: 14,
         }}
-        onClick={() => setUserManagementView('selection')}
+        onClick={() => setUserManagementView("selection")}
       >
         ← Back to User Options
       </button>
     </div>
   );
-
 
   /* ——— Quick‑link helpers ——— */
   const handleQuickLinkChange = (idx, field, val) => {
@@ -1204,8 +1363,7 @@ const [imageType, setImageType] = useState('none');
         onToggleType={handleToggleRedirect}
       />
 
-    {useOption?.type && renderBreadcrumbs()}
-
+      {useOption?.type && renderBreadcrumbs()}
 
       {/* ─────────── ENTER API-KEY FIRST TIME ─────────── */}
       {!useOption?.type && !isAuthenticated && showApiKeyInput && (
@@ -1233,27 +1391,35 @@ const [imageType, setImageType] = useState('none');
       {/* ─────────── USER MANAGEMENT (AUTOMATION / PROFILE) ─────────── */}
       {isAuthenticated && useOption?.type === "users" && (
         <>
-          {userManagementView !== 'selection' && renderUserMgmtBreadcrumbs()}
+          {userManagementView !== "selection" && renderUserMgmtBreadcrumbs()}
 
-          {userManagementView === 'selection' && (
-            <div style={{ marginTop: '10px' }}>
-              <button style={brandingButtonStyle} onClick={() => setUserManagementView('automation')}>
+          {userManagementView === "selection" && (
+            <div style={{ marginTop: "10px" }}>
+              <button
+                style={brandingButtonStyle}
+                onClick={() => setUserManagementView("automation")}
+              >
                 Automation
               </button>
               <p style={subDescriptionStyle}>
-                Populate the platform with comments, reactions, chats, and survey responses.
+                Populate the platform with comments, reactions, chats, and
+                survey responses.
               </p>
 
-              <button style={{ ...brandingButtonStyle, marginTop: '20px' }} onClick={() => setUserManagementView('profile')}>
+              <button
+                style={{ ...brandingButtonStyle, marginTop: "20px" }}
+                onClick={() => setUserManagementView("profile")}
+              >
                 Manage Users
               </button>
               <p style={subDescriptionStyle}>
-                Update user profiles, change avatars/banners, or log in as a specific user.
+                Update user profiles, change avatars/banners, or log in as a
+                specific user.
               </p>
             </div>
           )}
 
-          {userManagementView === 'automation' && (
+          {userManagementView === "automation" && (
             <AutomationForm
               users={usersList}
               isStaffbaseTab={isStaffbaseTab}
@@ -1262,26 +1428,26 @@ const [imageType, setImageType] = useState('none');
               progressData={progressData}
             />
           )}
-    {userManagementView === 'profile' && (
-        <UpdateUserForm
-          users={usersList}
-          selectedUserId={selectedUserId}
-          onUserSelect={setSelectedUserId}
-          userProfile={userProfile}
-          isLoading={isLoading}
-          onLoginAsUser={handleLoginAsUser}
-          fieldToUpdate={fieldToUpdate}
-          onFieldChange={setFieldToUpdate}
-          newValue={newValue}
-          onNewValueChange={setNewValue}
-          allProfileFields={allProfileFields}
-          selectedFile={selectedFile}
-          onFileChange={setSelectedFile}
-          imageType={imageType}
-          onImageTypeChange={setImageType}
-          onProfileUpdate={handleProfileUpdate}
-        />
-      )}
+          {userManagementView === "profile" && (
+            <UpdateUserForm
+              users={usersList}
+              selectedUserId={selectedUserId}
+              onUserSelect={setSelectedUserId}
+              userProfile={userProfile}
+              isLoading={isLoading}
+              onLoginAsUser={handleLoginAsUser}
+              fieldToUpdate={fieldToUpdate}
+              onFieldChange={setFieldToUpdate}
+              newValue={newValue}
+              onNewValueChange={setNewValue}
+              allProfileFields={allProfileFields}
+              selectedFile={selectedFile}
+              onFileChange={setSelectedFile}
+              imageType={imageType}
+              onImageTypeChange={setImageType}
+              onProfileUpdate={handleProfileUpdate}
+            />
+          )}
         </>
       )}
 
@@ -1290,8 +1456,8 @@ const [imageType, setImageType] = useState('none');
         <BrandingForm
           /* flags & handlers */
           isStaffbaseTab={isStaffbaseTab}
-          updateThemeColors={updateThemeColors}      
-          setUpdateThemeColors={setUpdateThemeColors}  
+          updateThemeColors={updateThemeColors}
+          setUpdateThemeColors={setUpdateThemeColors}
           includeBranding={includeBranding}
           setIncludeBranding={setIncludeBranding}
           includeArticles={includeArticles}
