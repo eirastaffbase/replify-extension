@@ -18,7 +18,7 @@ import {
   getInitialAnalyticsStateFromStorage,
   manageAnalyticsScriptInPage,
   handleToggleAnalyticsChange,
-} from "./utils/analyticsManager"; 
+} from "./utils/analyticsManager";
 import { automationScript } from "./utils/automationRunner";
 
 
@@ -58,6 +58,8 @@ function App() {
   const [primaryColor, setPrimaryColor] = useState("#000000");
   const [textColor, setTextColor] = useState("#f0f0f0");
   const [backgroundColor, setBackgroundColor] = useState("#F3F3F3");
+  const [floatingNavBgColor, setFloatingNavBgColor] = useState("#FFFFFF");
+  const [floatingNavTextColor, setFloatingNavTextColor] = useState("#000000");
   const [logoUrl, setLogoUrl] = useState("");
   const [bgUrl, setBgURL] = useState("");
   const [logoPadWidth, setLogoPadWidth] = useState(0);
@@ -115,12 +117,12 @@ const [selectedUserId, setSelectedUserId] = useState("");
 const [userProfile, setUserProfile] = useState(null);
 const [fieldToUpdate, setFieldToUpdate] = useState("");
 const [newValue, setNewValue] = useState("");
-const [allProfileFields, setAllProfileFields] = useState([]); 
-const [adminUserId, setAdminUserId] = useState(null);        
+const [allProfileFields, setAllProfileFields] = useState([]);
+const [adminUserId, setAdminUserId] = useState(null);
 const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
 const [userManagementView, setUserManagementView] = useState('selection');
 const [selectedFile, setSelectedFile] = useState(null);
-const [imageType, setImageType] = useState('none'); 
+const [imageType, setImageType] = useState('none');
 
 
   /* 🔄  UI / async status -------------------------------------------------- */
@@ -141,7 +143,7 @@ const [imageType, setImageType] = useState('none');
     currentStatus: null,
   });
 
-  
+
   // --------------------------------------------------
   //   SMALL HELPERS
   // --------------------------------------------------
@@ -162,12 +164,12 @@ const [imageType, setImageType] = useState('none');
               setResponse("✅ Automation has finished!");
           }
       };
-      
+
       chrome.runtime.onMessage.addListener(messageListener);
-      
+
       return () => chrome.runtime.onMessage.removeListener(messageListener);
   }, []); // Empty array ensures this runs only once
-  
+
   const handleLoginAsUser = async () => {
     if (!selectedUserId) {
       setResponse("⚠️ Please select a user to log in as.");
@@ -299,7 +301,7 @@ const [imageType, setImageType] = useState('none');
         });
 
         if (!uploadResponse.ok) throw new Error(`Media upload failed: ${uploadResponse.statusText}`);
-        
+
         const { id: rawFileId } = await uploadResponse.json();
         if (!rawFileId) throw new Error("Media API did not return an ID.");
 
@@ -310,14 +312,14 @@ const [imageType, setImageType] = useState('none');
       if (fieldToUpdate && newValue) {
         profileChanges[fieldToUpdate] = newValue;
       }
-      
+
       setResponse("Updating user profile...");
       const finalBody = { profile: profileChanges };
 
       const updateUserResponse = await fetch(`https://app.staffbase.com/api/users/${selectedUserId}`, {
         method: 'PUT',
-        mode: "cors", 
-        credentials: "omit", 
+        mode: "cors",
+        credentials: "omit",
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Basic ${apiToken}`,
@@ -382,19 +384,19 @@ const [imageType, setImageType] = useState('none');
           chrome.tabs.onUpdated.removeListener(listener);
 
           setResponse(`Tab ready. Injecting main automation script...`);
-          
+
           chrome.scripting.executeScript({
             target: { tabId: newTab.id },
             func: automationScript,
             args: [selectedUsers, apiToken, adminUserId, automationOptions],
           });
-          
+
           setResponse(`✅ Script injected. The new tab will now run the automation.`);
           setIsLoading(false);
         }
       };
       chrome.tabs.onUpdated.addListener(listener);
-      
+
     } catch (err) {
       setResponse(`❌ Automation failed: ${err.message}`);
       setIsLoading(false);
@@ -456,7 +458,7 @@ const [imageType, setImageType] = useState('none');
         (block.match(new RegExp(`--${v}\\s*:\\s*([^;]+);`, "i")) ||
           [])[1]?.trim();
       const clean = (
-        val = "" 
+        val = ""
       ) =>
         val
           .replace(/!important/i, "")
@@ -472,6 +474,8 @@ const [imageType, setImageType] = useState('none');
       setBackgroundColor(
         clean(grabRaw("color-client-background")) || backgroundColor
       );
+      setFloatingNavBgColor(clean(grabRaw("color-floating-nav-bg")) || floatingNavBgColor);
+      setFloatingNavTextColor(clean(grabRaw("color-floating-nav-text")) || floatingNavTextColor);
 
       setBgURL(extractUrl(grabRaw("bg-image")) || bgUrl);
       setLogoUrl(extractUrl(grabRaw("logo-url")) || logoUrl);
@@ -602,12 +606,12 @@ const [imageType, setImageType] = useState('none');
       setResponse("⚠️ Slug not found, cannot set up default email.");
       return;
     }
-  
+
     // Set default email immediately
     const defaultEmail = `admin+${slug}@staffbase.com`;
     setSbEmail(defaultEmail);
     setResponse(`Default email set to ${defaultEmail}. Fetching user ID...`);
-  
+
     // Fetch user ID for journeys
     try {
       const meResponse = await fetch('https://app.staffbase.com/api/users/me', {
@@ -634,7 +638,7 @@ const [imageType, setImageType] = useState('none');
       prepareNewEnvironmentSetup(token, useOption.slug);
     } else if (mode === "users") {
       fetchUsers(token); // Fetch users when entering this mode
-      fetchAllProfileFields(token, branchId); 
+      fetchAllProfileFields(token, branchId);
     } else if (mode === "existing") {
       try {
         const css = await fetchCurrentCSS(token);
@@ -698,6 +702,8 @@ const [imageType, setImageType] = useState('none');
           primary: primaryColor,
           text: textColor,
           background: backgroundColor,
+          floatingNavBg: floatingNavBgColor,
+          floatingNavText: floatingNavTextColor,
           bg: bgUrl,
           logo: logoUrl,
           padW: logoPadWidth,
@@ -819,6 +825,8 @@ const [imageType, setImageType] = useState('none');
         primary: primaryColor,
         text: textColor,
         background: backgroundColor,
+        floatingNavBg: floatingNavBgColor,
+        floatingNavText: floatingNavTextColor,
         bg: bgUrl,
         logo: logoUrl,
         padW: logoPadWidth,
@@ -849,7 +857,7 @@ const [imageType, setImageType] = useState('none');
   }
 
 
-  
+
   /* ──────────────────────────────────────────────────────────────
    ENVIRONMENT CREATION
    ────────────────────────────────────────────────────────────── */
@@ -858,9 +866,9 @@ const [imageType, setImageType] = useState('none');
   async function handleSetupNewEnv() {
     setResponse("Processing setup request...");
     setIsLoading(true);
-  
+
     const messages = [];
-    
+
     // Determine if the installations endpoint needs to be called
     const isInstallationSetupNeeded =
       chatEnabled ||
@@ -895,7 +903,7 @@ const [imageType, setImageType] = useState('none');
         if (mergeIntegrationsChecked) {
           body.workdayMerge = [sbEmail, sbPassword, mergeField];
         }
-  
+
         const envResponse = await fetch(
           "https://sb-news-generator.uc.r.appspot.com/api/v1/installations",
           {
@@ -907,14 +915,14 @@ const [imageType, setImageType] = useState('none');
             body: JSON.stringify(body),
           }
         );
-  
+
         if (envResponse.ok) {
           messages.push("✅ Environment features configured successfully!");
         } else {
           throw new Error(`Environment setup failed: ${envResponse.statusText}`);
         }
       }
-  
+
       // 2. Conditionally set up email templates
       if (setupEmailChecked) {
         setResponse("Setting up email templates...");
@@ -929,21 +937,21 @@ const [imageType, setImageType] = useState('none');
             body: JSON.stringify({ domain: "app.staffbase.com" }),
           }
         );
-  
+
         if (emailResponse.ok) {
           messages.push("✅ Email templates set up successfully!");
         } else {
           throw new Error(`Failed to set up email templates: ${emailResponse.statusText}`);
         }
       }
-  
+
       // Set final response message
       if (messages.length === 0) {
         setResponse("Nothing to set up. Please check an option.");
       } else {
         setResponse(messages.join("\n"));
       }
-      
+
     } catch (err) {
       setResponse(`❌ Error: ${err.message}`);
     } finally {
@@ -956,8 +964,8 @@ const [imageType, setImageType] = useState('none');
     USER MANAGEMENT
     ────────────────────────────────────────────────────────────── */
 
-  /** * Fetches all users, finds the first admin ID for updates, 
-   * and cleans up usernames for display. 
+  /** * Fetches all users, finds the first admin ID for updates,
+   * and cleans up usernames for display.
    */
   const fetchUsers = async (token) => {
     setIsLoading(true);
@@ -968,7 +976,7 @@ const [imageType, setImageType] = useState('none');
         headers: { Authorization: `Basic ${token}` },
       });
       if (!response.ok) throw new Error(`Failed to fetch users: ${response.statusText}`);
-      
+
       const data = await response.json();
       const allUsers = data.data || [];
 
@@ -987,10 +995,10 @@ const [imageType, setImageType] = useState('none');
         const cleanedUsername = typeof user.username === 'string'
           ? user.username.replace(/^\(|\)$/g, '')
           : user.username; // If not a string, leave it as is (e.g., null)
-          
+
         return { ...user, username: cleanedUsername };
       });
-      
+
       setUsersList(cleanedUsers);
       setResponse("✅ Users loaded. Ready for user management.");
 
@@ -1005,23 +1013,23 @@ const [imageType, setImageType] = useState('none');
   const fetchAllProfileFields = async (token, branchId) => {
     // UPDATE: Only exclude image fields for now.
     const fieldsToExclude = [
-      'avatar', 
+      'avatar',
       'profileHeaderImage',
       'apitoken'
     ];
-  
+
     try {
       const response = await fetch(`https://app.staffbase.com/api/branches/${branchId}/profilefields`, {
         headers: { Authorization: `Basic ${token}` },
       });
       if (!response.ok) throw new Error("Failed to fetch profile fields");
-      
+
       const data = await response.json();
       const fields = Object.values(data.schema)
         .filter(field => !field.readOnly)
         .map(field => field.slug)
         .filter(slug => !fieldsToExclude.includes(slug));
-        
+
       setAllProfileFields(fields);
     } catch (err) {
       console.error(err.message);
@@ -1029,7 +1037,7 @@ const [imageType, setImageType] = useState('none');
     }
   };
 
-  
+
 
   /** Fetch the full profile for a single selected user. */
   useEffect(() => {
@@ -1046,10 +1054,10 @@ const [imageType, setImageType] = useState('none');
           headers: { Authorization: `Basic ${apiToken}` },
         });
         if (!response.ok) throw new Error(`Failed to fetch profile: ${response.statusText}`);
-        
+
         const data = await response.json();
         setUserProfile(data);
-        
+
         setResponse("✅ Profile loaded. Select a field to update.");
       } catch (err) {
         setResponse(`❌ ${err.message}`);
@@ -1080,12 +1088,12 @@ const [imageType, setImageType] = useState('none');
 
     // Define the exceptions: fields that are NOT nested under 'profile'.
     const topLevelFields = [
-      'firstName', 
+      'firstName',
       'lastName', // lastName is often top-level as well
-      'department', 
-      'publicEmailAddress', 
-      'position', 
-      'location', 
+      'department',
+      'publicEmailAddress',
+      'position',
+      'location',
       'phoneNumber'
     ];
 
@@ -1102,7 +1110,7 @@ const [imageType, setImageType] = useState('none');
       const response = await fetch(`https://app.staffbase.com/api/users/${selectedUserId}`, {
         method: 'PUT',
         mode: "cors",
-        credentials: "omit",           
+        credentials: "omit",
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Basic ${apiToken}`,
@@ -1111,12 +1119,12 @@ const [imageType, setImageType] = useState('none');
         body: JSON.stringify(body),
       });
 
-      const updatedUser = await response.json(); 
+      const updatedUser = await response.json();
 
       if (!response.ok) {
         throw new Error(updatedUser.message || `API responded with status ${response.status}`);
       }
-      
+
       let actualValue;
       // Use the same logic to find the updated value for verification.
       if (topLevelFields.includes(fieldToUpdate)) {
@@ -1124,7 +1132,7 @@ const [imageType, setImageType] = useState('none');
       } else {
         actualValue = updatedUser.profile?.[fieldToUpdate];
       }
-      
+
       const isSuccess = String(actualValue) === String(newValue);
 
       let verificationMessage = `Update sent for user ${selectedUserId}.\n\n`;
@@ -1133,7 +1141,7 @@ const [imageType, setImageType] = useState('none');
       verificationMessage += `Requested: '${newValue}'\n`;
       verificationMessage += `Result: '${actualValue ?? "Not set"}'\n`;
       verificationMessage += `Status: ${isSuccess ? '✔️ Verified Match' : '❌ Mismatch!'}`;
-      
+
       setResponse(verificationMessage);
 
     } catch (err) {
@@ -1175,7 +1183,7 @@ const [imageType, setImageType] = useState('none');
       </button>
     </div>
   );
-  
+
   /** Breadcrumb nav for inside the User Management section. */
   const renderUserMgmtBreadcrumbs = () => (
     <div style={{ marginBottom: 20 }}>
@@ -1304,14 +1312,14 @@ const [imageType, setImageType] = useState('none');
               </p>
             </div>
           )}
-          
+
           {userManagementView === 'automation' && (
             <AutomationForm
               users={usersList}
               isStaffbaseTab={isStaffbaseTab}
               onRun={handleRunAutomation}
               automationRunning={automationRunning}
-              progressData={progressData} 
+              progressData={progressData}
             />
           )}
     {userManagementView === 'profile' && (
@@ -1331,7 +1339,7 @@ const [imageType, setImageType] = useState('none');
           onFileChange={setSelectedFile}
           imageType={imageType}
           onImageTypeChange={setImageType}
-          onProfileUpdate={handleProfileUpdate} 
+          onProfileUpdate={handleProfileUpdate}
         />
       )}
         </>
@@ -1366,6 +1374,10 @@ const [imageType, setImageType] = useState('none');
           setTextColor={setTextColor}
           backgroundColor={backgroundColor}
           setBackgroundColor={setBackgroundColor}
+          floatingNavBgColor={floatingNavBgColor}
+          setFloatingNavBgColor={setFloatingNavBgColor}
+          floatingNavTextColor={floatingNavTextColor}
+          setFloatingNavTextColor={setFloatingNavTextColor}
           logoPadWidth={logoPadWidth}
           setLogoPadWidth={setLogoPadWidth}
           logoPadHeight={logoPadHeight}
@@ -1414,8 +1426,8 @@ const [imageType, setImageType] = useState('none');
           setCustomWidgetsChecked={setCustomWidgetsChecked}
           mergeIntegrationsChecked={mergeIntegrationsChecked}
           setMergeIntegrationsChecked={setMergeIntegrationsChecked}
-          setupEmailChecked={setupEmailChecked}         
-          setSetupEmailChecked={setSetupEmailChecked}          
+          setupEmailChecked={setupEmailChecked}
+          setSetupEmailChecked={setSetupEmailChecked}
           sbEmail={sbEmail}
           setSbEmail={setSbEmail}
           sbPassword={sbPassword}
@@ -1456,6 +1468,10 @@ const [imageType, setImageType] = useState('none');
             setTextColor={setTextColor}
             backgroundColor={backgroundColor}
             setBackgroundColor={setBackgroundColor}
+            floatingNavBgColor={floatingNavBgColor}
+            setFloatingNavBgColor={setFloatingNavBgColor}
+            floatingNavTextColor={floatingNavTextColor}
+            setFloatingNavTextColor={setFloatingNavTextColor}
             logoPadWidth={logoPadWidth}
             setLogoPadWidth={setLogoPadWidth}
             logoPadHeight={logoPadHeight}

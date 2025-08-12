@@ -8,6 +8,8 @@
         primary        : "#RRGGBB",     // main brand colour
         text           : "#RRGGBB",     // text colour for nav / icons
         background     : "#RRGGBB",     // neutral card-background colour
+        floatingNavBg  : "#RRGGBB",     // floating nav background colour
+        floatingNavText: "#RRGGBB",     // floating nav text colour
         bg             : "url|string",  // hero/cover photo (optional)
         logo           : "url|string",  // custom logo        (optional)
         padW, padH     : Number (px)    // logo padding
@@ -27,6 +29,7 @@ export default function buildPreviewCss(o) {
     `${parseInt(hex.slice(5, 7), 16)},${alpha})`;
 
   const isDarkColor = (hex) => {
+    if (!hex || hex.length < 7) return false; // Basic validation
     const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
     /* ITU-R BT.601 luma formula */
     return 0.299 * r + 0.587 * g + 0.114 * b < 128;
@@ -50,43 +53,66 @@ export default function buildPreviewCss(o) {
     ? "rgba(255,255,255,0.7)"
     : "rgba(0,0,0,0.7)";
 
+  // A "safe" primary color that falls back to the text color if the primary is too light
+  const safePrimary = isDarkColor(o.primary) ? o.primary : o.text;
+  const safePrimaryInverse = isDarkColor(safePrimary) ? '#fff' : 'rgba(0,0,0,0.7)';
+
+
   /* ════════════════════════════════════════════
      3.  Base CSS (root tokens, header, widgets…)
      ════════════════════════════════════════════ */
   let css = `
-      ${prospectComment} 
+      ${prospectComment}
       /* ================= root tokens ================= */
       :root{
         --color-client-primary : ${o.primary} !important;
         --color-client-text    : ${o.text}    !important;
         --sb-text-nav-appintranet : ${o.text} !important;
         --color-client-background : ${o.background} !important;
+        --color-floating-nav-bg   : ${o.floatingNavBg || '#FFFFFF'} !important;
+        --color-floating-nav-text : ${o.floatingNavText || '#000000'} !important;
         --bg-image            : url("${o.bg || ""}");
         --logo-url            : url("${o.logo || ""}");
         --padding-logo-size   : ${o.padH || 0}px ${o.padW || 0}px;
         --bg-image-position   : 25% ${o.bgVert || 50}%;
         --logo-height         : ${o.logoH || 32}px;
       }
-    
-      /* ================= header ================= */  
+
+      /* ================= header ================= */
       .desktop.wow-header-activated .header-left-container{
         position   : relative;
-        display    : flex;              
+        display    : flex;
         align-items: center;
         padding    : var(--padding-logo-size) !important;
       }
-  
+
       /* hide the title text and its divider */
       .desktop.wow-header-activated .header-title,
       .desktop.wow-header-activated .header-title::before,
       .desktop.wow-header-activated .header-title::after{
         display: none !important;
       }
-  
+
       /* translucent coloured bar behind the header */
       .desktop.wow-header-activated .app-header{
         --desktop-app-header-bg-color: ${headerBgTranslucent} !important;
         background-color             : ${headerBgTranslucent} !important;
+      }
+
+      /* Override for newer envs to ensure primary color is used */
+      html.with-floating-menu.desktop.desktop .app-header::before {
+        background: ${headerBgTranslucent} !important;
+        content: "" !important;
+      }
+
+      /* Newer env header background */
+      .bg-header-appintranet {
+        background-color: ${o.primary} !important;
+      }
+
+      /* Newer env header text */
+      .text-header-appintranet {
+        color: ${primaryInverse} !important;
       }
 
       /* ================= mobile ================= */
@@ -98,7 +124,7 @@ export default function buildPreviewCss(o) {
         color: ${widgetTextColor} !important;
       }
 
-  
+
       /* ================= menu / icons ================= */
       .desktop.wow-header-activated .header-title,
       .desktop.wow-header-activated .header-title .css-1wac6i9-TitleWrapper{
@@ -117,14 +143,61 @@ export default function buildPreviewCss(o) {
       .desktop.wow-header-activated .wow-app-header .css-ol0i66-StyledLaunchpadIcon .we-icon::after { /* Added this line */
         color: ${o.text}!important;
       }
-  
+
+      /* ================= floating nav ================= */
+      div#mega-menu {
+        outline: none !important;
+      }
+      /* Older env nav container background */
+      .desktop.wow-header-activated .css-sps0ey-MegaMenuContainer {
+        background-color: var(--color-floating-nav-bg) !important;
+      }
+      /* Newer env nav container background */
+      .bg-menubar-intranet {
+        background-color: var(--color-floating-nav-bg) !important;
+      }
+
+      /* Text color for all items (active, inactive, folders) in older envs and general links */
+      .wow-header-activated .css-jy0zr7-StyledMegaMenuItem > a,
+      .wow-header-activated .css-jy0zr7-StyledMegaMenuItem > div > a,
+      .wow-header-activated .css-1ltpo8i-StyledMegaMenuItem > a,
+      .wow-header-activated .css-1ltpo8i-StyledMegaMenuItem > div > a,
+      div#mega-menu a,
+      div#mega-menu a:visited,
+      div#mega-menu .branch-colored {
+        color: var(--color-floating-nav-text) !important;
+      }
+
+      /* Text color for newer env nav items */
+      .text-menubar-intranet,
+      .\\!text-menubar-intranet {
+        color: var(--color-floating-nav-text) !important;
+      }
+
+      /* ================= Surveys, Polls & Buttons ================= */
+      .survey-custom survey-plugin-employee-block label svg {
+        fill: ${safePrimary} !important;
+      }
+      .survey-custom form > div > div:nth-of-type(3) button {
+        background-color: ${safePrimary} !important;
+        border-color: ${safePrimary} !important;
+        color: ${safePrimaryInverse} !important;
+      }
+      .bg-primary-vivid {
+        background-color: ${safePrimary} !important;
+      }
+      .ds-pill.ds-pill--blue {
+        background-color: color-mix(in srgb, ${safePrimary} 30%, white 70%) !important;
+        color: ${o.primary} !important;
+      }
+
       /* ================= card widgets ================= */
-  
+
       /* first static-content card (no .counter) — */
       .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border:not(.counter) .news-articles-plain .news-feed-post {
         background-color: ${o.background} !important;
       }
-  
+
       .static-content-wrapper.widget-on-card.no-shadow-border
         :not(.counter):not(.full-width-bg.page-footer) {
         /* headline */
@@ -139,7 +212,7 @@ export default function buildPreviewCss(o) {
           color: ${widgetTextColor} !important;
         }
 
-  
+
         /* publish‐date & channel link */
         .news-articles-plain .news-feed-post-meta,
         .news-articles-plain .news-feed-post-meta a,
@@ -147,24 +220,24 @@ export default function buildPreviewCss(o) {
           color: ${metaTextColor} !important;
         }
       }
-  
+
       .full-width-bg:not(.page-footer)
         > .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border {
         background-color: ${o.background} !important;
       }
-  
+
       .full-width-bg:not(.page-footer)
         > .static-content-wrapper.widget-on-card.no-shadow-border
         .ui-commons__section__column > h2 {
         color: ${widgetTextColor} !important;
       }
-  
+
       .full-width-bg.page-footer
         > .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border {
         background-color: ${o.primary} !important;
         color: ${primaryInverse} !important;
       }
-  
+
       /* only the real text spans/headings inside the footer card */
       .full-width-bg.page-footer
         .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border
@@ -178,29 +251,31 @@ export default function buildPreviewCss(o) {
         color: ${primaryInverse} !important;
       }
 
-  
-      /* ================= audio player ================= */
-      .audio-player .audio-player__play-button.audio-player__play-button {
+
+      /* ================= audio player (API-hosted only) ================= */
+      div.audio-player:has(audio[src*="/api/media/"]) .audio-player__play-button.audio-player__play-button {
         background-color: var(--color-client-primary) !important;
       }
-  
-      .audio-player .audio-player__meta {
+
+      div.audio-player:has(audio[src*="/api/media/"]) .audio-player__meta {
         background-color: var(--color-client-primary) !important;
         border-radius: 9px;
       }
-  
-      .audio-player { 
+
+      div.audio-player:has(audio[src*="/api/media/"]) {
         background-color: var(--color-client-primary) !important;
       }
-  
-      .audio-player .audio-player__play-button.audio-player__play-button > svg {
+
+      div.audio-player:has(audio[src*="/api/media/"]) .audio-player__play-button.audio-player__play-button > svg {
         fill: var(--color-client-text) !important;
       }
-  
-      .audio-player .audio-player__meta .audio-player__title, .audio-player .audio-player__meta .audio-player__duration, .audio-player .audio-player__file-size {
+
+      div.audio-player:has(audio[src*="/api/media/"]) .audio-player__meta .audio-player__title,
+      div.audio-player:has(audio[src*="/api/media/"]) .audio-player__meta .audio-player__duration,
+      div.audio-player:has(audio[src*="/api/media/"]) .audio-player__file-size {
         color: ${primaryInverse} !important;
       }
-  
+
       /* ================= homepage hero / .home-social ================= */
         html[data-plugin-id="page"].desktop:not(.without-page-background):has(.home-social)::before{
         background-image     : var(--bg-image) !important;
@@ -209,7 +284,7 @@ export default function buildPreviewCss(o) {
         background-position  : var(--bg-image-position) !important;
         background-color     : #f4f9fb     !important;
       }
-  
+
       /* ================= jobs widget buttons ================= */
       .content-widget-wrapper.static-content-wrapper.widget-on-card.jobs
         a.clickable.external-link {
@@ -219,15 +294,15 @@ export default function buildPreviewCss(o) {
         color: ${textOpposite} !important;
         border-color: ${o.text} !important;
       }
-  
+
       /* ================= counter widget ================= */
-  
+
       /* 1 — the card itself */
       .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter{
         /* primary background */
         background-color: var(--color-client-primary) !important;
       }
-  
+
       /* 2 — every “real” text bit that lives in the widget card */
       .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
         h1 span,
@@ -242,9 +317,9 @@ export default function buildPreviewCss(o) {
         /* inverse of primary */
         color: ${primaryInverse} !important;
       }
-  
+
       /* 3 — the subscribe / register button */
-      .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter 
+      .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
         .group-subscription-block-button{
         /* button background → text colour */
         background-color: var(--color-client-text) !important;
@@ -252,19 +327,19 @@ export default function buildPreviewCss(o) {
         /* label + icon → inverse of text colour */
         color            : ${textOpposite} !important;
       }
-  
+
       /* 4 — SVG icon inside the button needs its own fill */
-      .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter 
+      .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
         .group-subscription-block-button svg path{
         fill: ${textOpposite} !important;
       }
-  
+
       /* 5 — “button-text” span inside the button */
-      .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter 
+      .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
         .group-subscription-block-button .button-text{
         color: ${textOpposite} !important;
       }
-  
+
       /* ================= standalone button‐wrapper ================= */
       .content-widget-wrapper.button-wrapper
         .button-block-link {
@@ -272,7 +347,7 @@ export default function buildPreviewCss(o) {
         color: ${textOpposite} !important;
         border-color: ${o.text} !important;
       }
-  
+
     `;
 
   // Add specific header styles
@@ -282,17 +357,17 @@ export default function buildPreviewCss(o) {
       background-color: var(--color-client-primary) !important;
       color: var(--color-client-text) !important;
     }
-  
+
     .desktop.wow-header-activated .css-8a35lc-Title {
       color: var(--color-client-text) !important;
       display: none !important; /* Hide the title text */
     }
-  
+
     .mobile .header-container {
       background-color: var(--color-client-primary) !important;
       color: var(--color-client-text) !important;
     }
-    
+
     .mobile .header-container .header-button {
       color: var(--color-client-text) !important;
     }
@@ -302,7 +377,7 @@ export default function buildPreviewCss(o) {
   if (o.logo) {
     css += `
       /* ================= logo/header ================= */
-        /* ---- DESKTOP LOGO ---- */
+        /* ---- DESKTOP LOGO (WOW HEADER) ---- */
         .desktop.wow-header-activated .header-left-container img.header-logo{
           opacity: 0 !important;                                /* keep layout, hide pixels */
         }
@@ -316,7 +391,11 @@ export default function buildPreviewCss(o) {
           background-position: left center;
           pointer-events     : none;                            /* logo stays decorative */
         }
-
+        
+        /* ---- MOBILE HEADER LOGO ---- */
+        .header-container.with-logo .header-logo.css-v852x2-LogoImage {
+            content: var(--logo-url) !important;
+        }
         `;
   } else {
     // If no logo is provided, ensure the original logo is visible (though it should be by default)

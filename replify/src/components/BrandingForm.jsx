@@ -41,6 +41,8 @@ export default function BrandingForm({
   primaryColor, setPrimaryColor,
   textColor, setTextColor,
   backgroundColor, setBackgroundColor,
+  floatingNavBgColor, setFloatingNavBgColor,
+  floatingNavTextColor, setFloatingNavTextColor,
   logoPadWidth, setLogoPadWidth,
   logoPadHeight, setLogoPadHeight,
   bgVertical, setBgVertical,
@@ -121,7 +123,7 @@ export default function BrandingForm({
       {/* ───────── Branding details ───────── */}
       {includeBranding && (
         <>
-          {/*  name / logo / bg URLs  */}
+          {/* name / logo / bg URLs  */}
           {[
             ["Prospect Name", prospectName, withPreview(setProspectName), "Vandelay Industries"],
             ["Logo URL", logoUrl, withPreview(setLogoUrl), ""],
@@ -166,7 +168,51 @@ export default function BrandingForm({
             </div>
           ))}
 
-          {/*  logo padding  */}
+          {/* floating nav colours */}
+          <div style={{...formGroupStyle, display: 'flex', alignItems: 'flex-end', gap: '16px' }}>
+            {/* Background Color Picker */}
+            <div>
+              <label style={labelStyle}>Floating Nav BG:</label>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="color"
+                  style={{ ...inputStyle, padding: 0, width: 50, height: 50, border: 'none' }}
+                  value={floatingNavBgColor}
+                  onChange={(e) => withPreview(setFloatingNavBgColor)(e.target.value)}
+                />
+                <input
+                  type="text"
+                  style={{ ...inputStyle, width: 100 }}
+                  value={floatingNavBgColor}
+                  onChange={(e) => withPreview(setFloatingNavBgColor)(e.target.value)}
+                  placeholder="#FFFFFF"
+                />
+              </div>
+            </div>
+
+            {/* Text Color Picker */}
+            <div>
+              <label style={labelStyle}>Floating Nav Text:</label>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="color"
+                  style={{ ...inputStyle, padding: 0, width: 50, height: 50, border: 'none' }}
+                  value={floatingNavTextColor}
+                  onChange={(e) => withPreview(setFloatingNavTextColor)(e.target.value)}
+                />
+                <input
+                  type="text"
+                  style={{ ...inputStyle, width: 100 }}
+                  value={floatingNavTextColor}
+                  onChange={(e) => withPreview(setFloatingNavTextColor)(e.target.value)}
+                  placeholder="#000000"
+                />
+              </div>
+            </div>
+          </div>
+
+
+          {/* logo padding  */}
           <div style={formGroupStyle}>
             <label style={labelStyle}>Logo padding (width × height px)</label>
             <div style={{ display: "flex", gap: 6 }}>
@@ -188,7 +234,7 @@ export default function BrandingForm({
             </div>
           </div>
 
-          {/*  background vertical offset  */}
+          {/* background vertical offset  */}
           <div style={formGroupStyle}>
             <label style={labelStyle}>Background image vertical %</label>
             <input
@@ -219,7 +265,7 @@ export default function BrandingForm({
         </label>
       </div>
 
-      {/*  LinkedIn URL  */}
+      {/* LinkedIn URL  */}
       {includeArticles && (
         <div style={formGroupStyle}>
           <label style={labelStyle}>LinkedIn Page URL:</label>
