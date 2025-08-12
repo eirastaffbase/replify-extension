@@ -1,5 +1,4 @@
 // components/BrandingForm.jsx
-// Handles all branding inputs + live preview
 
 import React from "react";
 import {
@@ -16,6 +15,8 @@ export default function BrandingForm({
   isStaffbaseTab,
   includeBranding,
   setIncludeBranding,
+  updateThemeColors,      
+  setUpdateThemeColors,   
   includeArticles,
   setIncludeArticles,
   brandingExists,
@@ -123,7 +124,19 @@ export default function BrandingForm({
       {/* ───────── Branding details ───────── */}
       {includeBranding && (
         <>
-          {/* name / logo / bg URLs  */}
+          {/* CHECKBOX FOR THEME COLORS */}
+          <div style={{...formGroupStyle, paddingLeft: '20px'}}>
+            <label style={checkboxLabelStyle}>
+              <input
+                type="checkbox"
+                style={checkboxStyle}
+                checked={updateThemeColors}
+                onChange={(e) => setUpdateThemeColors(e.target.checked)}
+              />
+              Update colors in App/Intranet branding page
+            </label>
+          </div>
+
           {[
             ["Prospect Name", prospectName, withPreview(setProspectName), "Vandelay Industries"],
             ["Logo URL", logoUrl, withPreview(setLogoUrl), ""],

@@ -231,6 +231,11 @@ export default function buildPreviewCss(o) {
         color: ${surveyColor} !important;
       }
 
+      /* "Read More" links with special branding */
+      .read-more.branch-colored {
+          color: ${surveyColor} !important;
+      }
+
       /* ================= Quick Links & Specific Buttons ================= */
       /* "Design 2" Tiled Quick Links */
       .quick-links-widget.design-2.type-tiles .quick-links-widget__item:not([style*="background-color"]) {

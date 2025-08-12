@@ -63,7 +63,7 @@ const bannerStyle = {
         >
           Version Release Notes
         </a>
-        <span style={{ fontStyle: "oblique", fontSize: "10px" }}> 2.1.3</span>
+        <span style={{ fontStyle: "oblique", fontSize: "10px" }}> 2.1.4</span>
       </div>
     );
   };

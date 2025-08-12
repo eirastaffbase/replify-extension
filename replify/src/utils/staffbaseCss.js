@@ -1,4 +1,4 @@
-/*  utils/staffbaseCSS.js
+/* utils/staffbaseCSS.js
     ------------------------------------------------------------
     Staffbase CSS API helpers
     ------------------------------------------------------------
@@ -25,20 +25,24 @@ export async function fetchCurrentCSS(token) {
     }
 
     const css = await res.text();
-    // No need to check for empty here, the caller can decide.
     return css;
-  }
+}
+
 
 /**
- * [UPDATED] Posts the provided CSS to BOTH the new Theme API
+ * [MODIFIED] Posts the provided CSS and color configuration to BOTH the new Theme API
  * and the old Branch Config API in parallel.
  *
  * @param {string} token - Staffbase API token.
  * @param {string} branchId - Staffbase branch ID for the old system.
  * @param {string} cssText - The full CSS string to post.
+ * @param {object} [colorConfig] - Optional. An object with colors to update.
+ * @param {string} colorConfig.primary - The primary color for the interface.
+ * @param {string} colorConfig.text - The text color for navigation.
+ * @param {string} colorConfig.background - The background color for navigation.
  * @returns {Promise<PromiseSettledResult<any>[]>} An array with the results of both API calls.
  */
-export async function postUpdatedCSS(token, branchId, cssText) {
+export async function postUpdatedCSS(token, branchId, cssText, colorConfig) {
   if (!token || !branchId) {
     throw new Error("Token and Branch ID are required for CSS update.");
   }
@@ -58,8 +62,25 @@ export async function postUpdatedCSS(token, branchId, cssText) {
     const themeId = themeObject.id;
     if (!themeId) throw new Error("Theme API: Could not find theme ID.");
 
-    // 2. Update the CSS in the object
+    // 2. Update the CSS and Colors in the object
+    // Ensure nested objects exist before assigning to them
+    themeObject.desktopTheme = themeObject.desktopTheme || {};
+    themeObject.globalTheme = themeObject.globalTheme || {};
+
+    // Always update the custom CSS
     themeObject.desktopTheme.customCss = cssText;
+
+    // If colorConfig is provided, update the color properties
+    if (colorConfig) {
+      themeObject.desktopTheme.components = themeObject.desktopTheme.components || {};
+      themeObject.desktopTheme.components.navigation = themeObject.desktopTheme.components.navigation || {};
+
+      // Map colors based on your requirements
+      themeObject.desktopTheme.components.navigation.accentColor = colorConfig.text;
+      themeObject.desktopTheme.components.navigation.backgroundColor = colorConfig.background;
+      themeObject.desktopTheme.components.navigation.textColor = colorConfig.text;
+      themeObject.globalTheme.interfaceColor = colorConfig.primary;
+    }
 
     // 3. PUT the updated object to the specific theme endpoint
     const updateRes = await fetch(`https://app.staffbase.com/api/theming/themes/${themeId}`, {
@@ -71,7 +92,11 @@ export async function postUpdatedCSS(token, branchId, cssText) {
       body: JSON.stringify(themeObject),
     });
 
-    if (!updateRes.ok) throw new Error(`Theme API (PUT): ${updateRes.statusText}`);
+    if (!updateRes.ok) {
+        const errorBody = await updateRes.text();
+        console.error("Theme API PUT Error:", errorBody);
+        throw new Error(`Theme API (PUT): ${updateRes.statusText}`);
+    }
     return { system: 'new', status: updateRes.status, data: await updateRes.json() };
   };
 
