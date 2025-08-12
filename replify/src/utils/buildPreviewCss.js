@@ -185,6 +185,11 @@ export default function buildPreviewCss(o) {
       div#mega-menu {
         outline: none !important;
       }
+      /* Text color for TOP-LEVEL items only in older envs */
+      [data-testid="mega-menu-list"] > li > a .item-text,
+      [data-testid="mega-menu-list"] > li > a .we-icon {
+          color: var(--color-floating-nav-text) !important;
+      }          
       /* Older env nav container background */
       .desktop.wow-header-activated .css-sps0ey-MegaMenuContainer {
         background-color: var(--color-floating-nav-bg) !important;
@@ -227,16 +232,16 @@ export default function buildPreviewCss(o) {
       }
 
       /* ================= Quick Links & Specific Buttons ================= */
-      /* "Design 2" Tiled Quick Links (that DON'T have an inline background style) */
-      .quick-links-widget.design-2 .quick-links-widget__item:not([style*="background-color"]) {
+      /* "Design 2" Tiled Quick Links */
+      .quick-links-widget.design-2.type-tiles .quick-links-widget__item:not([style*="background-color"]) {
           background-color: ${o.primary} !important;
       }
-      .quick-links-widget.design-2 .quick-links-widget__item:not([style*="background-color"]) a,
-      .quick-links-widget.design-2 .quick-links-widget__item:not([style*="background-color"]) .we-icon {
+      .quick-links-widget.design-2.type-tiles .quick-links-widget__item:not([style*="background-color"]) a,
+      .quick-links-widget.design-2.type-tiles .quick-links-widget__item:not([style*="background-color"]) .we-icon {
           color: ${primaryInverse} !important;
       }
 
-      /* Tiled Layout-3 Quick Links (that DON'T have an inline background style) */
+      /* Tiled Layout-3 Quick Links */
       .quick-links-widget.type-tiles .quick-links-widget__list--layout-3 .quick-links-widget__item:not([style*="background-color"]) {
           background-color: ${o.primary} !important;
       }
