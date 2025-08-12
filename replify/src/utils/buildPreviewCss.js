@@ -168,11 +168,12 @@ export default function buildPreviewCss(o) {
         color: var(--color-floating-nav-text) !important;
       }
 
-      /* Text color for newer env nav items */
-      .text-menubar-intranet,
-      .\\!text-menubar-intranet {
+      /* Force text color for newer env nav items by targeting the container */
+      div.items-center.overflow-hidden.rounded-full a,
+      div.items-center.overflow-hidden.rounded-full svg {
         color: var(--color-floating-nav-text) !important;
       }
+
 
       /* ================= Surveys, Polls & Buttons ================= */
       .survey-custom survey-plugin-employee-block label svg {
@@ -391,7 +392,7 @@ export default function buildPreviewCss(o) {
           background-position: left center;
           pointer-events     : none;                            /* logo stays decorative */
         }
-        
+
         /* ---- MOBILE HEADER LOGO ---- */
         .header-container.with-logo .header-logo.css-v852x2-LogoImage {
             content: var(--logo-url) !important;
