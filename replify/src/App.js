@@ -14,11 +14,6 @@ import {
   loadTokensFromStorage,
   saveTokensToStorage,
 } from "./utils/tokenStorage";
-import {
-  getInitialAnalyticsStateFromStorage,
-  manageAnalyticsScriptInPage,
-  handleToggleAnalyticsChange,
-} from "./utils/analyticsManager";
 import { automationScript } from "./utils/automationRunner";
 
 /* ───── Constants & styles ───── */
@@ -41,7 +36,6 @@ import RedirectAnalyticsForm from "./components/RedirectAnalyticsForm";
 import FeedbackBanner from "./components/FeedbackBanner";
 import UpdateUserForm from "./components/UpdateUserForm";
 import AutomationForm from "./components/AutomationForm";
-import ProgressBar from "./components/ProgressBar";
 
 function App() {
   // --------------------------------------------------
@@ -68,7 +62,6 @@ function App() {
   const [logoPadWidth, setLogoPadWidth] = useState(0);
   const [logoPadHeight, setLogoPadHeight] = useState(0);
   const [bgVertical, setBgVertical] = useState(0);
-  const [applyMobileBranding, setApplyMobileBranding] = useState(false);
   const [previewActive, setPreviewActive] = useState(false);
   const [brandingExists, setBrandingExists] = useState(false); // Replify block already in CSS?
 
@@ -81,7 +74,6 @@ function App() {
   const [redirectOpen, setRedirectOpen] = useState(false);
   const {
     redirectState,
-    analyticsResponse, // if needed for display
     handleToggleRedirect,
   } = useAnalyticsRedirects();
 
@@ -122,7 +114,6 @@ function App() {
   const [newValue, setNewValue] = useState("");
   const [allProfileFields, setAllProfileFields] = useState([]);
   const [adminUserId, setAdminUserId] = useState(null);
-  const [nestedFieldKeys, setNestedFieldKeys] = useState([]);
   const [userManagementView, setUserManagementView] = useState("selection");
   const [selectedFile, setSelectedFile] = useState(null);
   const [imageType, setImageType] = useState("none");
@@ -136,8 +127,6 @@ function App() {
 
   /* 🌐  Progress tracking -------------------------------------------------- */
   const [automationRunning, setAutomationRunning] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [totalTasks, setTotalTasks] = useState(0);
   const [progressData, setProgressData] = useState({
     tasksCompleted: 0,
     totalTasks: 0,
@@ -765,13 +754,11 @@ function App() {
           ? trimmedCss.replace(blockRegex, newBlock)
           : `${trimmedCss}\n\n${newBlock}`;
 
-        // Conditionally create the color config object based on the new checkbox state
         const colorConfig = updateThemeColors
           ? {
               primary: primaryColor,
               text: textColor,
               background: backgroundColor,
-              // Add floating nav colors for the similarity check
               floatingNavText: floatingNavTextColor,
               floatingNavBg: floatingNavBgColor,
             }
@@ -1171,92 +1158,6 @@ function App() {
     fetchUserProfile();
   }, [selectedUserId, apiToken]);
 
-  /** * Sends a PUT request, defaulting to nesting fields under 'profile'
-   * unless the field is in the 'topLevelFields' list.
-   */
-  const handleUpdateUser = async () => {
-    if (!selectedUserId || !fieldToUpdate || !newValue) {
-      setResponse("Please select a user, a field, and provide a new value.");
-      return;
-    }
-    if (!adminUserId) {
-      setResponse("❌ Cannot update: Branch Admin user ID not found.");
-      return;
-    }
-
-    setIsLoading(true);
-    setResponse("Updating user profile...");
-
-    // Define the exceptions: fields that are NOT nested under 'profile'.
-    const topLevelFields = [
-      "firstName",
-      "lastName", // lastName is often top-level as well
-      "department",
-      "publicEmailAddress",
-      "position",
-      "location",
-      "phoneNumber",
-    ];
-
-    let body;
-    // If the field is in our exception list, build a top-level body.
-    if (topLevelFields.includes(fieldToUpdate)) {
-      body = { [fieldToUpdate]: newValue };
-    } else {
-      // Otherwise, default to nesting it under 'profile'.
-      body = { profile: { [fieldToUpdate]: newValue } };
-    }
-
-    try {
-      const response = await fetch(
-        `https://app.staffbase.com/api/users/${selectedUserId}`,
-        {
-          method: "PUT",
-          mode: "cors",
-          credentials: "omit",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Basic ${apiToken}`,
-            USERID: adminUserId,
-          },
-          body: JSON.stringify(body),
-        }
-      );
-
-      const updatedUser = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          updatedUser.message || `API responded with status ${response.status}`
-        );
-      }
-
-      let actualValue;
-      // Use the same logic to find the updated value for verification.
-      if (topLevelFields.includes(fieldToUpdate)) {
-        actualValue = updatedUser[fieldToUpdate];
-      } else {
-        actualValue = updatedUser.profile?.[fieldToUpdate];
-      }
-
-      const isSuccess = String(actualValue) === String(newValue);
-
-      let verificationMessage = `Update sent for user ${selectedUserId}.\n\n`;
-      verificationMessage += `--- Verification ---\n`;
-      verificationMessage += `Field: '${fieldToUpdate}'\n`;
-      verificationMessage += `Requested: '${newValue}'\n`;
-      verificationMessage += `Result: '${actualValue ?? "Not set"}'\n`;
-      verificationMessage += `Status: ${
-        isSuccess ? "✔️ Verified Match" : "❌ Mismatch!"
-      }`;
-
-      setResponse(verificationMessage);
-    } catch (err) {
-      setResponse(`❌ Update Failed: ${err.message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   /* ──────────────────────────────────────────────────────────────
    UI UTILS
