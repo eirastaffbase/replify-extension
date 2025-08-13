@@ -10,10 +10,10 @@ const checkboxContainerStyle = { display: 'flex', flexDirection: 'column', gap: 
 
 // --- Constants ---
 const AUTOMATION_OPTIONS = [
-  { id: 'surveys', label: 'Fill Surveys', timePerUser: 10 },
-  { id: 'reactions', label: 'Add Reactions (10x)', timePerUser: 15 },
-  { id: 'comments', label: 'Post and Reply to Comments (2-4x)', timePerUser: 25 },
-  { id: 'chats', label: 'Reply to Chats', timePerUser: 5 },
+  { id: 'surveys', label: 'Fill Surveys', timePerUser: 6 },
+  { id: 'reactions', label: 'Add Reactions (10x)', timePerUser: 3 },
+  { id: 'comments', label: 'Post and Reply to Comments (2-4x)', timePerUser: 6 },
+  { id: 'chats', label: 'Reply to Chats', timePerUser: 6 },
 ];
 
 export default function AutomationForm({ users, isStaffbaseTab, onRun, automationRunning, progressData }) {

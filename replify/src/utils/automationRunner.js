@@ -1,12 +1,28 @@
 /* global chrome */
 
 export function automationScript(users, apiToken, adminId, options) {
+    // --- Logger Utility for Cleaner Console Output ---
+    const logger = {
+        _log(icon, color, message, details) {
+            console.log(`%c${icon} ${message}`, `color: ${color}; font-weight: bold;`);
+            if (details) console.log(details);
+        },
+        info(message, details) { this._log('⏳', '#6495ED', message, details); },
+        success(message, details) { this._log('✅', '#32CD32', message, details); },
+        warn(message, details) { this._log('⚠️', '#FFD700', message, details); },
+        error(message, error) {
+            console.error(`%c❌ ${message}`, 'color: #DC143C; font-size: 14px; font-weight: bold;');
+            if (error) console.error(error);
+        },
+        section(title) { console.log(`\n%c--- ${title} ---`, 'color: #8A2BE2; font-weight: bold; text-transform: uppercase;'); },
+        user(userName) { console.log(`\n%c--- Processing User: ${userName} ---`, 'color: #008B8B; font-weight: bold; font-size: 1.1em;'); }
+    };
+
     // --- Helper Functions & Constants ---
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    // --- Unique Item Selector ---
     function getUniqueRandomItem(availableItems, masterList) {
         if (availableItems.length === 0) {
-            console.log(`  - ♻️ Refilling content bank from master list of size ${masterList.length}.`);
+            logger.info(`♻️ Refilling content bank from master list of size ${masterList.length}.`);
             Array.prototype.push.apply(availableItems, masterList);
         }
         const randomIndex = Math.floor(Math.random() * availableItems.length);
@@ -16,12 +32,12 @@ export function automationScript(users, apiToken, adminId, options) {
 
     async function pollForJwtInStorage(surveyId, timeout = 10000) {
         const startTime = Date.now();
-        console.log(`  - [Page Script] Polling storage for JWT for survey ${surveyId}...`);
+        logger.info(`Polling local storage for JWT for survey ${surveyId}...`);
         while (Date.now() - startTime < timeout) {
             const data = await chrome.storage.local.get(surveyId);
             if (data && data[surveyId]) {
                 await chrome.storage.local.remove(surveyId);
-                console.log(`  - ✅ Found JWT in storage for survey ${surveyId}.`);
+                logger.success(`Found JWT in storage for survey ${surveyId}.`);
                 return data[surveyId];
             }
             await sleep(250);
@@ -30,27 +46,27 @@ export function automationScript(users, apiToken, adminId, options) {
     }
 
     const getFreshCsrfToken = async () => {
-        console.log("  - Fetching /auth/discover to get a definitive CSRF token...");
+        logger.info("Fetching a fresh CSRF token from /auth/discover...");
         try {
             const response = await fetch('/auth/discover', {
                 method: 'GET',
                 headers: { 'Accept': 'application/vnd.staffbase.auth.discovery.v2+json', 'Content-Type': 'application/json' }
             });
-            if (!response.ok) throw new Error(`Failed to fetch from /auth/discover. Status: ${response.status}`);
+            if (!response.ok) throw new Error(`API returned status: ${response.status}`);
             const discoveryData = await response.json();
             const token = discoveryData?.csrfToken;
-            if (token) return token;
-            throw new Error("Could not find 'csrfToken' key in the /auth/discover API response.");
+            if (token) {
+                logger.success("Successfully fetched new CSRF token.");
+                return token;
+            }
+            throw new Error("Could not find 'csrfToken' in the API response.");
         } catch (error) {
-            console.error("Error in getFreshCsrfToken:", error);
+            logger.error("Failed to get a fresh CSRF token.", error);
             throw error;
         }
     };
     
-    const getRandomItem = (array) => {
-        if (!array || array.length === 0) return null;
-        return array[Math.floor(Math.random() * array.length)];
-    }
+    const getRandomItem = (array) => !array || array.length === 0 ? null : array[Math.floor(Math.random() * array.length)];
     const getRandomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
     // --- MASTER Content Banks (Originals) ---
@@ -84,6 +100,7 @@ export function automationScript(users, apiToken, adminId, options) {
         }
         return surveysWithQuestions;
     }
+
     function generateSurveyResponse(questions) {
         const payload = { content: {} };
         if (!questions) return payload;
@@ -93,7 +110,6 @@ export function automationScript(users, apiToken, adminId, options) {
                     payload.content[question.id] = getRandomInt(1, question.maxScale || 5);
                     break;
                 case 'TEXT':
-                    // ✅ FIX: Use the correct master list name
                     payload.content[question.id] = getRandomItem(MASTER_SURVEY_COMMENT_BANK);
                     break;
                 case 'MULTIPLE_CHOICE':
@@ -107,7 +123,8 @@ export function automationScript(users, apiToken, adminId, options) {
     }
     
     async function submitSurveyFeedback(jwt, payload) {
-        await fetch('https://pluginsurveys-us1.staffbase.com/api/v1/feedback', {
+        // Return the fetch promise so the caller can check the response status
+        return fetch('https://pluginsurveys-us1.staffbase.com/api/v1/feedback', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${jwt}`, 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify(payload)
@@ -118,54 +135,62 @@ export function automationScript(users, apiToken, adminId, options) {
         if (!surveysWithQuestions || surveysWithQuestions.length === 0) return;
         
         for (const survey of surveysWithQuestions) {
+            const surveyTitle = survey.config?.localization?.en_US?.title || survey.id;
             try {
-                updateProgress({ status: `Answering survey: ${survey.config?.localization?.en_US?.title}` });
+                updateProgress({ status: `Answering survey: ${surveyTitle}` });
                 if (!survey?.questions) continue;
+                
+                // This fetch is expected to result in a 404, as its goal is to trigger the backend to generate a JWT.
+                logger.info(`Triggering JWT generation for survey "${surveyTitle}". A 404 network error for this action is expected and can be ignored.`);
                 fetch(survey.links.frontend_forward.href, { headers: { 'x-csrf-token': csrfToken } }).catch(() => {});
                 
                 const jwt = await pollForJwtInStorage(survey.id);
                 const responsePayload = generateSurveyResponse(survey.questions);
 
                 if (Object.keys(responsePayload.content).length > 0) {
-                    await submitSurveyFeedback(jwt, responsePayload);
+                    const submitResponse = await submitSurveyFeedback(jwt, responsePayload);
+                    if (!submitResponse.ok) {
+                         throw new Error(`Survey submission API failed with status ${submitResponse.status}`);
+                    }
+                    logger.success(`Submitted survey: '${surveyTitle}'`);
                     updateProgress({ increment: true });
                 }
                 await sleep(1500);
             } catch(error) {
-                console.error(`  - Failed to process survey ${survey.id}:`, error.message);
+                logger.error(`Survey did not submit: '${surveyTitle}'`, error);
             }
         }
     }
 
     // --- Chat Handling Functions ---
     async function getChatInstallationId(csrfToken) {
-        console.log("  - Fetching chat installation ID...");
+        logger.info("Fetching chat installation ID...");
         try {
             const response = await fetch('/api/installations/administrated?pluginID=chat', { headers: { 'x-csrf-token': csrfToken } });
             if (!response.ok) {
                 const fallbackResponse = await fetch('/api/plugins/chat/installations', { headers: { 'x-csrf-token': csrfToken } });
                 if (!fallbackResponse.ok) throw new Error('Failed to fetch chat installation via primary or fallback method.');
                  const fallbackData = await fallbackResponse.json();
-                 if (fallbackData && fallbackData.data.length > 0) {
-                    console.log("  - ✅ Found chat installation ID via fallback.");
+                 if (fallbackData?.data?.length > 0) {
+                    logger.success("Found chat installation ID via fallback.");
                     return fallbackData.data[0].id;
                 }
             }
             const { data } = await response.json();
-            if (data && data.length > 0) {
-                console.log("  - ✅ Found chat installation ID.");
+            if (data?.length > 0) {
+                logger.success("Found chat installation ID.");
                 return data[0].id;
             }
             throw new Error('Chat installation not found in API response.');
         } catch (error) {
-            console.warn(`Could not retrieve chat installation ID. Skipping chat actions. Reason: ${error.message}`);
+            logger.warn(`Could not retrieve chat installation ID. Skipping chat actions.`, error);
             return null;
         }
     }
 
     async function handleChats(currentUser, chatInstallationId, csrfToken, pendingChats, updateProgress) {
         if (!chatInstallationId || currentUser.id === adminId) {
-            if (currentUser.id === adminId) console.log(`[CHAT] Skipping chat reply for admin user.`);
+            if (currentUser.id === adminId) logger.info(`Skipping chat reply for admin user.`);
             return; 
         }
         updateProgress({ status: "Replying to chat..." });
@@ -179,20 +204,21 @@ export function automationScript(users, apiToken, adminId, options) {
                     headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
                     body: JSON.stringify({ message: chatToReplyTo.replyText })
                 });
-                if (!response.ok) throw new Error(`Failed to send reply. Status: ${response.status}`);
+                if (!response.ok) throw new Error(`API returned status ${response.status}`);
+                logger.success("Successfully sent chat reply.");
                 updateProgress({ increment: true });
             } catch (error) {
-                console.error(`  - ❌ Failed to reply to chat:`, error.message);
+                logger.error(`Failed to reply to chat.`, error);
             }
         } else {
-            console.log(`  - 🤷 No pending chat messages found for this user.`);
+            logger.info(`No pending chat messages found for this user.`);
         }
     }
 
     // --- Main Execution ---
     async function run() {
-        console.log("🚀 Automation Script Started 🚀");
-        alert("Automation has started! Please monitor the developer console for progress. You can open a new window to continue working while this tab runs.");
+        logger.section("🚀 Automation Script Started 🚀");
+        alert("Automation will begin once you close this alert. Leave this window open and watch the text below the progress bar for updates. To continue working, open a new window and be sure to leave this tab open.");
 
         let initialCsrfToken, surveysWithQuestions, publishedPosts, chatInstallationId;
         let pendingReplies = [], pendingChats = [];
@@ -207,7 +233,7 @@ export function automationScript(users, apiToken, adminId, options) {
         };
 
         try {
-            console.log("--- Pre-fetching data & calculating tasks ---");
+            logger.section("Pre-flight Checks & Task Calculation");
             initialCsrfToken = await getFreshCsrfToken();
             
             if (options.surveys) {
@@ -233,6 +259,7 @@ export function automationScript(users, apiToken, adminId, options) {
             
             if (options.chats && chatInstallationId && adminId) {
                 updateProgress({ status: "Admin is sending initial chats..." });
+                logger.info("Admin user is pre-sending initial chat messages...");
                 for (const user of users) {
                     if (user.id === adminId) continue;
                     const chatPair = getUniqueRandomItem(availableChats, MASTER_CHAT_MESSAGE_PAIRS);
@@ -245,24 +272,35 @@ export function automationScript(users, apiToken, adminId, options) {
                         if (response.ok) {
                             pendingChats.push({ recipientId: user.id, initiatorId: adminId, replyText: chatPair.reply });
                             updateProgress({ increment: true });
+                        } else {
+                           logger.warn(`Could not send initial chat to ${user.firstName || user.id}. Status: ${response.status}`);
                         }
                         await sleep(500);
-                    } catch (error) { console.error(`  - ❌ Error pre-sending chat to ${user.id}:`, error.message); }
+                    } catch (error) { logger.error(`Error pre-sending chat to ${user.id}`, error); }
                 }
             }
-            console.log(`✅ Pre-fetch complete. Total tasks to run: ${totalTasks}`);
-        } catch (error) { alert(`Failed to pre-fetch data: ${error.message}. Aborting.`); return; }
+            logger.success(`Pre-flight complete. Total tasks to run: ${totalTasks}`);
+        } catch (error) { 
+            logger.error('Fatal error during pre-flight checks. Aborting script.', error);
+            alert(`Failed to pre-fetch data: ${error.message}. Aborting.`); 
+            return; 
+        }
         
-        for (const [index, user] of users.entries()) {
+        logger.section("Starting Automation Loop");
+        for (const user of users) {
             let freshCsrfToken = null;
-            const userFullName = `${user.firstName} ${user.lastName}`;
+            const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.id;
+            logger.user(userFullName);
+            
             try {
                 updateProgress({ user: userFullName, status: "Logging in..." });
                 const identifier = user.emails?.find(e => e.primary)?.value || user.emails?.[0]?.value;
-                if (!identifier) throw new Error(`User ID ${user.id} has no email.`);
+                if (!identifier) throw new Error(`User ID ${user.id} has no email address.`);
                 
                 const loginResponse = await fetch('/api/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier, secret: 'Clone12345', locale: 'en_US' }) });
-                if (!loginResponse.ok) throw new Error(`Login failed for ${identifier}`);
+                if (!loginResponse.ok) throw new Error(`API returned status ${loginResponse.status}`);
+                
+                logger.success(`Logged in as ${userFullName}.`);
                 freshCsrfToken = await getFreshCsrfToken();
                 await sleep(1000);
 
@@ -288,7 +326,7 @@ export function automationScript(users, apiToken, adminId, options) {
                             method: 'POST', headers: { 'Content-Type': 'application/json', 'x-csrf-token': freshCsrfToken },
                             body: JSON.stringify({ text: `<p>${text}</p>` })
                         });
-                        if (!response.ok) throw new Error(`Failed to post comment`);
+                        if (!response.ok) throw new Error(`Comment API failed with status ${response.status}`);
                         updateProgress({ increment: true });
                         return response.json();
                     };
@@ -303,26 +341,32 @@ export function automationScript(users, apiToken, adminId, options) {
                             pendingReplies.push({ parentId: newParent.id, replyText: pair.reply, authorId: user.id });
                         }
                     };
-                    await postComment(getUniqueRandomItem(availableSingleComments, MASTER_SINGLE_COMMENTS), getRandomItem(publishedPosts).id);
-                    await sleep(1500);
-                    await postComment(getUniqueRandomItem(availableSingleComments, MASTER_SINGLE_COMMENTS), getRandomItem(publishedPosts).id);
-                    await sleep(1500);
-                    if (Math.random() < 0.8) { await handlePairedComment(); await sleep(1500); }
-                    if (Math.random() < 0.4) { await handlePairedComment(); }
+                    try {
+                        await postComment(getUniqueRandomItem(availableSingleComments, MASTER_SINGLE_COMMENTS), getRandomItem(publishedPosts).id);
+                        await sleep(1500);
+                        await postComment(getUniqueRandomItem(availableSingleComments, MASTER_SINGLE_COMMENTS), getRandomItem(publishedPosts).id);
+                        await sleep(1500);
+                        if (Math.random() < 0.8) { await handlePairedComment(); await sleep(1500); }
+                        if (Math.random() < 0.4) { await handlePairedComment(); }
+                    } catch (e) {
+                        logger.error("Comment failed to post.", e);
+                    }
                 }
                 
                 if (options.chats) {
                     await handleChats(user, chatInstallationId, freshCsrfToken, pendingChats, updateProgress);
                     await sleep(1500);
                 }
-            } catch (error) { console.error(`❌ An error occurred for user ${user.id}:`, error.message); }
-            console.log("----------------------------------------");
-            await sleep(2000);
+            } catch (error) { 
+                // This catch block handles major failures for a user, like login.
+                logger.error(`An error occurred for user ${userFullName}. Skipping remaining tasks for this user.`, error);
+            }
+            await sleep(2000); // Cooldown between users
         }
 
-        console.log("✅ Automation Script Finished! ✅");
+        logger.section("✅ Automation Script Finished! ✅");
         chrome.runtime.sendMessage({ type: 'automationComplete' });
-        alert("Automation run has completed successfully! You can close this tab.");
+        alert("Automation run has completed successfully! You can close this tab. NOTE: You are logged in as the last user you selected.");
     }
 
     run();
