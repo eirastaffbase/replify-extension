@@ -64,10 +64,10 @@ export const responseStyle = {
   fontFamily: "monospace",
   fontSize: "10px",
 };
-export const containerStyle = { padding: "20px", fontFamily: "sans-serif" };
+export const containerStyle = { padding: "15px", fontFamily: "sans-serif" };
 export const headingStyle = {
   color: "#333",
-  marginBottom: "20px",
+  marginBottom: "10px",
   textAlign: "center",
 };
 export const formGroupStyle = { marginBottom: "15px" };

@@ -1,7 +1,9 @@
 // components/SavedEnvironments.jsx
 // This component displays a list of saved tokens with options to use, delete, or toggle their visibility.
 
+
 import React from "react";
+import { FaTrash } from "react-icons/fa6"; // Imported the trash icon
 import {
   buttonStyle,
   actionButtonStyle,
@@ -17,7 +19,7 @@ import {
  * @param {Function} onUse       ({ slug, token, branchId }) => void
  * @param {Function} onToggle    (slug)  → toggle full/short token
  * @param {Function} onDelete    (slug)  → remove token
- * @param {Function} onAdd      (slug)  → add new token
+ * @param {Function} onAdd      ()      → show form to add new token
  */
 export default function SavedEnvironments({
   savedTokens,
@@ -30,7 +32,7 @@ export default function SavedEnvironments({
   if (!savedTokens.length) {
     return (
       <div>
-        <div style={{ marginBottom: "20px" }}>
+        <div style={{ marginBottom: "5px" }}>
           <div
             style={{
               display: "flex",
@@ -125,10 +127,15 @@ export default function SavedEnvironments({
                 ...dangerButtonStyle,
                 ...actionButtonStyle,
                 marginTop: 0,
+                display: 'flex', // Helps center the icon
+                alignItems: 'center',
+                justifyContent: 'center'
               }}
               onClick={() => onDelete(slug)}
+              title={`Delete ${slug}`} // Added for accessibility
             >
-              Delete
+              {/* Replaced text with the icon */}
+              <FaTrash color="white" />
             </button>
           </div>
         </div>

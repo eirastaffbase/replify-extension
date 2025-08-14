@@ -133,24 +133,23 @@ function App() {
 
   // When profile fields are loaded, set the default for the Merge dropdown
   useEffect(() => {
-    if (allProfileFields.length > 0) {
+    if (allProfileFields.length > 0 && !mergeField) {
       const defaultField = allProfileFields.includes("publicEmailAddress")
         ? "publicEmailAddress"
         : allProfileFields[0];
       setMergeField(defaultField);
     }
-  }, [allProfileFields]);
+  }, [allProfileFields, mergeField]);
 
   // --------------------------------------------------
   //   Message Listeners and other simple effects
   // --------------------------------------------------
   useEffect(() => {
-    const messageListener = (message, sender, sendResponse) => {
+    const messageListener = (message) => {
       if (message.type === "automationProgress") {
         setProgressData((prev) => ({
           tasksCompleted: message.payload.tasksCompleted,
           totalTasks: message.payload.totalTasks,
-          // Only update user/status if they are provided, otherwise keep the last known value
           currentUser: message.payload.user || prev.currentUser,
           currentStatus: message.payload.status || prev.currentStatus,
         }));
@@ -199,9 +198,7 @@ function App() {
     fetchUserProfile();
   }, [selectedUserId, apiToken]);
 
-  // ... (All other functions from your App.js file, like handleLoginAsUser, buildImagePayload, etc., should go here. They are omitted for brevity but should be included in your final file.)
-  // START OMITTED FUNCTIONS
-  const handleLoginAsUser = async () => {
+   const handleLoginAsUser = async () => {
     if (!selectedUserId) {
       setResponse("⚠️ Please select a user to log in as.");
       return;
@@ -909,6 +906,15 @@ function App() {
       setResponse(`Preview failed: ${err.message}`);
     }
   }
+
+    /* ──────────────────────────────────────────────────────────────
+    USER MANAGEMENT
+    ────────────────────────────────────────────────────────────── */
+
+  /** * Fetches all users, finds the first admin ID for updates,
+   * and cleans up usernames for display.
+   */
+
   const fetchUsers = async (token) => {
     setIsLoading(true);
     setResponse("Fetching users...");
@@ -969,10 +975,9 @@ function App() {
       setResponse((prev) => prev + "\n⚠️ Could not fetch all profile fields.");
     }
   };
-  // END OMITTED FUNCTIONS
 
   /* ──────────────────────────────────────────────────────────────
-   ENVIRONMENT CREATION
+   ENVIRONMENT CREATION (NEW IMPLEMENTATION)
    ────────────────────────────────────────────────────────────── */
 
   /**
@@ -1007,10 +1012,17 @@ function App() {
     }
   };
 
-  async function handleSetupNewEnv() {
+   async function handleSetupNewEnv() {
     setResponse("Processing setup request...");
     setIsLoading(true);
-    const messages = [];
+
+    // Keep track of successes to build a final report
+    const finalReport = {
+      installations: null,
+      customWidgets: null,
+      mergeIntegration: null,
+      emailTemplates: null,
+    };
 
     const isInstallationSetupNeeded =
       chatEnabled ||
@@ -1019,22 +1031,15 @@ function App() {
       launchpadSel.length > 0 ||
       quickLinksEnabled;
 
-    const isNewFeatureSetupNeeded =
-      customWidgetsChecked || mergeIntegrationsChecked;
-
     try {
       // 1. Chino's Endpoint
       if (isInstallationSetupNeeded) {
-        setResponse("Setting up environment features with Chino's installations endpoint...");
+        setResponse("Setting up environment features...");
         const body = {
-          chat: chatEnabled,
-          microsoft: microsoftEnabled,
-          campaigns: campaignsEnabled,
+          chat: chatEnabled, microsoft: microsoftEnabled, campaigns: campaignsEnabled,
         };
         if (launchpadSel.length) body.launchpad = launchpadSel;
-        if (journeysEnabled && loggedInUserId) {
-          body.journeys = { user: loggedInUserId, desired: ["all"] };
-        }
+        if (journeysEnabled && loggedInUserId) body.journeys = { user: loggedInUserId, desired: ["all"] };
         if (quickLinksEnabled) {
           body.mobileQuickLinks = Object.fromEntries(
             mobileQuickLinks
@@ -1042,38 +1047,31 @@ function App() {
               .map((l) => [l.name, { title: l.title, position: l.position }])
           );
         }
-
-        const envResponse = await fetch(
-          "https://sb-news-generator.uc.r.appspot.com/api/v1/installations",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${apiToken}`,
-            },
-            body: JSON.stringify(body),
-          }
-        );
-
-        if (envResponse.ok) {
-          messages.push("✅ Original environment features configured!");
-        } else {
-          throw new Error(
-            `Original setup failed: ${envResponse.statusText}`
-          );
-        }
+        
+        const envResponse = await fetch("https://sb-news-generator.uc.r.appspot.com/api/v1/installations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiToken}` },
+          body: JSON.stringify(body),
+        });
+        
+        finalReport.installations = envResponse.ok;
+        if (!envResponse.ok) throw new Error(`Installations endpoint failed: ${envResponse.statusText}`);
       }
 
-      // 2. DIRECT API CALLS FROM EXTENSION)
+      // 2. NEW SETUP (DIRECT API CALLS FROM EXTENSION)
+      const isNewFeatureSetupNeeded = customWidgetsChecked || mergeIntegrationsChecked;
       if (isNewFeatureSetupNeeded) {
-        if (!isStaffbaseTab) {
-          throw new Error(
-            "Custom widgets/integrations can only be set up from an active Staffbase tab."
-          );
-        }
+        if (!isStaffbaseTab) throw new Error("Custom widgets/integrations require an active Staffbase tab.");
 
         setResponse((prev) => prev + "\nFetching CSRF token...");
-        const csrfToken = await getCsrfToken();
+        const discoverResponse = await fetch('https://app.staffbase.com/auth/discover', {
+          method: 'GET',
+          headers: { 'Accept': 'application/vnd.staffbase.auth.discovery.v2+json', 'Content-Type': 'application/json' }
+        });
+        if (!discoverResponse.ok) throw new Error(`CSRF Discovery failed: ${discoverResponse.status}`);
+        const { csrfToken } = await discoverResponse.json();
+        if (!csrfToken) throw new Error("Could not get CSRF token from discovery endpoint.");
+        
         const staffbaseHeaders = {
           "Content-Type": "application/json",
           Authorization: `Basic ${apiToken}`,
@@ -1084,192 +1082,98 @@ function App() {
         if (customWidgetsChecked) {
           setResponse((prev) => prev + "\nInstalling Custom Widgets...");
           const widgetPayloads = [
-            {
-              url: "https://eirastaffbase.github.io/weather-time/dist/eira.weather-time.js",
-              elements: ["weather-time"],
-              attributes: [
-                "city",
-                "allowcityoverride",
-                "mobileview",
-                "usenewimages",
-              ],
-            },
-            {
-              url: "https://eirastaffbase.github.io/job-postings/dist/staffbase.job-postings.js",
-              elements: ["job-postings"],
-              attributes: [
-                "postingsjson",
-                "buttontext",
-                "buttoncolor",
-                "lefticon",
-                "righticon",
-              ],
-            },
-            {
-              url: "https://eirastaffbase.github.io/stock-ticker/dist/staffbase.stock-ticker.js",
-              elements: ["stock-ticker"],
-              attributes: ["symbol", "weeks", "logo", "stockgraphcolor"],
-            },
+            { url: "https://eirastaffbase.github.io/weather-time/dist/eira.weather-time.js", elements: ["weather-time"], attributes: ["city", "allowcityoverride", "mobileview", "usenewimages"]},
+            { url: "https://eirastaffbase.github.io/job-postings/dist/staffbase.job-postings.js", elements: ["job-postings"], attributes: ["postingsjson", "buttontext", "buttoncolor", "lefticon", "righticon"]},
+            { url: "https://eirastaffbase.github.io/stock-ticker/dist/staffbase.stock-ticker.js", elements: ["stock-ticker"], attributes: ["symbol", "weeks", "logo", "stockgraphcolor"]},
           ];
-
-          const widgetPromises = widgetPayloads.map((payload) =>
-            fetch("https://app.staffbase.com/api/branch/widgets", {
-              method: "POST",
-              headers: staffbaseHeaders,
-              body: JSON.stringify(payload),
-            })
-          );
-
-          const results = await Promise.all(widgetPromises);
-          const failed = results.filter((res) => !res.ok);
-          if (failed.length > 0) {
-            messages.push(
-              `❌ Failed to install ${failed.length} custom widget(s).`
-            );
-          } else {
-            messages.push("✅ All 3 custom widgets installed successfully!");
-          }
+          const results = await Promise.all(widgetPayloads.map(payload => fetch("https://app.staffbase.com/api/branch/widgets", { method: "POST", headers: staffbaseHeaders, body: JSON.stringify(payload) })));
+          finalReport.customWidgets = results.every(res => res.ok);
+          if (!finalReport.customWidgets) throw new Error("One or more custom widgets failed to install.");
         }
 
         // 2b. Merge/Workday Integration
         if (mergeIntegrationsChecked) {
           setResponse((prev) => prev + "\n🚀 Starting Workday Integration...");
+          const mergeHeaders = { "Content-Type": "application/json;charset=UTF-8" };
+          let linkToken, accountId;
 
-          // Step 1: Initialize integration with Staffbase
+          // Step 1: Initialize
           setResponse((prev) => prev + "\n1/8: Initializing with Staffbase...");
-          const initRes = await fetch(
-            "https://app.staffbase.com/api/merge-dev/integrations/workday",
-            {
-              method: "POST",
-              headers: staffbaseHeaders,
-              body: JSON.stringify({
-                employeeIdentityMapping: {
-                  profileField: mergeField,
-                  remoteProperty: "work_email",
-                },
-                name: "",
-              }),
-            }
-          );
-          if (!initRes.ok) throw new Error("Step 1 (SB Init) failed.");
-          const { linkToken, accountId } = await initRes.json();
-          if (!linkToken)
-            throw new Error("Did not receive linkToken from Step 1.");
+          const initRes = await fetch("https://app.staffbase.com/api/merge-dev/integrations/workday", { method: "POST", headers: staffbaseHeaders, body: JSON.stringify({ employeeIdentityMapping: { profileField: mergeField, remoteProperty: "work_email" }, name: "" }) });
+          if (!initRes.ok) throw new Error(`Merge Step 1 (SB Init) failed: ${initRes.status}`);
+          ({ linkToken, accountId } = await initRes.json());
+          if (!linkToken) throw new Error("Did not receive linkToken from Step 1.");
 
-          const mergeHeaders = { "Content-Type": "application/json" };
+          // Step 2: Eligibility Check
+          setResponse((prev) => prev + "\n2/8: Checking eligibility with Merge...");
+          const eligCheckRes = await fetch("https://api.merge.dev/api/integrations/link/eligibility-check", { method: "POST", headers: mergeHeaders, body: JSON.stringify({ link_token: linkToken }) });
+          if (!eligCheckRes.ok) throw new Error(`Merge Step 2 (Eligibility Check) failed: ${eligCheckRes.status}`);
 
-          // Steps 2 & 3 are informational, we can skip them
-          // Step 4: Get next page from Merge
-          setResponse((prev) => prev + "\n2/8: Getting linking flow...");
-          await fetch(
-            "https://api.merge.dev/api/integrations/linking-flow/next-page",
-            {
-              method: "POST",
-              headers: mergeHeaders,
-              body: JSON.stringify({ link_token: linkToken }),
-            }
-          );
-          // We don't need the response from this, just need to call it
+          // Step 3: Next Page (Initial Step)
+          setResponse((prev) => prev + "\n3/8: Fetching initial linking flow...");
+          const initialNextPageRes = await fetch("https://api.merge.dev/api/integrations/linking-flow/next-page", { method: "POST", headers: mergeHeaders, body: JSON.stringify({ link_token: linkToken, current_page: "INITIAL_STEP", form_data: { file_picker_config_sent: false } }) });
+          if (!initialNextPageRes.ok) throw new Error(`Merge Step 3 (Initial Next Page) failed: ${initialNextPageRes.status}`);
+          
+          // Step 4: Next Page (Auth Choice)
+          setResponse((prev) => prev + "\n4/8: Selecting auth choice...");
+          const authChoiceData = await initialNextPageRes.json();
+          const authChoiceRes = await fetch("https://api.merge.dev/api/integrations/linking-flow/next-page", { method: "POST", headers: mergeHeaders, body: JSON.stringify({ link_token: linkToken, current_page: "AUTH_CHOICE", form_data: { ...authChoiceData.linking_flow_payload, selected_step_path_id: "b5f16891-9bcf-49ad-a107-28a32e001933" } }) });
+          if (!authChoiceRes.ok) throw new Error(`Merge Step 4 (Auth Choice) failed: ${authChoiceRes.status}`);
 
-          // Step 5: Send credentials to Merge
-          setResponse((prev) => prev + "\n3/8: Submitting credentials...");
-          const linkedAccountFormData = {
-            customDomain: process.env.REACT_APP_WORKDAY_CUSTOM_DOMAIN,
-            username: process.env.REACT_APP_WORKDAY_USERNAME,
-            password: process.env.REACT_APP_WORKDAY_PASSWORD,
-            oauthClientID: process.env.REACT_APP_WORKDAY_OAUTH_CLIENT_ID,
-            oauthClientSecret:
-              process.env.REACT_APP_WORKDAY_OAUTH_CLIENT_SECRET,
-            oauthRefreshToken:
-              process.env.REACT_APP_WORKDAY_OAUTH_REFRESH_TOKEN,
-            overrideOAuthTokenUrl:
-              process.env.REACT_APP_WORKDAY_OAUTH_TOKEN_URL,
-            baseURL: process.env.REACT_APP_WORKDAY_BASE_URL,
+          // Step 5: Send Credentials
+          setResponse((prev) => prev + "\n5/8: Submitting credentials to Merge...");
+          const credentialsFormData = {
+            customDomain: process.env.REACT_APP_WORKDAY_CUSTOM_DOMAIN, username: process.env.REACT_APP_WORKDAY_USERNAME, password: process.env.REACT_APP_WORKDAY_PASSWORD,
+            oauthClientID: process.env.REACT_APP_WORKDAY_OAUTH_CLIENT_ID, oauthClientSecret: process.env.REACT_APP_WORKDAY_OAUTH_CLIENT_SECRET, oauthRefreshToken: process.env.REACT_APP_WORKDAY_OAUTH_REFRESH_TOKEN,
+            overrideOAuthTokenUrl: process.env.REACT_APP_WORKDAY_OAUTH_TOKEN_URL, baseURL: process.env.REACT_APP_WORKDAY_BASE_URL,
           };
+          const submitCredsRes = await fetch("https://api.merge.dev/api/integrations/linking-flow/next-page", {
+            method: "POST", headers: mergeHeaders,
+            body: JSON.stringify({ link_token: linkToken, current_page: "INTEGRATION_SETUP", form_data: { linked_account_form_data: credentialsFormData, selected_step_path_id: "b5f16891-9bcf-49ad-a107-28a32e001933" } }),
+          });
+          if (!submitCredsRes.ok) throw new Error(`Merge Step 5 (Submit Credentials) failed: ${submitCredsRes.status}`);
+          const { linking_flow_payload } = await submitCredsRes.json();
+          const { public_token } = linking_flow_payload?.linked_account;
+          if (!public_token) throw new Error("Did not receive public_token from Step 5.");
+          
+          // Step 6: Confirm Connection
+          setResponse((prev) => prev + "\n6/8: Confirming connection with Staffbase...");
+          const confirmRes = await fetch(`https://app.staffbase.com/api/merge-dev/accounts/${accountId}/confirm-connection`, { method: "POST", headers: staffbaseHeaders, body: JSON.stringify({ publicToken: public_token }) });
+          if (!confirmRes.ok) throw new Error(`Merge Step 6 (Confirm Connection) failed: ${confirmRes.status}`);
 
-          const submitCredsRes = await fetch(
-            "https://api.merge.dev/api/integrations/linking-flow/next-page",
-            {
-              method: "POST",
-              headers: mergeHeaders,
-              body: JSON.stringify({
-                link_token: linkToken,
-                current_page: "INTEGRATION_SETUP",
-                form_data: {
-                  linked_account_form_data: linkedAccountFormData,
-                  selected_step_path_id:
-                    "b5f16891-9bcf-49ad-a107-28a32e001933", // Magic string from your logs
-                },
-              }),
-            }
-          );
-          if (!submitCredsRes.ok)
-            throw new Error("Step 5 (Submit Credentials) failed.");
-          const submitCredsData = await submitCredsRes.json();
-          const publicToken =
-            submitCredsData?.linking_flow_payload?.public_token;
-          if (!publicToken)
-            throw new Error("Did not receive publicToken from Step 5.");
+          // Step 7: Kick off Sync
+          setResponse((prev) => prev + "\n7/8: Kicking off initial sync...");
+          const syncRes = await fetch("https://api.merge.dev/api/integrations/linking-flow/end-linking-flow-and-kickoff-initial-sync", { method: "POST", headers: mergeHeaders, body: JSON.stringify({ link_token: linkToken }) });
+          if (!syncRes.ok) throw new Error(`Merge Step 7 (Kickoff Sync) failed: ${syncRes.status}`);
 
-          // Step 6: Confirm connection with Staffbase
-          setResponse((prev) => prev + "\n4/8: Confirming connection...");
-          const confirmRes = await fetch(
-            `https://app.staffbase.com/api/merge-dev/accounts/${accountId}/confirm-connection`,
-            {
-              method: "POST",
-              headers: staffbaseHeaders,
-              body: JSON.stringify({ publicToken: publicToken }),
-            }
-          );
-          if (!confirmRes.ok)
-            throw new Error("Step 6 (Confirm Connection) failed.");
-
-          // Step 7: Kick off initial sync with Merge
-          setResponse((prev) => prev + "\n5/8: Kicking off sync...");
-          const syncRes = await fetch(
-            "https://api.merge.dev/api/integrations/linking-flow/end-linking-flow-and-kickoff-initial-sync",
-            {
-              method: "POST",
-              headers: mergeHeaders,
-              body: JSON.stringify({ link_token: linkToken }),
-            }
-          );
-          if (!syncRes.ok) throw new Error("Step 7 (Kickoff Sync) failed.");
-
-          messages.push("✅ Workday Integration configured successfully!");
+          finalReport.mergeIntegration = true;
         }
       }
 
       // 3. Email Templates (Replify Backend)
       if (setupEmailChecked) {
         setResponse((prev) => prev + "\nSetting up email templates...");
-        const emailResponse = await fetch(
-          "https://sb-news-generator.uc.r.appspot.com/api/v1/generate/email-templates",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${apiToken}`,
-            },
-            body: JSON.stringify({ domain: "app.staffbase.com" }),
-          }
-        );
-        if (emailResponse.ok) {
-          messages.push("✅ Email templates set up successfully!");
-        } else {
-          throw new Error(
-            `Email template setup failed: ${emailResponse.statusText}`
-          );
-        }
+        const emailResponse = await fetch("https://sb-news-generator.uc.r.appspot.com/api/v1/generate/email-templates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiToken}` },
+          body: JSON.stringify({ domain: "app.staffbase.com" }),
+        });
+        finalReport.emailTemplates = emailResponse.ok;
+        if (!emailResponse.ok) throw new Error(`Email template setup failed: ${emailResponse.statusText}`);
       }
 
-      if (messages.length === 0) {
-        setResponse("Nothing to set up. Please check an option.");
-      } else {
-        setResponse(messages.join("\n"));
-      }
+      // Build final success message
+      const successMessages = Object.entries(finalReport)
+        .filter(([, success]) => success !== null)
+        .map(([key, success]) => `${key}: ${success ? '✅' : '❌'}`);
+      setResponse(`Setup Complete:\n${successMessages.join('\n')}`);
+
     } catch (err) {
-      setResponse(`❌ Error: ${err.message}`);
+      // Build final error message
+      const errorMessages = Object.entries(finalReport)
+        .filter(([, success]) => success !== null)
+        .map(([key, success]) => `${key}: ${success ? '✅' : '❌'}`);
+      setResponse(`Setup failed:\n${errorMessages.join('\n')}\n\nError: ${err.message}`);
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -1282,15 +1186,7 @@ function App() {
 
   const renderBreadcrumbs = () => (
     <div style={{ marginBottom: 20 }}>
-      <button
-        style={{
-          background: "none",
-          border: "none",
-          color: "#007bff",
-          cursor: "pointer",
-          padding: 0,
-          fontSize: 14,
-        }}
+      <button style={{ background: "none", border: "none", color: "#007bff", cursor: "pointer", padding: 0, fontSize: 14 }}
         onClick={() => {
           setUseOption({ type: null });
           setUserManagementView("selection");
@@ -1303,15 +1199,7 @@ function App() {
 
   const renderUserMgmtBreadcrumbs = () => (
     <div style={{ marginBottom: 20 }}>
-      <button
-        style={{
-          background: "none",
-          border: "none",
-          color: "#007bff",
-          cursor: "pointer",
-          padding: 0,
-          fontSize: 14,
-        }}
+      <button style={{ background: "none", border: "none", color: "#007bff", cursor: "pointer", padding: 0, fontSize: 14 }}
         onClick={() => setUserManagementView("selection")}
       >
         ← Back to User Options
@@ -1319,12 +1207,11 @@ function App() {
     </div>
   );
 
-    /* ——— Quick‑link helpers ——— */
   const handleQuickLinkChange = (idx, field, val) => {
     setMobileQuickLinks((prev) => {
       const copy = [...prev];
       copy[idx] = { ...copy[idx], [field]: val };
-      copy.forEach((l, i) => (l.position = i)); // keep positions tidy
+      copy.forEach((l, i) => (l.position = i));
       return copy;
     });
   };
@@ -1332,10 +1219,7 @@ function App() {
   const handleQuickLinkSwap = (aIdx, bIdx) => {
     setMobileQuickLinks((prev) => {
       const copy = [...prev];
-      [copy[aIdx].position, copy[bIdx].position] = [
-        copy[bIdx].position,
-        copy[aIdx].position,
-      ];
+      [copy[aIdx].position, copy[bIdx].position] = [copy[bIdx].position, copy[aIdx].position];
       return copy;
     });
   };
@@ -1346,25 +1230,17 @@ function App() {
     );
 
   const handleQuickLinkAdd = () =>
-    setMobileQuickLinks((prev) => [
-      ...prev,
-      { name: "", title: "", position: prev.length, enabled: true },
-    ]);
+    setMobileQuickLinks((prev) => [...prev, { name: "", title: "", position: prev.length, enabled: true }]);
 
-    // --------------------------------------------------
-  //  JSX
-  // --------------------------------------------------
-    return (
+  return (
     <div style={containerStyle}>
-      <h1 style={headingStyle}>Replify for Staffbase</h1>
+      <h1 style={headingStyle}>Replify</h1>
       <FeedbackBanner />
 
       <SavedEnvironments
         savedTokens={savedTokens}
         showFull={showFullToken}
-        onUse={({ slug, token, branchId }) =>
-          setUseOption({ type: "select", slug, token, branchId })
-        }
+        onUse={({ slug, token, branchId }) => setUseOption({ type: "select", slug, token, branchId })}
         onToggle={handleShowFullToken}
         onDelete={handleDeleteToken}
         onAdd={() => setShowApiKeyInput((prev) => !prev)}
@@ -1390,13 +1266,7 @@ function App() {
       {useOption?.type === "select" && (
         <UseEnvironmentOptions
           slug={useOption.slug}
-          onChoose={(mode) =>
-            handleUseOptionClick({
-              mode,
-              token: useOption.token,
-              branchId: useOption.branchId,
-            })
-          }
+          onChoose={(mode) => handleUseOptionClick({ mode, token: useOption.token, branchId: useOption.branchId })}
         />
       )}
 
@@ -1406,31 +1276,18 @@ function App() {
 
           {userManagementView === "selection" && (
             <div style={{ marginTop: "10px" }}>
-              <button
-                style={brandingButtonStyle}
-                onClick={() => setUserManagementView("automation")}
-              >
+              <button style={brandingButtonStyle} onClick={() => setUserManagementView("automation")}>
                 Automation
               </button>
-              <p style={subDescriptionStyle}>
-                Populate the platform with comments, reactions, chats, and
-                survey responses.
-              </p>
-
-              <button
-                style={{ ...brandingButtonStyle, marginTop: "20px" }}
-                onClick={() => setUserManagementView("profile")}
-              >
+              <p style={subDescriptionStyle}>Populate the platform with comments, reactions, chats, and survey responses.</p>
+              <button style={{ ...brandingButtonStyle, marginTop: "20px" }} onClick={() => setUserManagementView("profile")}>
                 Manage Users
               </button>
-              <p style={subDescriptionStyle}>
-                Update user profiles, change avatars/banners, or log in as a
-                specific user.
-              </p>
+              <p style={subDescriptionStyle}>Update user profiles, change avatars/banners, or log in as a specific user.</p>
             </div>
           )}
 
-          {userManagementView === "automation" && (
+{userManagementView === "automation" && (
             <AutomationForm
               users={usersList}
               isStaffbaseTab={isStaffbaseTab}
