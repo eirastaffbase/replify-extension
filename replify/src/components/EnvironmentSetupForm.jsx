@@ -52,21 +52,28 @@ import MobileQuickLinks from "./MobileQuickLinks";
  * @param {Function} props.onSetup - Function to handle the setup process.
  * * @returns {JSX.Element} The rendered EnvironmentSetupForm component.
  */
+
 export default function EnvironmentSetupForm({
   /* toggles */
-  chatEnabled, setChatEnabled,
-  microsoftEnabled, setMicrosoftEnabled,
-  journeysEnabled, setJourneysEnabled, // Destructure new prop
-  campaignsEnabled, setCampaignsEnabled,
+  chatEnabled,
+  setChatEnabled,
+  microsoftEnabled,
+  setMicrosoftEnabled,
+  journeysEnabled,
+  setJourneysEnabled,
+  campaignsEnabled,
+  setCampaignsEnabled,
 
   /* launchpad */
-  launchpadSel, items,
-  openLaunchpad, onToggleLaunchpadOpen,
+  launchpadSel,
+  items,
+  openLaunchpad,
+  onToggleLaunchpadOpen,
   onToggleLaunchpadItem,
 
   /* quick links  */
-  quickLinksEnabled, setQuickLinksEnabled,
-
+  quickLinksEnabled,
+  setQuickLinksEnabled,
   mobileQuickLinks,
   onQuickLinkChange,
   onQuickLinkSwap,
@@ -74,12 +81,15 @@ export default function EnvironmentSetupForm({
   onQuickLinkAdd,
 
   /* widgets / merge */
-  customWidgetsChecked, setCustomWidgetsChecked,
-  mergeIntegrationsChecked, setMergeIntegrationsChecked,
-  setupEmailChecked, setSetupEmailChecked, 
-  sbEmail, setSbEmail,
-  sbPassword, setSbPassword,
-  mergeField, setMergeField,
+  customWidgetsChecked,
+  setCustomWidgetsChecked,
+  mergeIntegrationsChecked,
+  setMergeIntegrationsChecked,
+  setupEmailChecked,
+  setSetupEmailChecked,
+  mergeField,
+  setMergeField,
+  allProfileFields, // New prop for the dropdown
 
   /* submit */
   onSetup,
@@ -92,8 +102,7 @@ export default function EnvironmentSetupForm({
       {[
         ["Enable Chat", chatEnabled, setChatEnabled],
         ["Enable Microsoft Integration", microsoftEnabled, setMicrosoftEnabled],
-        ["Add Journeys", journeysEnabled, setJourneysEnabled], // Add Journeys checkbox
-        // ["Enable Campaigns", campaignsEnabled, setCampaignsEnabled],
+        ["Add Journeys", journeysEnabled, setJourneysEnabled],
       ].map(([lbl, val, setter]) => (
         <div key={lbl} style={formGroupStyle}>
           <label style={checkboxLabelStyle}>
@@ -106,10 +115,8 @@ export default function EnvironmentSetupForm({
             {lbl}
           </label>
         </div>
-      )
-    )
-      }
-        
+      ))}
+
       {/* Launchpad */}
       <div style={formGroupStyle}>
         <label style={labelStyle}>Launchpad items:</label>
@@ -131,7 +138,7 @@ export default function EnvironmentSetupForm({
             checked={quickLinksEnabled}
             onChange={(e) => setQuickLinksEnabled(e.target.checked)}
           />
-          Quick Links
+          Quick Links
         </label>
       </div>
 
@@ -151,7 +158,11 @@ export default function EnvironmentSetupForm({
       {/* Custom widgets / merge / email */}
       {[
         ["Custom Widgets?", customWidgetsChecked, setCustomWidgetsChecked],
-        [ "Merge Integrations?", mergeIntegrationsChecked, setMergeIntegrationsChecked],
+        [
+          "Merge Integrations?",
+          mergeIntegrationsChecked,
+          setMergeIntegrationsChecked,
+        ],
         ["Email Templates?", setupEmailChecked, setSetupEmailChecked],
       ].map(([lbl, val, setter]) => (
         <div key={lbl} style={formGroupStyle}>
@@ -167,47 +178,24 @@ export default function EnvironmentSetupForm({
         </div>
       ))}
 
-      {customWidgetsChecked && (
-        <div style={formGroupStyle}>
-          <label style={labelStyle}>Email/Password for Custom Widgets:</label>
-          <input
-            style={inputStyle}
-            placeholder="email"
-            value={sbEmail}
-            onChange={(e) => setSbEmail(e.target.value)}
-          />
-          <input
-            type="password"
-            style={inputStyle}
-            placeholder="password"
-            value={sbPassword}
-            onChange={(e) => setSbPassword(e.target.value)}
-          />
-        </div>
-      )}
-
       {mergeIntegrationsChecked && (
         <div style={formGroupStyle}>
-          <label style={labelStyle}>Merge/HR Integrations:</label>
-          <input
+          <label style={labelStyle}>Workday Mapping Field:</label>
+          <select
             style={inputStyle}
-            placeholder="email"
-            value={sbEmail}
-            onChange={(e) => setSbEmail(e.target.value)}
-          />
-          <input
-            type="password"
-            style={inputStyle}
-            placeholder="password"
-            value={sbPassword}
-            onChange={(e) => setSbPassword(e.target.value)}
-          />
-          <input
-            style={inputStyle}
-            placeholder="Merge Field"
             value={mergeField}
             onChange={(e) => setMergeField(e.target.value)}
-          />
+          >
+            {allProfileFields.length > 0 ? (
+              allProfileFields.map((field) => (
+                <option key={field} value={field}>
+                  {field}
+                </option>
+              ))
+            ) : (
+              <option>Loading fields...</option>
+            )}
+          </select>
         </div>
       )}
 

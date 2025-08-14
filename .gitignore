@@ -3,6 +3,7 @@
 # dependencies
 /replify/node_modules
 /replify/.pnp
+/replify/.env
 .pnp.js
 
 # testing
