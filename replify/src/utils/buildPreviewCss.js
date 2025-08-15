@@ -72,7 +72,6 @@ export default function buildPreviewCss(o) {
   const primaryInverse = isDarkColor(o.primary) ? "#fff" : "rgba(0,0,0,.7)";
   const widgetTextColor = isDarkColor(o.background) ? "#fff" : "#000";
   const headerBgTranslucent = hexToRgba(o.primary, 0.7);
-  const textOpposite = isDarkColor(o.text) ? "#fff" : "#000";
   const metaTextColor = isDarkColor(o.background)
     ? "rgba(255,255,255,0.7)"
     : "rgba(0,0,0,0.7)";
@@ -93,6 +92,11 @@ export default function buildPreviewCss(o) {
 
   const surveyColor = getSurveyColor();
   const surveyColorInverse = isDarkColor(surveyColor) ? '#fff' : 'rgba(0,0,0,0.7)';
+
+  // If the desired text color is too light (like white), fall back to the primary color.
+  const textColorHsl = hexToHsl(o.text);
+  const buttonBgColor = textColorHsl.l > 95 ? o.primary : o.text;
+  const buttonTextColor = isDarkColor(buttonBgColor) ? "#fff" : "rgba(0,0,0,.7)";
 
 
   /* ════════════════════════════════════════════
@@ -255,11 +259,10 @@ export default function buildPreviewCss(o) {
           color: ${primaryInverse} !important;
       }
 
-      /* General .sb-button styling */
       button.sb-button {
-          background-color: ${o.text} !important;
-          color: ${textOpposite} !important;
-          border-color: ${o.text} !important;
+          background-color: ${buttonBgColor} !important;
+          color: ${buttonTextColor} !important;
+          border-color: ${buttonBgColor} !important;
       }
 
       /* ================= card widgets ================= */
@@ -357,14 +360,19 @@ export default function buildPreviewCss(o) {
       }
 
       /* ================= jobs widget buttons ================= */
+
       .content-widget-wrapper.static-content-wrapper.widget-on-card.jobs
         a.clickable.external-link {
-        /* make the button background your text colour */
-        background-color: ${o.text} !important;
-        /* and make the label the inverse of that */
-        color: ${textOpposite} !important;
-        border-color: ${o.text} !important;
+        background-color: ${buttonBgColor} !important;
+        color: ${buttonTextColor} !important;
+        border-color: ${buttonBgColor} !important;
       }
+
+      job-postings a {
+        background: ${buttonBgColor} !important;
+        color: ${buttonTextColor} !important;
+      }
+
 
       /* ================= counter widget ================= */
 
@@ -389,34 +397,32 @@ export default function buildPreviewCss(o) {
         color: ${primaryInverse} !important;
       }
 
-      /* 3 — the subscribe / register button */
+      /* ✨ MODIFIED: 3 — the subscribe / register button */
       .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
         .group-subscription-block-button{
-        /* button background → text colour */
-        background-color: var(--color-client-text) !important;
-        border-color     : var(--color-client-text) !important;
-        /* label + icon → inverse of text colour */
-        color            : ${textOpposite} !important;
+        background-color: ${buttonBgColor} !important;
+        border-color    : ${buttonBgColor} !important;
+        color           : ${buttonTextColor} !important;
       }
 
-      /* 4 — SVG icon inside the button needs its own fill */
+      /* ✨ MODIFIED: 4 — SVG icon inside the button needs its own fill */
       .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
         .group-subscription-block-button svg path{
-        fill: ${textOpposite} !important;
+        fill: ${buttonTextColor} !important;
       }
 
-      /* 5 — “button-text” span inside the button */
+      /* ✨ MODIFIED: 5 — “button-text” span inside the button */
       .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
         .group-subscription-block-button .button-text{
-        color: ${textOpposite} !important;
+        color: ${buttonTextColor} !important;
       }
 
-      /* ================= standalone button‐wrapper ================= */
+      /* ✨ MODIFIED: standalone button‐wrapper ================= */
       .content-widget-wrapper.button-wrapper
         .button-block-link {
-        background-color: ${o.text} !important;
-        color: ${textOpposite} !important;
-        border-color: ${o.text} !important;
+        background-color: ${buttonBgColor} !important;
+        color: ${buttonTextColor} !important;
+        border-color: ${buttonBgColor} !important;
       }
 
     `;

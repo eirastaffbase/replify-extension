@@ -98,9 +98,9 @@ const FeedbackBanner = () => {
     saveBannerState(newState);
   };
 
-  const versionNumber = "2.1.5";
+  const versionNumber = "2.2.0";
   const darkBlueColor = '#154360';
-  const brightBlueColor = 'rgb(0, 123, 255)';
+  const brightBlueColor = '#00A4FD'; // Color from the "Share Feedback" button background
   const closeIconColor = '#AED6F1'; // Color from the "Share Feedback" button background
   const releaseNotesUrl = 'https://docs.google.com/document/d/14iV4lUkYHuHv5VY3MPiIXDdRx_8SOY5Ml1M-gSPqvRY/edit?usp=sharing';
 
@@ -140,7 +140,7 @@ const FeedbackBanner = () => {
 
   // --- EXPANDED VIEW ---
   return (
-    <div>
+    <div style={{ marginBottom: '10px' }}>
       <div style={bannerStyle}>
         <button 
           onClick={handleToggleMinimize} 
@@ -152,7 +152,7 @@ const FeedbackBanner = () => {
           onMouseEnter={() => setIsMinimizeBtnHover(true)}
           onMouseLeave={() => setIsMinimizeBtnHover(false)}
         >
-          <IoCloseCircle size={20} color={closeIconColor} />
+          <IoCloseCircle size={25} color={closeIconColor} />
         </button>
         <p style={textStyle}>
           We've streamlined the feedback form to make it easy! Please give us your thoughts anonymously 💙

@@ -34,7 +34,7 @@ export const checkboxLabelStyle = {
 };
 export const checkboxStyle = { marginRight: "8px" };
 export const buttonStyle = {
-  backgroundColor: "#007bff",
+  backgroundColor: "#00A4FD",
   color: "white",
   padding: "10px 15px",
   border: "none",

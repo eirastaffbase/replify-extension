@@ -83,9 +83,9 @@ export default function MobileQuickLinks({
           marginBottom: 10,
           padding: "4px 10px",
           borderRadius: 4,
-          border: "1px solid #007bff",
+          border: "1px solid #00A4FD",
           background: "#fff",
-          color: "#007bff",
+          color: "#00A4FD",
           cursor: "pointer",
         }}
       >

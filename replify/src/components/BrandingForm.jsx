@@ -66,7 +66,7 @@ export default function BrandingForm({
           style={{
             marginTop: 10,
             padding: 16,
-            background: "#C4E2ED",
+            background: "#EBF5FF",
             borderRadius: 4,
             marginBottom: 10,
           }}
@@ -298,7 +298,7 @@ export default function BrandingForm({
           <button
             style={{
               ...brandingButtonStyle,
-              backgroundColor: isStaffbaseTab ? "#007bff" : "grey",
+              backgroundColor: isStaffbaseTab ? "#00A4FD" : "grey",
               cursor: isStaffbaseTab ? "pointer" : "not-allowed",
             }}
             onClick={previewActive ? onCancelPreview : onPreview}

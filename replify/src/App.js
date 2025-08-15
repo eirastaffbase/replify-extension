@@ -1186,7 +1186,7 @@ function App() {
 
   const renderBreadcrumbs = () => (
     <div style={{ marginBottom: 20 }}>
-      <button style={{ background: "none", border: "none", color: "#007bff", cursor: "pointer", padding: 0, fontSize: 14 }}
+      <button style={{ background: "none", border: "none", color: "#00A4FD", cursor: "pointer", padding: 0, fontSize: 14 }}
         onClick={() => {
           setUseOption({ type: null });
           setUserManagementView("selection");
@@ -1199,7 +1199,7 @@ function App() {
 
   const renderUserMgmtBreadcrumbs = () => (
     <div style={{ marginBottom: 20 }}>
-      <button style={{ background: "none", border: "none", color: "#007bff", cursor: "pointer", padding: 0, fontSize: 14 }}
+      <button style={{ background: "none", border: "none", color: "#00A4FD", cursor: "pointer", padding: 0, fontSize: 14 }}
         onClick={() => setUserManagementView("selection")}
       >
         ← Back to User Options

@@ -49,7 +49,7 @@ export default function SavedEnvironments({
                 height: 30,
                 fontSize: 20,
                 fontWeight: "bold",
-                backgroundColor: "#007bff",
+                backgroundColor: "#00A4FD",
                 color: "white",
                 border: "none",
                 cursor: "pointer",
@@ -66,7 +66,7 @@ export default function SavedEnvironments({
 
   return (
     <div>
-      <div style={{ marginBottom: "20px" }}>
+      <div style={{ marginBottom: "5px" }}>
         <div
           style={{
             display: "flex",
@@ -83,7 +83,7 @@ export default function SavedEnvironments({
               height: 30,
               fontSize: 20,
               fontWeight: "bold",
-              backgroundColor: "#007bff",
+              backgroundColor: "#00A4FD",
               color: "white",
               border: "none",
               cursor: "pointer",

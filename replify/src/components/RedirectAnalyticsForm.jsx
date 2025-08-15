@@ -15,7 +15,7 @@ import { ANALYTICS_TYPES } from "../constants/appConstants";
 const enableButtonStyle = {
   marginTop: '12px',
   padding: '8px 15px',
-  backgroundColor: '#007bff',
+  backgroundColor: '#00A4FD',
   color: 'white',
   border: 'none',
   borderRadius: '4px',
