@@ -130,6 +130,9 @@ function App() {
     currentUser: null,
     currentStatus: null,
   });
+  
+  // Get the slug of the currently selected environment, if any
+  const selectedSlug = useOption?.type === 'select' ? useOption.slug : null;
 
   // When profile fields are loaded, set the default for the Merge dropdown
   useEffect(() => {
@@ -1240,7 +1243,9 @@ function App() {
       <SavedEnvironments
         savedTokens={savedTokens}
         showFull={showFullToken}
+        selectedSlug={selectedSlug}
         onUse={({ slug, token, branchId }) => setUseOption({ type: "select", slug, token, branchId })}
+        onCancel={() => setUseOption(null)}
         onToggle={handleShowFullToken}
         onDelete={handleDeleteToken}
         onAdd={() => setShowApiKeyInput((prev) => !prev)}

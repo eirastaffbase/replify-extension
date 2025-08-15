@@ -16,7 +16,9 @@ import {
 /**
  * @param {Array}  savedTokens   [{ slug, truncatedToken, fullToken }]
  * @param {string} showFull      slug that’s currently “expanded”
+ * @param {string|null} selectedSlug The slug of the currently selected environment
  * @param {Function} onUse       ({ slug, token, branchId }) => void
+ * @param {Function} onCancel    () => void
  * @param {Function} onToggle    (slug)  → toggle full/short token
  * @param {Function} onDelete    (slug)  → remove token
  * @param {Function} onAdd      ()      → show form to add new token
@@ -24,11 +26,20 @@ import {
 export default function SavedEnvironments({
   savedTokens,
   showFull,
+  selectedSlug,
   onUse,
+  onCancel,
   onToggle,
   onDelete,
   onAdd,
 }) {
+  // If an environment is selected, show only that one. Otherwise, show all.
+  const environmentsToShow = selectedSlug
+    ? savedTokens.filter(({ slug }) => slug === selectedSlug)
+    : savedTokens;
+
+  const isAnEnvironmentSelected = !!selectedSlug;
+
   if (!savedTokens.length) {
     return (
       <div>
@@ -75,25 +86,28 @@ export default function SavedEnvironments({
           }}
         >
           <h3 style={{ margin: 0 }}>Saved environments</h3>
-          <button
-            onClick={() => onAdd()}
-            style={{
-              borderRadius: "50%",
-              width: 30,
-              height: 30,
-              fontSize: 20,
-              fontWeight: "bold",
-              backgroundColor: "#00A4FD",
-              color: "white",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            +
-          </button>
+          {/* Hide the 'Add' button when an environment is selected */}
+          {!isAnEnvironmentSelected && (
+            <button
+              onClick={() => onAdd()}
+              style={{
+                borderRadius: "50%",
+                width: 30,
+                height: 30,
+                fontSize: 20,
+                fontWeight: "bold",
+                backgroundColor: "#00A4FD",
+                color: "white",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              +
+            </button>
+          )}
         </div>
       </div>
-      {savedTokens.map(({ slug, truncatedToken, fullToken, branchId }) => (
+      {environmentsToShow.map(({ slug, truncatedToken, fullToken, branchId }) => (
         <div key={slug} style={savedTokenStyle}>
           <div>
             <strong>{slug}</strong>
@@ -116,27 +130,39 @@ export default function SavedEnvironments({
           </div>
 
           <div style={buttonsContainerStyle}>
-            <button
-              style={{ ...buttonStyle, ...actionButtonStyle, marginTop: 0 }}
-              onClick={() => onUse({ slug, token: fullToken, branchId })}
-            >
-              Use
-            </button>
-            <button
-              style={{
-                ...dangerButtonStyle,
-                ...actionButtonStyle,
-                marginTop: 0,
-                display: 'flex', // Helps center the icon
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              onClick={() => onDelete(slug)}
-              title={`Delete ${slug}`} // Added for accessibility
-            >
-              {/* Replaced text with the icon */}
-              <FaTrash color="white" />
-            </button>
+            {isAnEnvironmentSelected ? (
+              <button
+                style={{ ...buttonStyle, ...dangerButtonStyle, marginTop: 0 }}
+                onClick={onCancel}
+              >
+                Cancel
+              </button>
+            ) : (
+              <button
+                style={{ ...buttonStyle, ...actionButtonStyle, marginTop: 0 }}
+                onClick={() => onUse({ slug, token: fullToken, branchId })}
+              >
+                Use
+              </button>
+            )}
+            
+            {/* Hide the 'Delete' button when an environment is selected */}
+            {!isAnEnvironmentSelected && (
+              <button
+                style={{
+                  ...dangerButtonStyle,
+                  ...actionButtonStyle,
+                  marginTop: 0,
+                  display: 'flex', // Helps center the icon
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onClick={() => onDelete(slug)}
+                title={`Delete ${slug}`} // Added for accessibility
+              >
+                <FaTrash color="white" />
+              </button>
+            )}
           </div>
         </div>
       ))}
