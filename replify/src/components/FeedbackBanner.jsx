@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RiMessage2Fill } from 'react-icons/ri';
+import { MdOutlineFeedback } from "react-icons/md";
 import { IoCloseCircle } from "react-icons/io5"; // New close icon
 import { loadBannerState, saveBannerState } from '../utils/bannerStorage';
 
@@ -69,7 +69,7 @@ const minimizedContainerStyle = {
   display: 'flex',
   alignItems: 'center',
   gap: '8px',
-  padding: '4px 0',
+  marginTop: '-5px',
 };
 
 const iconButtonStyle = {
@@ -118,7 +118,7 @@ const FeedbackBanner = () => {
           onMouseEnter={() => setIsExpandBtnHover(true)}
           onMouseLeave={() => setIsExpandBtnHover(false)}
         >
-          <RiMessage2Fill size={20} color={brightBlueColor} />
+          <MdOutlineFeedback size={20} color={brightBlueColor} />
         </button>
         <a 
           href={releaseNotesUrl}

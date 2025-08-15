@@ -21,7 +21,6 @@ import { LAUNCHPAD_DICT, blockRegex } from "./constants/appConstants";
 import {
   responseStyle,
   containerStyle,
-  headingStyle,
   brandingButtonStyle,
   subDescriptionStyle,
 } from "./styles";
@@ -118,6 +117,7 @@ function App() {
   /* 🔄  UI / async status -------------------------------------------------- */
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState("");
+  const [isLogoHovered, setIsLogoHovered] = useState(false);
 
   /* 🌐  Browser-specific --------------------------------------------------- */
   const isStaffbaseTab = useStaffbaseTab(); // are we viewing a Staffbase page?
@@ -131,8 +131,9 @@ function App() {
     currentStatus: null,
   });
   
-  // Get the slug of the currently selected environment, if any
-  const selectedSlug = useOption?.type === 'select' ? useOption.slug : null;
+  // Get the slug from the useOption state if it exists.
+  // This ensures the environment list stays filtered after an action is chosen.
+  const selectedSlug = useOption?.slug ?? null;
 
   // When profile fields are loaded, set the default for the Merge dropdown
   useEffect(() => {
@@ -674,7 +675,8 @@ function App() {
     setApiToken(token);
     setBranchId(branchId);
     setIsAuthenticated(true);
-    setUseOption({ type: mode, token, branchId });
+    // Persist the slug in the state object to keep the env list filtered
+    setUseOption({ type: mode, slug: useOption.slug, token, branchId });
     setUserManagementView("selection");
 
     if (mode === "new") {
@@ -1187,6 +1189,14 @@ function App() {
      UI UTILS & RENDER
   ────────────────────────────────────────────────────────────── */
 
+  const logoStyle = {
+    width: '150px',
+    marginBottom: '10px',
+    transition: 'transform 0.2s ease-in-out',
+    transform: isLogoHovered ? 'scale(1.05)' : 'scale(1)',
+    cursor: 'pointer', // Indicates the logo is interactive
+  };
+
   const renderBreadcrumbs = () => (
     <div style={{ marginBottom: 20 }}>
       <button style={{ background: "none", border: "none", color: "#00A4FD", cursor: "pointer", padding: 0, fontSize: 14 }}
@@ -1237,7 +1247,13 @@ function App() {
 
   return (
     <div style={containerStyle}>
-      <h1 style={headingStyle}>Replify</h1>
+      <img
+        src="https://eirastaffbase.github.io/replify/replifyLogo.svg"
+        alt="Replify Logo"
+        style={logoStyle}
+        onMouseEnter={() => setIsLogoHovered(true)}
+        onMouseLeave={() => setIsLogoHovered(false)}
+      />
       <FeedbackBanner />
 
       <SavedEnvironments
@@ -1251,12 +1267,14 @@ function App() {
         onAdd={() => setShowApiKeyInput((prev) => !prev)}
       />
 
-      <RedirectAnalyticsForm
-        open={redirectOpen}
-        onToggleOpen={() => setRedirectOpen((o) => !o)}
-        state={redirectState}
-        onToggleType={handleToggleRedirect}
-      />
+      {!selectedSlug && (
+        <RedirectAnalyticsForm
+          open={redirectOpen}
+          onToggleOpen={() => setRedirectOpen((o) => !o)}
+          state={redirectState}
+          onToggleType={handleToggleRedirect}
+        />
+      )}
 
       {useOption?.type && renderBreadcrumbs()}
 

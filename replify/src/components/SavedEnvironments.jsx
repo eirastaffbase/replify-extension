@@ -3,7 +3,7 @@
 
 
 import React from "react";
-import { FaTrash } from "react-icons/fa6"; // Imported the trash icon
+import { LuTrash } from "react-icons/lu";
 import {
   buttonStyle,
   actionButtonStyle,
@@ -160,7 +160,7 @@ export default function SavedEnvironments({
                 onClick={() => onDelete(slug)}
                 title={`Delete ${slug}`} // Added for accessibility
               >
-                <FaTrash color="white" />
+                <LuTrash color="white" />
               </button>
             )}
           </div>
