@@ -107,65 +107,74 @@ export default function SavedEnvironments({
           )}
         </div>
       </div>
-      {environmentsToShow.map(({ slug, truncatedToken, fullToken, branchId }) => (
-        <div key={slug} style={savedTokenStyle}>
-          <div>
-            <strong>{slug}</strong>
-            <div style={apiKeyLabelStyle}>
-              {showFull === slug ? fullToken : truncatedToken}
-              <button
-                style={{
-                  ...actionButtonStyle,
-                  border: "none",
-                  background: "none",
-                  cursor: "pointer",
-                  padding: 0,
-                  marginLeft: 5,
-                }}
-                onClick={() => onToggle(slug)}
-              >
-                {showFull === slug ? "Hide" : "Show Full"}
-              </button>
+      {environmentsToShow.map(({ slug, truncatedToken, fullToken, branchId }) => {
+        // Create a copy of the base style
+        const dynamicSavedTokenStyle = { ...savedTokenStyle };
+        // If only one environment is being shown, remove its bottom border
+        if (environmentsToShow.length === 1) {
+          dynamicSavedTokenStyle.borderBottom = "none";
+        }
+        
+        return (
+          <div key={slug} style={dynamicSavedTokenStyle}>
+            <div>
+              <strong>{slug}</strong>
+              <div style={apiKeyLabelStyle}>
+                {showFull === slug ? fullToken : truncatedToken}
+                <button
+                  style={{
+                    ...actionButtonStyle,
+                    border: "none",
+                    background: "none",
+                    cursor: "pointer",
+                    padding: 0,
+                    marginLeft: 5,
+                  }}
+                  onClick={() => onToggle(slug)}
+                >
+                  {showFull === slug ? "Hide" : "Show Full"}
+                </button>
+              </div>
+            </div>
+
+            <div style={buttonsContainerStyle}>
+              {isAnEnvironmentSelected ? (
+                <button
+                  style={{ ...buttonStyle, ...dangerButtonStyle, marginTop: 0 }}
+                  onClick={onCancel}
+                >
+                  Cancel
+                </button>
+              ) : (
+                <button
+                  style={{ ...buttonStyle, ...actionButtonStyle, marginTop: 0 }}
+                  onClick={() => onUse({ slug, token: fullToken, branchId })}
+                >
+                  Use
+                </button>
+              )}
+
+              {/* Hide the 'Delete' button when an environment is selected */}
+              {!isAnEnvironmentSelected && (
+                <button
+                  style={{
+                    ...dangerButtonStyle,
+                    ...actionButtonStyle,
+                    marginTop: 0,
+                    display: 'flex', // Helps center the icon
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  onClick={() => onDelete(slug)}
+                  title={`Delete ${slug}`} // Added for accessibility
+                >
+                  <LuTrash color="white" />
+                </button>
+              )}
             </div>
           </div>
-
-          <div style={buttonsContainerStyle}>
-            {isAnEnvironmentSelected ? (
-              <button
-                style={{ ...buttonStyle, ...dangerButtonStyle, marginTop: 0 }}
-                onClick={onCancel}
-              >
-                Cancel
-              </button>
-            ) : (
-              <button
-                style={{ ...buttonStyle, ...actionButtonStyle, marginTop: 0 }}
-                onClick={() => onUse({ slug, token: fullToken, branchId })}
-              >
-                Use
-              </button>
-            )}
-            
-            {/* Hide the 'Delete' button when an environment is selected */}
-            {!isAnEnvironmentSelected && (
-              <button
-                style={{
-                  ...dangerButtonStyle,
-                  ...actionButtonStyle,
-                  marginTop: 0,
-                  display: 'flex', // Helps center the icon
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                onClick={() => onDelete(slug)}
-                title={`Delete ${slug}`} // Added for accessibility
-              >
-                <LuTrash color="white" />
-              </button>
-            )}
-          </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   );
 }

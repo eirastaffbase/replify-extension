@@ -23,6 +23,7 @@ import {
   containerStyle,
   brandingButtonStyle,
   subDescriptionStyle,
+  logoStyle,
 } from "./styles";
 
 /* ───── Components ───── */
@@ -1189,13 +1190,7 @@ function App() {
      UI UTILS & RENDER
   ────────────────────────────────────────────────────────────── */
 
-  const logoStyle = {
-    width: '150px',
-    marginBottom: '10px',
-    transition: 'transform 0.2s ease-in-out',
-    transform: isLogoHovered ? 'scale(1.05)' : 'scale(1)',
-    cursor: 'pointer', // Indicates the logo is interactive
-  };
+
 
   const renderBreadcrumbs = () => (
     <div style={{ marginBottom: 20 }}>
