@@ -15,6 +15,8 @@ import {
   saveTokensToStorage,
 } from "./utils/tokenStorage";
 import { automationScript } from "./utils/automationRunner";
+import { normaliseLinkedInUrl, buildImagePayload } from "./utils/helpers";
+import { parseBrandingFromCSS } from "./utils/branding";
 
 /* ───── Constants & styles ───── */
 import { LAUNCHPAD_DICT, blockRegex } from "./constants/appConstants";
@@ -118,7 +120,6 @@ function App() {
   /* 🔄  UI / async status -------------------------------------------------- */
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState("");
-  const [isLogoHovered, setIsLogoHovered] = useState(false);
 
   /* 🌐  Browser-specific --------------------------------------------------- */
   const isStaffbaseTab = useStaffbaseTab(); // are we viewing a Staffbase page?
@@ -133,7 +134,6 @@ function App() {
   });
   
   // Get the slug from the useOption state if it exists.
-  // This ensures the environment list stays filtered after an action is chosen.
   const selectedSlug = useOption?.slug ?? null;
 
   // When profile fields are loaded, set the default for the Merge dropdown
@@ -282,36 +282,6 @@ function App() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-    /**
-   * Builds the image payload. Original URL has no transforms.
-   * Thumbs and icons use a standard fill-crop.
-   */
-
-  const buildImagePayload = (fileId) => {
-    const baseUrl = `https://app.staffbase.com/api/media/secure/external/v2/image/upload/`;
-    return {
-      original: {
-        url: `${baseUrl}${fileId}`,
-        size: 100000,
-        width: 1920,
-        height: 1080,
-        created: String(Date.now()),
-        format: "jpg",
-        mimeType: "image/jpeg",
-      },
-      icon: {
-        url: `${baseUrl}c_fill,w_70,h_70/${fileId}`,
-        format: "jpg",
-        mimeType: "image/jpeg",
-      },
-      thumb: {
-        url: `${baseUrl}c_fill,w_200,h_200/${fileId}`,
-        format: "jpg",
-        mimeType: "image/jpeg",
-      },
-    };
   };
 
     /**
@@ -501,49 +471,24 @@ function App() {
   const pullCurrentBranding = async () => {
     try {
       const css = await fetchCurrentCSS(apiToken);
-      const match = css.match(blockRegex);
-      if (!match) throw new Error("No Replify block found.");
-
-      const block = match[0];
-      const nameMatch = block.match(/\/\*\s*prospect:(.*?)\*\//i);
-      if (nameMatch) setProspectName(nameMatch[1].trim());
-      const grabRaw = (v) =>
-        (block.match(new RegExp(`--${v}\\s*:\\s*([^;]+);`, "i")) ||
-          [])[1]?.trim();
-      const clean = (val = "") =>
-        val
-          .replace(/!important/i, "")
-          .trim()
-          .replace(/^['"]|['"]$/g, "");
-      const pxToNum = (val = "") => parseInt(val.replace("px", ""), 10) || 0;
-      const extractUrl = (raw = "") =>
-        (raw.match(/url\(["']?(.*?)["']?\)/i) || [])[1] || "";
-
-      setPrimaryColor(clean(grabRaw("color-client-primary")) || primaryColor);
-      setTextColor(clean(grabRaw("color-client-text")) || textColor);
-      setBackgroundColor(
-        clean(grabRaw("color-client-background")) || backgroundColor
-      );
-      setFloatingNavBgColor(
-        clean(grabRaw("color-floating-nav-bg")) || floatingNavBgColor
-      );
-      setFloatingNavTextColor(
-        clean(grabRaw("color-floating-nav-text")) || floatingNavTextColor
-      );
-      setBgURL(extractUrl(grabRaw("bg-image")) || bgUrl);
-      setLogoUrl(extractUrl(grabRaw("logo-url")) || logoUrl);
-      const pad = (grabRaw("padding-logo-size") || "").split(" ") || [];
-      setLogoPadHeight(pxToNum(pad[0]) || logoPadHeight);
-      setLogoPadWidth(pxToNum(pad[1]) || logoPadWidth);
-      const pos = (grabRaw("bg-image-position") || "").split(" ") || [];
-      setBgVertical(
-        parseInt((pos[1] || "").replace("%", ""), 10) || bgVertical
-      );
+      const brandingData = parseBrandingFromCSS(css, blockRegex);
+      if (brandingData.prospectName) setProspectName(brandingData.prospectName);
+      setPrimaryColor(brandingData.primaryColor || primaryColor);
+      setTextColor(brandingData.textColor || textColor);
+      setBackgroundColor(brandingData.backgroundColor || backgroundColor);
+      setFloatingNavBgColor(brandingData.floatingNavBgColor || floatingNavBgColor);
+      setFloatingNavTextColor(brandingData.floatingNavTextColor || floatingNavTextColor);
+      setBgURL(brandingData.bgUrl || bgUrl);
+      setLogoUrl(brandingData.logoUrl || logoUrl);
+      setLogoPadHeight(brandingData.logoPadHeight || logoPadHeight);
+      setLogoPadWidth(brandingData.logoPadWidth || logoPadWidth);
+      setBgVertical(brandingData.bgVertical || bgVertical);
       setResponse("✅ Pulled current branding into the form.");
     } catch (err) {
       setResponse(`❌ ${err.message}`);
     }
   };
+
 
   async function cancelPreview() {
     try {
@@ -723,10 +668,7 @@ function App() {
    BRAND / NEWS CREATION
    ────────────────────────────────────────────────────────────── */
 
-  /** Helper: ensure the LinkedIn URL ends with `/posts/?feedView=images`. */
 
-  const normaliseLinkedInUrl = (raw) =>
-    raw.replace(/\/posts.*$/i, "").replace(/\/$/, "") + "/posts/?feedView=images";
 
     /**
    * Create or update demo resources:

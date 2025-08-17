@@ -107,9 +107,6 @@ export const subDescriptionStyle = {
   lineHeight: '1.4',
 };
 export const logoStyle = {
-  width: '150px',
-  marginBottom: '10px',
-  transition: 'transform 0.2s ease-in-out',
-  transform: isLogoHovered ? 'scale(1.05)' : 'scale(1)',
-  cursor: 'pointer', 
+  width: '100px',
+  marginBottom: '5px',
 };
