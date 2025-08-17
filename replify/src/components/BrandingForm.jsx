@@ -1,6 +1,6 @@
 // components/BrandingForm.jsx
 
-import React from "react";
+import React, { useState } from "react";
 import {
   formGroupStyle,
   inputStyle,
@@ -9,6 +9,7 @@ import {
   brandingButtonStyle,
   labelStyle,
 } from "../styles";
+import { colors } from "../styles/colors";
 
 export default function BrandingForm({
   /* flags & handlers */
@@ -52,6 +53,7 @@ export default function BrandingForm({
   /* submit */
   onCreateDemo,
 }) {
+  const [hoveredButton, setHoveredButton] = useState(null);
   /* helper so we don’t repeat the preview-kick logic everywhere */
   const withPreview = (setter) => (value) => {
     setter(value);
@@ -66,7 +68,7 @@ export default function BrandingForm({
           style={{
             marginTop: 10,
             padding: 16,
-            background: "#EBF5FF",
+            background: colors.backgroundInfo,
             borderRadius: 4,
             marginBottom: 10,
           }}
@@ -74,20 +76,22 @@ export default function BrandingForm({
           This environment is already branded with Replify.
           <br />
           <strong>Adding branding will replace the existing branding.</strong>
-          <div style={{ margin: "10px 0", display: "flex", gap: 12 }}> {/* Adjusted gap for spacing */}
+          <div style={{ margin: "10px 0", display: "flex", gap: 12 }}>
             <button
               style={{
                 ...brandingButtonStyle,
-                background: "crimson",
-                color: "white",
+                background: hoveredButton === 'delete' ? colors.dangerLight : colors.danger,
+                color: colors.textOnPrimary,
                 fontSize: "12px",
-                display: "flex",        // Enable flex layout for icon and text
-                alignItems: "center",   // Vertically align items
-                justifyContent: "center" // Center content horizontally
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
               onClick={onDeleteBranding}
+              onMouseEnter={() => setHoveredButton('delete')}
+              onMouseLeave={() => setHoveredButton(null)}
             >
-              <span style={{ fontSize: "24px", marginRight: 6 }}>✖︎</span> {/* Bigger icon with some spacing */}
+              <span style={{ fontSize: "24px", marginRight: 6 }}>✖︎</span>
               Delete branding
             </button>
             <button
@@ -95,12 +99,15 @@ export default function BrandingForm({
               style={{
                 ...brandingButtonStyle,
                 fontSize: "12px",
-                display: "flex",        // Enable flex layout for icon and text
-                alignItems: "center",   // Vertically align items
-                justifyContent: "center" // Center content horizontally
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: hoveredButton === 'pull' ? colors.primaryLight : colors.primary,
               }}
+              onMouseEnter={() => setHoveredButton('pull')}
+              onMouseLeave={() => setHoveredButton(null)}
             >
-              <span style={{ fontSize: "24px", marginRight: 6 }}>⟳</span> {/* Bigger icon with some spacing */}
+              <span style={{ fontSize: "24px", marginRight: 6 }}>⟳</span>
               Pull current
             </button>
           </div>
@@ -298,20 +305,29 @@ export default function BrandingForm({
           <button
             style={{
               ...brandingButtonStyle,
-              backgroundColor: isStaffbaseTab ? "#00A4FD" : "grey",
+              backgroundColor: isStaffbaseTab 
+                ? (hoveredButton === 'preview' ? colors.primaryLight : colors.primary) 
+                : "grey",
               cursor: isStaffbaseTab ? "pointer" : "not-allowed",
             }}
             onClick={previewActive ? onCancelPreview : onPreview}
             disabled={!isStaffbaseTab}
+            onMouseEnter={() => setHoveredButton('preview')}
+            onMouseLeave={() => setHoveredButton(null)}
           >
             {previewActive ? "✖︎ Cancel Preview" : "Preview Branding"}
           </button>
         )}
 
         <button
-          style={brandingButtonStyle}
+          style={{
+            ...brandingButtonStyle,
+            backgroundColor: hoveredButton === 'create' ? colors.primaryLight : colors.primary,
+          }}
           disabled={!includeBranding && !includeArticles}
           onClick={onCreateDemo}
+          onMouseEnter={() => setHoveredButton('create')}
+          onMouseLeave={() => setHoveredButton(null)}
         >
           {getCreateLabel()}
         </button>

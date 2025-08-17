@@ -2,7 +2,7 @@
 // This component displays a list of saved tokens with options to use, delete, or toggle their visibility.
 
 
-import React from "react";
+import React, { useState } from "react";
 import { LuTrash } from "react-icons/lu";
 import {
   buttonStyle,
@@ -11,7 +11,10 @@ import {
   apiKeyLabelStyle,
   savedTokenStyle,
   buttonsContainerStyle,
+  buttonTinyStyle,
 } from "../styles";
+import { colors } from "../styles/colors";
+
 
 /**
  * @param {Array}  savedTokens   [{ slug, truncatedToken, fullToken }]
@@ -33,6 +36,8 @@ export default function SavedEnvironments({
   onDelete,
   onAdd,
 }) {
+  const [hoveredButton, setHoveredButton] = useState(null);
+
   // If an environment is selected, show only that one. Otherwise, show all.
   const environmentsToShow = selectedSlug
     ? savedTokens.filter(({ slug }) => slug === selectedSlug)
@@ -60,7 +65,7 @@ export default function SavedEnvironments({
                 height: 30,
                 fontSize: 20,
                 fontWeight: "bold",
-                backgroundColor: "#00A4FD",
+                backgroundColor: colors.primary,
                 color: "white",
                 border: "none",
                 cursor: "pointer",
@@ -74,7 +79,6 @@ export default function SavedEnvironments({
       </div>
     );
   }
-
   return (
     <div>
       <div style={{ marginBottom: "5px" }}>
@@ -96,11 +100,14 @@ export default function SavedEnvironments({
                 height: 30,
                 fontSize: 20,
                 fontWeight: "bold",
-                backgroundColor: "#00A4FD",
-                color: "white",
+                backgroundColor: hoveredButton === 'add' ? colors.primaryLight : colors.primary,
+                color: colors.textOnPrimary,
                 border: "none",
                 cursor: "pointer",
+                transition: "background-color 0.2s ease-in-out",
               }}
+              onMouseEnter={() => setHoveredButton('add')}
+              onMouseLeave={() => setHoveredButton(null)}
             >
               +
             </button>
@@ -123,14 +130,14 @@ export default function SavedEnvironments({
                 {showFull === slug ? fullToken : truncatedToken}
                 <button
                   style={{
-                    ...actionButtonStyle,
-                    border: "none",
-                    background: "none",
-                    cursor: "pointer",
-                    padding: 0,
+                    ...buttonTinyStyle,
                     marginLeft: 5,
+                    color: hoveredButton === `toggle-${slug}` ? colors.primaryLight : colors.primary,
+                    textDecoration: hoveredButton === `toggle-${slug}` ? 'underline' : 'none',
                   }}
                   onClick={() => onToggle(slug)}
+                  onMouseEnter={() => setHoveredButton(`toggle-${slug}`)}
+                  onMouseLeave={() => setHoveredButton(null)}
                 >
                   {showFull === slug ? "Hide" : "Show Full"}
                 </button>
@@ -140,35 +147,51 @@ export default function SavedEnvironments({
             <div style={buttonsContainerStyle}>
               {isAnEnvironmentSelected ? (
                 <button
-                  style={{ ...buttonStyle, ...dangerButtonStyle, marginTop: 0 }}
+                  style={{ 
+                    ...buttonStyle, 
+                    ...dangerButtonStyle, 
+                    marginTop: 0,
+                    backgroundColor: hoveredButton === 'cancel' ? colors.dangerLight : colors.danger,
+                  }}
                   onClick={onCancel}
+                  onMouseEnter={() => setHoveredButton('cancel')}
+                  onMouseLeave={() => setHoveredButton(null)}
                 >
                   Cancel
                 </button>
               ) : (
                 <button
-                  style={{ ...buttonStyle, ...actionButtonStyle, marginTop: 0 }}
+                  style={{ 
+                    ...buttonStyle, 
+                    ...actionButtonStyle, 
+                    marginTop: 0,
+                    backgroundColor: hoveredButton === `use-${slug}` ? colors.primaryLight : colors.primary,
+                  }}
                   onClick={() => onUse({ slug, token: fullToken, branchId })}
+                  onMouseEnter={() => setHoveredButton(`use-${slug}`)}
+                  onMouseLeave={() => setHoveredButton(null)}
                 >
                   Use
                 </button>
               )}
 
-              {/* Hide the 'Delete' button when an environment is selected */}
               {!isAnEnvironmentSelected && (
                 <button
                   style={{
                     ...dangerButtonStyle,
                     ...actionButtonStyle,
                     marginTop: 0,
-                    display: 'flex', // Helps center the icon
+                    display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    backgroundColor: hoveredButton === `delete-${slug}` ? colors.dangerLight : colors.danger,
                   }}
                   onClick={() => onDelete(slug)}
-                  title={`Delete ${slug}`} // Added for accessibility
+                  title={`Delete ${slug}`}
+                  onMouseEnter={() => setHoveredButton(`delete-${slug}`)}
+                  onMouseLeave={() => setHoveredButton(null)}
                 >
-                  <LuTrash color="white" />
+                  <LuTrash color={colors.textOnPrimary} />
                 </button>
               )}
             </div>

@@ -1,6 +1,7 @@
 // components/MobileQuickLinks.jsx
 import React from "react";
 import { inputStyle, buttonTinyStyle } from "../styles";
+import { colors } from "../styles/colors";
 
 /**
  * @typedef {{ name:string, title:string, position:number }} QuickLink
@@ -83,9 +84,9 @@ export default function MobileQuickLinks({
           marginBottom: 10,
           padding: "4px 10px",
           borderRadius: 4,
-          border: "1px solid #00A4FD",
+          border: `1px solid ${colors.primary}`,
           background: "#fff",
-          color: "#00A4FD",
+          color: colors.primary,
           cursor: "pointer",
         }}
       >

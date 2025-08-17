@@ -27,6 +27,7 @@ import {
   subDescriptionStyle,
   logoStyle,
 } from "./styles";
+import { colors } from "./styles/colors"; // Import new colors
 
 /* ───── Components ───── */
 import SavedEnvironments from "./components/SavedEnvironments";
@@ -1136,7 +1137,7 @@ function App() {
 
   const renderBreadcrumbs = () => (
     <div style={{ marginBottom: 20 }}>
-      <button style={{ background: "none", border: "none", color: "#00A4FD", cursor: "pointer", padding: 0, fontSize: 14 }}
+      <button style={{ background: "none", border: "none", color: colors.primary, cursor: "pointer", padding: 0, fontSize: 14 }}
         onClick={() => {
           setUseOption({ type: null });
           setUserManagementView("selection");
@@ -1149,7 +1150,7 @@ function App() {
 
   const renderUserMgmtBreadcrumbs = () => (
     <div style={{ marginBottom: 20 }}>
-      <button style={{ background: "none", border: "none", color: "#00A4FD", cursor: "pointer", padding: 0, fontSize: 14 }}
+      <button style={{ background: "none", border: "none", color: colors.primary, cursor: "pointer", padding: 0, fontSize: 14 }}
         onClick={() => setUserManagementView("selection")}
       >
         ← Back to User Options

@@ -1,7 +1,8 @@
 import React from 'react';
+import { colors } from '../styles/colors';
 
 const progressContainerStyle = { width: '100%', backgroundColor: '#e0e0e0', borderRadius: '4px', marginTop: '15px', overflow: 'hidden', border: '1px solid #ccc' };
-const fillerStyle = { height: '24px', backgroundColor: '#00A4FD', textAlign: 'right', transition: 'width 0.4s ease-in-out', display: 'flex', alignItems: 'center', justifyContent: 'center' };
+const fillerStyle = { height: '24px', backgroundColor: colors.primary, textAlign: 'right', transition: 'width 0.4s ease-in-out', display: 'flex', alignItems: 'center', justifyContent: 'center' };
 const labelStyle = { padding: '5px', color: 'white', fontWeight: 'bold', fontSize: '12px', textShadow: '1px 1px 1px rgba(0,0,0,0.3)' };
 const statusTextStyle = { textAlign: 'center', fontSize: '13px', marginTop: '8px', color: '#333', fontStyle: 'italic' };
 
