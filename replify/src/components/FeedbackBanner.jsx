@@ -1,15 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { MdOutlineFeedback } from "react-icons/md";
-import { IoCloseCircle } from "react-icons/io5"; // New close icon
+import { IoCloseCircle } from "react-icons/io5";
 import { loadBannerState, saveBannerState } from '../utils/bannerStorage';
 
-// --- Base Styles ---
+// --- Unified Color Palette ---
+const colors = {
+  background: '#F8F9FA',      // Lightest grey (almost white)
+  buttonAndIcon: '#CFD3D7',   // Medium light grey
+  buttonHover: '#F1F3F5',     // Lighter grey for hover
+  text: '#495057',            // Darkest grey
+  border: '#DEE2E6',          // A slightly darker grey for contrast
+  retainedBlue: '#00A4FD',    // The blue for the minimized icon & version
+};
 
+// --- Base Styles ---
 const bannerStyle = {
   position: 'relative', 
-  backgroundColor: '#EBF5FF',
-  border: '1px solid #5DADE2',
-  color: '#1A5276',
+  backgroundColor: colors.background,
+  border: `1px solid ${colors.border}`,
+  color: colors.text,
   padding: '12px 16px',
   borderRadius: '4px',
   fontSize: '14px',
@@ -22,7 +31,6 @@ const bannerStyle = {
   gap: '8px',
 };
 
-// Added more horizontal padding to prevent text from overlapping the close icon
 const textStyle = {
   margin: 0,
   lineHeight: '1.5',
@@ -30,8 +38,8 @@ const textStyle = {
 };
 
 const buttonStyle = {
-  backgroundColor: '#AED6F1',
-  color: '#154360',
+  backgroundColor: colors.buttonAndIcon,
+  color: colors.text,
   border: 'none',
   borderRadius: '4px',
   padding: '6px 12px',
@@ -46,11 +54,10 @@ const buttonStyle = {
 const releaseNotesStyle = {
   fontSize: '10px',
   textDecoration: 'none',
-  color: '#154360',
+  color: colors.text,
   transition: 'text-decoration 0.2s ease-in-out',
 };
 
-// Reverted to a simple transparent button for the icon
 const minimizeButtonStyle = {
   position: 'absolute',
   top: '5px',
@@ -62,7 +69,6 @@ const minimizeButtonStyle = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  transition: 'opacity 0.2s ease-in-out',
 };
 
 const minimizedContainerStyle = {
@@ -99,9 +105,6 @@ const FeedbackBanner = () => {
   };
 
   const versionNumber = "2.2.0";
-  const darkBlueColor = '#154360';
-  const brightBlueColor = '#00A4FD'; // Color from the "Share Feedback" button background
-  const closeIconColor = '#AED6F1'; // Color from the "Share Feedback" button background
   const releaseNotesUrl = 'https://docs.google.com/document/d/14iV4lUkYHuHv5VY3MPiIXDdRx_8SOY5Ml1M-gSPqvRY/edit?usp=sharing';
 
   // --- MINIMIZED VIEW ---
@@ -118,13 +121,13 @@ const FeedbackBanner = () => {
           onMouseEnter={() => setIsExpandBtnHover(true)}
           onMouseLeave={() => setIsExpandBtnHover(false)}
         >
-          <MdOutlineFeedback size={20} color={brightBlueColor} />
+          <MdOutlineFeedback size={20} color={colors.retainedBlue} />
         </button>
         <a 
           href={releaseNotesUrl}
           style={{
             ...releaseNotesStyle,
-            color: brightBlueColor,
+            color: colors.retainedBlue,
             ...(isNotesLinkHover && { textDecoration: 'underline' })
           }}
           target="_blank"  
@@ -144,15 +147,12 @@ const FeedbackBanner = () => {
       <div style={bannerStyle}>
         <button 
           onClick={handleToggleMinimize} 
-          style={{
-            ...minimizeButtonStyle,
-            ...(isMinimizeBtnHover && { opacity: 0.7 }) // Simple opacity hover
-          }} 
+          style={minimizeButtonStyle}
           title="Close banner"
           onMouseEnter={() => setIsMinimizeBtnHover(true)}
           onMouseLeave={() => setIsMinimizeBtnHover(false)}
         >
-          <IoCloseCircle size={25} color={closeIconColor} />
+          <IoCloseCircle size={20} color={isMinimizeBtnHover ? colors.buttonHover : colors.buttonAndIcon} />
         </button>
         <p style={textStyle}>
           We've streamlined the feedback form to make it easy! Please give us your thoughts anonymously 💙
@@ -163,7 +163,7 @@ const FeedbackBanner = () => {
           rel="noopener noreferrer"
           style={{
             ...buttonStyle,
-            ...(isFeedbackBtnHover && { backgroundColor: '#9CBED9' })
+            ...(isFeedbackBtnHover && { backgroundColor: colors.buttonHover })
           }}
           onMouseEnter={() => setIsFeedbackBtnHover(true)}
           onMouseLeave={() => setIsFeedbackBtnHover(false)}
@@ -184,7 +184,7 @@ const FeedbackBanner = () => {
       >
         Version Release Notes
       </a>
-      <span style={{ fontStyle: "oblique", fontSize: "10px", color: darkBlueColor }}> {versionNumber}</span>
+      <span style={{ fontStyle: "oblique", fontSize: "10px", color: colors.text }}> {versionNumber}</span>
     </div>
   );
 };
