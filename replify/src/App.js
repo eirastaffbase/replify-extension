@@ -9,7 +9,7 @@ import useStaffbaseTab from "./hooks/useStaffbaseTab";
 import useSavedTokens from "./hooks/useSavedTokens";
 import useAnalyticsRedirects from "./hooks/useAnalyticsRedirects";
 import buildPreviewCss from "./utils/buildPreviewCss";
-import { fetchCurrentCSS, postUpdatedCSS } from "./utils/staffbaseCss";
+import { fetchCurrentCSS, postUpdatedCSS, resetDesktopTheme } from "./utils/staffbaseCss";
 import {
   loadTokensFromStorage,
   saveTokensToStorage,
@@ -67,6 +67,7 @@ function App() {
   const [bgVertical, setBgVertical] = useState(0);
   const [previewActive, setPreviewActive] = useState(false);
   const [brandingExists, setBrandingExists] = useState(false); // Replify block already in CSS?
+  const [resetThemeOnDelete, setResetThemeOnDelete] = useState(false);
 
   /* 📰  News scraping (LinkedIn) ------------------------------------------ */
   const [includeArticles, setIncludeArticles] = useState(false);
@@ -452,22 +453,50 @@ function App() {
   /** Remove the entire Replify comment-block from the Staffbase CSS. */
 
   async function deleteBranding() {
+    setIsLoading(true);
+    setResponse("Deleting branding...");
     try {
+      // Fetch current CSS to clean it for the legacy endpoint
       const css = await fetchCurrentCSS(apiToken);
-      if (!css.trim())
-        throw new Error("Fetched CSS is empty – aborting delete.");
-      if (!blockRegex.test(css)) {
-        setResponse("Nothing to delete – no Replify block found.");
-        return;
+      const cleanedCss = css ? css.replace(blockRegex, "").trim() : "";
+
+      if (resetThemeOnDelete) {
+        // If resetting, perform two actions in parallel:
+        // 1. Reset the new Theme API by removing the desktop theme
+        const themeResetPromise = resetDesktopTheme(apiToken);
+        
+        // 2. Update the old Branch Config API with cleaned CSS
+        const legacyCssUpdatePromise = fetch(`https://app.staffbase.com/api/branches/${branchId}/config`, {
+            method: "POST",
+            headers: {
+              Authorization: `Basic ${apiToken.trim()}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ customCSS: cleanedCss }),
+        });
+
+        await Promise.all([themeResetPromise, legacyCssUpdatePromise]);
+        setResponse("✅ Replify branding deleted and app/intranet theme was reset.");
+
+      } else {
+        // If not resetting, just remove the CSS block from both systems
+        if (!blockRegex.test(css)) {
+          setResponse("Nothing to delete – no Replify CSS block found.");
+          return;
+        }
+        await postUpdatedCSS(apiToken, branchId, cleanedCss);
+        setResponse("✅ Replify CSS block deleted.");
       }
-      const cleaned = css.replace(blockRegex, "").trim();
-      await postUpdatedCSS(apiToken, branchId, cleaned);
+
       setBrandingExists(false);
-      setResponse("✅ Replify branding deleted");
     } catch (err) {
       setResponse(`❌ ${err.message}`);
+    } finally {
+      setIsLoading(false);
+      setResetThemeOnDelete(false); // Reset checkbox after action
     }
   }
+
 
   const pullCurrentBranding = async () => {
     try {
@@ -1348,6 +1377,8 @@ const handleUseOptionClick = async ({ mode, token, branchId: initialBranchId }) 
           includeArticles={includeArticles}
           setIncludeArticles={setIncludeArticles}
           brandingExists={brandingExists}
+          resetThemeOnDelete={resetThemeOnDelete}
+          setResetThemeOnDelete={setResetThemeOnDelete}
           /* live preview */
           previewActive={previewActive}
           onPreview={handlePreview}

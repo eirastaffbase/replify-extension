@@ -21,6 +21,9 @@ export default function BrandingForm({
   includeArticles,
   setIncludeArticles,
   brandingExists,
+  resetThemeOnDelete,      // new prop
+  setResetThemeOnDelete,   // new prop
+
 
   /* live preview */
   previewActive,
@@ -73,9 +76,22 @@ export default function BrandingForm({
             marginBottom: 10,
           }}
         >
-          This environment is already branded with Replify.
+          This environment is already branded with Replify.
           <br />
           <strong>Adding branding will replace the existing branding.</strong>
+{/*           
+          <div style={{...formGroupStyle, marginTop: '12px', marginBottom: '4px'}}>
+            <label style={checkboxLabelStyle}>
+              <input
+                type="checkbox"
+                style={checkboxStyle}
+                checked={resetThemeOnDelete}
+                onChange={(e) => setResetThemeOnDelete(e.target.checked)}
+              />
+              Reset app/intranet branding as well
+            </label>
+          </div>
+           */}
           <div style={{ margin: "10px 0", display: "flex", gap: 12 }}>
             <button
               style={{

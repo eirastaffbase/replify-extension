@@ -31,7 +31,54 @@ export async function fetchCurrentCSS(token) {
 }
 
 /**
- * [MODIFIED] Posts the provided CSS and color configuration to BOTH the new Theme API
+ * Resets the App/Intranet branding by fetching the primary theme,
+ * removing the `desktopTheme` object, and updating it.
+ * @param {string} token - Staffbase API token.
+ */
+export async function resetDesktopTheme(token) {
+  if (!token) throw new Error("No token provided for theme reset.");
+
+  // 1. Get the primary theme to find its ID and current state
+  const themeRes = await fetch(
+    "https://app.staffbase.com/api/theming/themes/primary",
+    {
+      headers: { Authorization: `Basic ${token}` },
+    }
+  );
+  if (!themeRes.ok)
+    throw new Error(`Theme Reset (GET): ${themeRes.statusText}`);
+
+  const themeObject = await themeRes.json();
+  const themeId = themeObject.id;
+  if (!themeId) throw new Error("Theme Reset: Could not find theme ID.");
+
+  // 2. Remove the desktopTheme object from the payload
+  delete themeObject.desktopTheme;
+
+  // 3. PUT the updated object (without the desktop theme) back to the endpoint
+  const updateRes = await fetch(
+    `https://app.staffbase.com/api/theming/themes/${themeId}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/vnd.staffbase.theming.themes.theme+json",
+        Authorization: `Basic ${token}`,
+      },
+      body: JSON.stringify(themeObject),
+    }
+  );
+
+  if (!updateRes.ok) {
+    const errorBody = await updateRes.text();
+    console.error("Theme Reset PUT Error:", errorBody);
+    throw new Error(`Theme Reset (PUT): ${updateRes.statusText}`);
+  }
+  
+  return await updateRes.json();
+}
+
+/**
+ * Posts the provided CSS and color configuration to BOTH the new Theme API
  * and the old Branch Config API in parallel.
  *
  * @param {string} token - Staffbase API token.
@@ -45,6 +92,7 @@ export async function fetchCurrentCSS(token) {
  * @param {string} colorConfig.floatingNavBg - The background color of the floating nav.
  * @returns {Promise<PromiseSettledResult<any>[]>} An array with the results of both API calls.
  */
+
 export async function postUpdatedCSS(token, branchId, cssText, colorConfig) {
   if (!token || !branchId) {
     throw new Error("Token and Branch ID are required for CSS update.");
@@ -168,6 +216,9 @@ export async function postUpdatedCSS(token, branchId, cssText, colorConfig) {
     return { system: "old", status: res.status, data: await res.json() };
   };
 
+
   // --- Run both updates concurrently and return their results ---
   return Promise.allSettled([updateNewSystem(), updateOldSystem()]);
 }
+
+
