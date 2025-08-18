@@ -1207,7 +1207,17 @@ function App() {
         }
 
         if (mergeIntegrationsChecked) {
-          body.workdayMerge = [sbEmail, sbPassword, mergeField];
+          // Find the full profile field object to get its display title
+          const selectedProfileField = setupProfileFields.find(
+            (field) => field.slug === mergeField
+          );
+
+          // Use the title for the API payload, fallback to the slug if not found
+          const mergeFieldTitle = selectedProfileField
+            ? selectedProfileField.title
+            : mergeField;
+
+          body.workdayMerge = [sbEmail, sbPassword, mergeFieldTitle];
         }
 
         const envResponse = await fetch(
