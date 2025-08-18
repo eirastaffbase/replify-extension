@@ -9,12 +9,17 @@ import useStaffbaseTab from "./hooks/useStaffbaseTab";
 import useSavedTokens from "./hooks/useSavedTokens";
 import useAnalyticsRedirects from "./hooks/useAnalyticsRedirects";
 import buildPreviewCss from "./utils/buildPreviewCss";
-import { fetchCurrentCSS, postUpdatedCSS, resetDesktopTheme } from "./utils/staffbaseCss";
+import {
+  fetchCurrentCSS,
+  postUpdatedCSS,
+  resetDesktopTheme,
+} from "./utils/staffbaseCss";
 import {
   loadTokensFromStorage,
   saveTokensToStorage,
 } from "./utils/tokenStorage";
 import { automationScript } from "./utils/automationRunner";
+import { workdaySetupScript } from "./utils/workdaySetup";
 import { normaliseLinkedInUrl, buildImagePayload } from "./utils/helpers";
 import { parseBrandingFromCSS } from "./utils/branding";
 
@@ -134,7 +139,7 @@ function App() {
     currentUser: null,
     currentStatus: null,
   });
-  
+
   // Get the slug from the useOption state if it exists.
   const selectedSlug = useOption?.slug ?? null;
 
@@ -205,7 +210,7 @@ function App() {
     fetchUserProfile();
   }, [selectedUserId, apiToken]);
 
-   const handleLoginAsUser = async () => {
+  const handleLoginAsUser = async () => {
     if (!selectedUserId) {
       setResponse("⚠️ Please select a user to log in as.");
       return;
@@ -286,7 +291,7 @@ function App() {
     }
   };
 
-    /**
+  /**
    * Handles all profile updates: text fields, images, or both together.
    */
   const handleProfileUpdate = async () => {
@@ -464,20 +469,24 @@ function App() {
         // If resetting, perform two actions in parallel:
         // 1. Reset the new Theme API by removing the desktop theme
         const themeResetPromise = resetDesktopTheme(apiToken);
-        
+
         // 2. Update the old Branch Config API with cleaned CSS
-        const legacyCssUpdatePromise = fetch(`https://app.staffbase.com/api/branches/${branchId}/config`, {
+        const legacyCssUpdatePromise = fetch(
+          `https://app.staffbase.com/api/branches/${branchId}/config`,
+          {
             method: "POST",
             headers: {
               Authorization: `Basic ${apiToken.trim()}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({ customCSS: cleanedCss }),
-        });
+          }
+        );
 
         await Promise.all([themeResetPromise, legacyCssUpdatePromise]);
-        setResponse("✅ Replify branding deleted and app/intranet theme was reset.");
-
+        setResponse(
+          "✅ Replify branding deleted and app/intranet theme was reset."
+        );
       } else {
         // If not resetting, just remove the CSS block from both systems
         if (!blockRegex.test(css)) {
@@ -497,7 +506,6 @@ function App() {
     }
   }
 
-
   const pullCurrentBranding = async () => {
     try {
       const css = await fetchCurrentCSS(apiToken);
@@ -506,8 +514,12 @@ function App() {
       setPrimaryColor(brandingData.primaryColor || primaryColor);
       setTextColor(brandingData.textColor || textColor);
       setBackgroundColor(brandingData.backgroundColor || backgroundColor);
-      setFloatingNavBgColor(brandingData.floatingNavBgColor || floatingNavBgColor);
-      setFloatingNavTextColor(brandingData.floatingNavTextColor || floatingNavTextColor);
+      setFloatingNavBgColor(
+        brandingData.floatingNavBgColor || floatingNavBgColor
+      );
+      setFloatingNavTextColor(
+        brandingData.floatingNavTextColor || floatingNavTextColor
+      );
       setBgURL(brandingData.bgUrl || bgUrl);
       setLogoUrl(brandingData.logoUrl || logoUrl);
       setLogoPadHeight(brandingData.logoPadHeight || logoPadHeight);
@@ -518,7 +530,6 @@ function App() {
       setResponse(`❌ ${err.message}`);
     }
   };
-
 
   async function cancelPreview() {
     try {
@@ -541,7 +552,7 @@ function App() {
     }
   }
 
-    /* ──────────────────────────────────────────────────────────────
+  /* ──────────────────────────────────────────────────────────────
    LAUNCHPAD SELECTION
    ────────────────────────────────────────────────────────────── */
 
@@ -559,7 +570,7 @@ function App() {
         : [...current, option]
     );
   };
-  
+
   /* ──────────────────────────────────────────────────────────────
    AUTHENTICATION  (save/retrieve tokens)
    ────────────────────────────────────────────────────────────── */
@@ -612,7 +623,7 @@ function App() {
     }
   };
 
-    /* ──────────────────────────────────────────────────────────────
+  /* ──────────────────────────────────────────────────────────────
    SAVED-TOKEN INTERACTIONS
    ────────────────────────────────────────────────────────────── */
 
@@ -646,97 +657,110 @@ function App() {
   };
 
   /**
- * Fetches the branchId for a given token from the /api/spaces endpoint
- * and updates the state and localStorage.
- */
-const recoverBranchId = async (tokenToRecover, slugToUpdate) => {
-  console.log("Attempting to recover branch ID for slug:", slugToUpdate);
-  try {
-    const spacesRes = await fetch("https://app.staffbase.com/api/spaces", {
-      headers: { Authorization: `Basic ${tokenToRecover}` },
-    });
-    if (!spacesRes.ok) throw new Error(`API returned status ${spacesRes.status}`);
+   * Fetches the branchId for a given token from the /api/spaces endpoint
+   * and updates the state and localStorage.
+   */
+  const recoverBranchId = async (tokenToRecover, slugToUpdate) => {
+    console.log("Attempting to recover branch ID for slug:", slugToUpdate);
+    try {
+      const spacesRes = await fetch("https://app.staffbase.com/api/spaces", {
+        headers: { Authorization: `Basic ${tokenToRecover}` },
+      });
+      if (!spacesRes.ok)
+        throw new Error(`API returned status ${spacesRes.status}`);
 
-    const firstSpace = (await spacesRes.json())?.data?.[0];
-    const recoveredId = firstSpace?.accessors?.branch?.id || firstSpace?.branchID;
+      const firstSpace = (await spacesRes.json())?.data?.[0];
+      const recoveredId =
+        firstSpace?.accessors?.branch?.id || firstSpace?.branchID;
 
-    if (!recoveredId) throw new Error("Could not find branch ID in the spaces API response.");
+      if (!recoveredId)
+        throw new Error("Could not find branch ID in the spaces API response.");
 
-    // Update state and localStorage with the recovered ID
-    setSavedTokens((currentTokens) => {
-      const updatedTokens = currentTokens.map((t) =>
-        t.slug === slugToUpdate ? { ...t, branchId: recoveredId } : t
+      // Update state and localStorage with the recovered ID
+      setSavedTokens((currentTokens) => {
+        const updatedTokens = currentTokens.map((t) =>
+          t.slug === slugToUpdate ? { ...t, branchId: recoveredId } : t
+        );
+        // Persist the fix so we don't have to do this again
+        saveTokensToStorage(updatedTokens);
+        return updatedTokens;
+      });
+
+      return recoveredId;
+    } catch (err) {
+      // Throw the user-friendly error message you requested
+      throw new Error(
+        "Error fetching branch ID. Remove the environment and try again with an admin API key. Apologies for the error."
       );
-      // Persist the fix so we don't have to do this again
-      saveTokensToStorage(updatedTokens);
-      return updatedTokens;
-    });
+    }
+  };
 
-    return recoveredId;
-  } catch (err) {
-    // Throw the user-friendly error message you requested
-    throw new Error(
-      "Error fetching branch ID. Remove the environment and try again with an admin API key. Apologies for the error."
-    );
-  }
-};
+  /** “Set Up” or “Brand” button inside <UseEnvironmentOptions>. */
+  const handleUseOptionClick = async ({
+    mode,
+    token,
+    branchId: initialBranchId,
+  }) => {
+    // Use a try/catch block to handle potential recovery errors
+    try {
+      let currentBranchId = initialBranchId;
 
+      // If branchId is missing (null) or the old invalid string
+      if (!currentBranchId || currentBranchId === "unknown-branch-id") {
+        setIsLoading(true);
+        setResponse(
+          "Legacy environment detected. Attempting to recover branch ID..."
+        );
 
-/** “Set Up” or “Brand” button inside <UseEnvironmentOptions>. */
-const handleUseOptionClick = async ({ mode, token, branchId: initialBranchId }) => {
-  // Use a try/catch block to handle potential recovery errors
-  try {
-    let currentBranchId = initialBranchId;
-    
-    // If branchId is missing (null) or the old invalid string
-    if (!currentBranchId || currentBranchId === "unknown-branch-id") {
-      setIsLoading(true);
-      setResponse("Legacy environment detected. Attempting to recover branch ID...");
-      
-      // Call the recovery function
-      currentBranchId = await recoverBranchId(token, useOption.slug);
-      setResponse(`✅ Branch ID recovered successfully!`);
+        // Call the recovery function
+        currentBranchId = await recoverBranchId(token, useOption.slug);
+        setResponse(`✅ Branch ID recovered successfully!`);
+        setIsLoading(false);
+      }
+
+      // --- The rest of the function proceeds as normal, using currentBranchId ---
+      setApiToken(token);
+      setBranchId(currentBranchId);
+      setIsAuthenticated(true);
+      setUseOption({
+        type: mode,
+        slug: useOption.slug,
+        token,
+        branchId: currentBranchId,
+      });
+      setUserManagementView("selection");
+
+      if (mode === "new") {
+        prepareNewEnvironmentSetup(token, useOption.slug);
+        fetchAllProfileFields(token, currentBranchId); // Now uses the correct ID
+      } else if (mode === "users") {
+        fetchUsers(token);
+        fetchAllProfileFields(token, currentBranchId); // Now uses the correct ID
+      } else if (mode === "existing") {
+        try {
+          const css = await fetchCurrentCSS(token);
+          const hasBlock =
+            /\/\*\s*⇢\s*REPLIFY START[\s\S]*?REPLIFY END\s*⇠\s*\*\//.test(css);
+          setBrandingExists(hasBlock);
+        } catch {
+          setBrandingExists(false);
+        }
+      }
+
+      setResponse(
+        mode === "existing"
+          ? "Using saved environment – ready to brand!"
+          : mode === "users"
+          ? "Ready for user management!"
+          : "Using saved environment – ready to set up!"
+      );
+    } catch (err) {
+      setResponse(`❌ ${err.message}`);
       setIsLoading(false);
     }
-    
-    // --- The rest of the function proceeds as normal, using currentBranchId ---
-    setApiToken(token);
-    setBranchId(currentBranchId);
-    setIsAuthenticated(true);
-    setUseOption({ type: mode, slug: useOption.slug, token, branchId: currentBranchId });
-    setUserManagementView("selection");
+  };
 
-    if (mode === "new") {
-      prepareNewEnvironmentSetup(token, useOption.slug);
-      fetchAllProfileFields(token, currentBranchId); // Now uses the correct ID
-    } else if (mode === "users") {
-      fetchUsers(token);
-      fetchAllProfileFields(token, currentBranchId); // Now uses the correct ID
-    } else if (mode === "existing") {
-      try {
-        const css = await fetchCurrentCSS(token);
-        const hasBlock =
-          /\/\*\s*⇢\s*REPLIFY START[\s\S]*?REPLIFY END\s*⇠\s*\*\//.test(css);
-        setBrandingExists(hasBlock);
-      } catch {
-        setBrandingExists(false);
-      }
-    }
-
-    setResponse(
-      mode === "existing"
-        ? "Using saved environment – ready to brand!"
-        : mode === "users"
-        ? "Ready for user management!"
-        : "Using saved environment – ready to set up!"
-    );
-  } catch (err) {
-    setResponse(`❌ ${err.message}`);
-    setIsLoading(false);
-  }
-};
-
-    /** Delete button next to a saved token. */
+  /** Delete button next to a saved token. */
 
   const handleDeleteToken = (slug) => {
     const filtered = savedTokens.filter((t) => t.slug !== slug);
@@ -750,13 +774,11 @@ const handleUseOptionClick = async ({ mode, token, branchId: initialBranchId }) 
   const handleShowFullToken = (slug) =>
     setShowFullToken((cur) => (cur === slug ? null : slug));
 
-    /* ──────────────────────────────────────────────────────────────
+  /* ──────────────────────────────────────────────────────────────
    BRAND / NEWS CREATION
    ────────────────────────────────────────────────────────────── */
 
-
-
-    /**
+  /**
    * Create or update demo resources:
    * 1. Inject / replace Replify CSS block and optionally update theme colors.
    * 2. Trigger sb-news LinkedIn scraper (optional).
@@ -895,7 +917,7 @@ const handleUseOptionClick = async ({ mode, token, branchId: initialBranchId }) 
     }
   }
 
-    /* ──────────────────────────────────────────────────────────────
+  /* ──────────────────────────────────────────────────────────────
   
   LIVE CSS PREVIEW
   
@@ -941,7 +963,7 @@ const handleUseOptionClick = async ({ mode, token, branchId: initialBranchId }) 
     }
   }
 
-    /* ──────────────────────────────────────────────────────────────
+  /* ──────────────────────────────────────────────────────────────
     USER MANAGEMENT
     ────────────────────────────────────────────────────────────── */
 
@@ -993,7 +1015,7 @@ const handleUseOptionClick = async ({ mode, token, branchId: initialBranchId }) 
     try {
       console.log(localStorage.getItem("staffbaseTokens"));
       console.log("Using token:", token);
-      console.log("Slug:", useOption?.slug);  
+      console.log("Slug:", useOption?.slug);
       const response = await fetch(
         `https://app.staffbase.com/api/branches/${branchId}/profilefields`,
         {
@@ -1049,7 +1071,7 @@ const handleUseOptionClick = async ({ mode, token, branchId: initialBranchId }) 
     }
   };
 
-   async function handleSetupNewEnv() {
+  async function handleSetupNewEnv() {
     setResponse("Processing setup request...");
     setIsLoading(true);
 
@@ -1073,10 +1095,13 @@ const handleUseOptionClick = async ({ mode, token, branchId: initialBranchId }) 
       if (isInstallationSetupNeeded) {
         setResponse("Setting up environment features...");
         const body = {
-          chat: chatEnabled, microsoft: microsoftEnabled, campaigns: campaignsEnabled,
+          chat: chatEnabled,
+          microsoft: microsoftEnabled,
+          campaigns: campaignsEnabled,
         };
         if (launchpadSel.length) body.launchpad = launchpadSel;
-        if (journeysEnabled && loggedInUserId) body.journeys = { user: loggedInUserId, desired: ["all"] };
+        if (journeysEnabled && loggedInUserId)
+          body.journeys = { user: loggedInUserId, desired: ["all"] };
         if (quickLinksEnabled) {
           body.mobileQuickLinks = Object.fromEntries(
             mobileQuickLinks
@@ -1084,31 +1109,52 @@ const handleUseOptionClick = async ({ mode, token, branchId: initialBranchId }) 
               .map((l) => [l.name, { title: l.title, position: l.position }])
           );
         }
-        
-        const envResponse = await fetch("https://sb-news-generator.uc.r.appspot.com/api/v1/installations", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiToken}` },
-          body: JSON.stringify(body),
-        });
-        
+
+        const envResponse = await fetch(
+          "https://sb-news-generator.uc.r.appspot.com/api/v1/installations",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiToken}`,
+            },
+            body: JSON.stringify(body),
+          }
+        );
+
         finalReport.installations = envResponse.ok;
-        if (!envResponse.ok) throw new Error(`Installations endpoint failed: ${envResponse.statusText}`);
+        if (!envResponse.ok)
+          throw new Error(
+            `Installations endpoint failed: ${envResponse.statusText}`
+          );
       }
 
       // 2. NEW SETUP (DIRECT API CALLS FROM EXTENSION)
-      const isNewFeatureSetupNeeded = customWidgetsChecked || mergeIntegrationsChecked;
+      const isNewFeatureSetupNeeded =
+        customWidgetsChecked || mergeIntegrationsChecked;
       if (isNewFeatureSetupNeeded) {
-        if (!isStaffbaseTab) throw new Error("Custom widgets/integrations require an active Staffbase tab.");
+        if (!isStaffbaseTab)
+          throw new Error(
+            "Custom widgets/integrations require an active Staffbase tab."
+          );
 
         setResponse((prev) => prev + "\nFetching CSRF token...");
-        const discoverResponse = await fetch('https://app.staffbase.com/auth/discover', {
-          method: 'GET',
-          headers: { 'Accept': 'application/vnd.staffbase.auth.discovery.v2+json', 'Content-Type': 'application/json' }
-        });
-        if (!discoverResponse.ok) throw new Error(`CSRF Discovery failed: ${discoverResponse.status}`);
+        const discoverResponse = await fetch(
+          "https://app.staffbase.com/auth/discover",
+          {
+            method: "GET",
+            headers: {
+              Accept: "application/vnd.staffbase.auth.discovery.v2+json",
+              "Content-Type": "application/json",
+            },
+          }
+        );
+        if (!discoverResponse.ok)
+          throw new Error(`CSRF Discovery failed: ${discoverResponse.status}`);
         const { csrfToken } = await discoverResponse.json();
-        if (!csrfToken) throw new Error("Could not get CSRF token from discovery endpoint.");
-        
+        if (!csrfToken)
+          throw new Error("Could not get CSRF token from discovery endpoint.");
+
         const staffbaseHeaders = {
           "Content-Type": "application/json",
           Authorization: `Basic ${apiToken}`,
@@ -1119,98 +1165,144 @@ const handleUseOptionClick = async ({ mode, token, branchId: initialBranchId }) 
         if (customWidgetsChecked) {
           setResponse((prev) => prev + "\nInstalling Custom Widgets...");
           const widgetPayloads = [
-            { url: "https://eirastaffbase.github.io/weather-time/dist/eira.weather-time.js", elements: ["weather-time"], attributes: ["city", "allowcityoverride", "mobileview", "usenewimages"]},
-            { url: "https://eirastaffbase.github.io/job-postings/dist/staffbase.job-postings.js", elements: ["job-postings"], attributes: ["postingsjson", "buttontext", "buttoncolor", "lefticon", "righticon"]},
-            { url: "https://eirastaffbase.github.io/stock-ticker/dist/staffbase.stock-ticker.js", elements: ["stock-ticker"], attributes: ["symbol", "weeks", "logo", "stockgraphcolor"]},
+            {
+              url: "https://eirastaffbase.github.io/weather-time/dist/eira.weather-time.js",
+              elements: ["weather-time"],
+              attributes: [
+                "city",
+                "allowcityoverride",
+                "mobileview",
+                "usenewimages",
+              ],
+            },
+            {
+              url: "https://eirastaffbase.github.io/job-postings/dist/staffbase.job-postings.js",
+              elements: ["job-postings"],
+              attributes: [
+                "postingsjson",
+                "buttontext",
+                "buttoncolor",
+                "lefticon",
+                "righticon",
+              ],
+            },
+            {
+              url: "https://eirastaffbase.github.io/stock-ticker/dist/staffbase.stock-ticker.js",
+              elements: ["stock-ticker"],
+              attributes: ["symbol", "weeks", "logo", "stockgraphcolor"],
+            },
           ];
-          const results = await Promise.all(widgetPayloads.map(payload => fetch("https://app.staffbase.com/api/branch/widgets", { method: "POST", headers: staffbaseHeaders, body: JSON.stringify(payload) })));
-          finalReport.customWidgets = results.every(res => res.ok);
-          if (!finalReport.customWidgets) throw new Error("One or more custom widgets failed to install.");
+          const results = await Promise.all(
+            widgetPayloads.map((payload) =>
+              fetch("https://app.staffbase.com/api/branch/widgets", {
+                method: "POST",
+                headers: staffbaseHeaders,
+                body: JSON.stringify(payload),
+              })
+            )
+          );
+          finalReport.customWidgets = results.every((res) => res.ok);
+          if (!finalReport.customWidgets)
+            throw new Error("One or more custom widgets failed to install.");
         }
 
         // 2b. Merge/Workday Integration
         if (mergeIntegrationsChecked) {
-          setResponse((prev) => prev + "\n🚀 Starting Workday Integration...");
-          const mergeHeaders = { "Content-Type": "application/json;charset=UTF-8" };
-          let linkToken, accountId;
-
-          // Step 1: Initialize
-          setResponse((prev) => prev + "\n1/8: Initializing with Staffbase...");
-          const initRes = await fetch("https://app.staffbase.com/api/merge-dev/integrations/workday", { method: "POST", headers: staffbaseHeaders, body: JSON.stringify({ employeeIdentityMapping: { profileField: mergeField, remoteProperty: "work_email" }, name: "" }) });
-          if (!initRes.ok) throw new Error(`Merge Step 1 (SB Init) failed: ${initRes.status}`);
-          ({ linkToken, accountId } = await initRes.json());
-          if (!linkToken) throw new Error("Did not receive linkToken from Step 1.");
-
-          // Step 2: Eligibility Check
-          setResponse((prev) => prev + "\n2/8: Checking eligibility with Merge...");
-          const eligCheckRes = await fetch("https://api.merge.dev/api/integrations/link/eligibility-check", { method: "POST", headers: mergeHeaders, body: JSON.stringify({ link_token: linkToken }) });
-          if (!eligCheckRes.ok) throw new Error(`Merge Step 2 (Eligibility Check) failed: ${eligCheckRes.status}`);
-
-          // Step 3: Next Page (Initial Step)
-          setResponse((prev) => prev + "\n3/8: Fetching initial linking flow...");
-          const initialNextPageRes = await fetch("https://api.merge.dev/api/integrations/linking-flow/next-page", { method: "POST", headers: mergeHeaders, body: JSON.stringify({ link_token: linkToken, current_page: "INITIAL_STEP", form_data: { file_picker_config_sent: false } }) });
-          if (!initialNextPageRes.ok) throw new Error(`Merge Step 3 (Initial Next Page) failed: ${initialNextPageRes.status}`);
+          setResponse("🚀 Starting Workday UI Automation...");
           
-          // Step 4: Next Page (Auth Choice)
-          setResponse((prev) => prev + "\n4/8: Selecting auth choice...");
-          const authChoiceData = await initialNextPageRes.json();
-          const authChoiceRes = await fetch("https://api.merge.dev/api/integrations/linking-flow/next-page", { method: "POST", headers: mergeHeaders, body: JSON.stringify({ link_token: linkToken, current_page: "AUTH_CHOICE", form_data: { ...authChoiceData.linking_flow_payload, selected_step_path_id: "b5f16891-9bcf-49ad-a107-28a32e001933" } }) });
-          if (!authChoiceRes.ok) throw new Error(`Merge Step 4 (Auth Choice) failed: ${authChoiceRes.status}`);
+          const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          const origin = new URL(currentTab.url).origin;
+          const integrationUrl = `${origin}/studio/settings/extensions/hr-integrations`;
+          
+          // Open a new tab and wait for it to be ready
+          const newTab = await chrome.tabs.create({ url: integrationUrl, active: true });
+          
+          const listener = async (tabId, changeInfo) => {
+            if (tabId === newTab.id && changeInfo.status === 'complete') {
+              // The tab is ready, remove the listener so we don't run this again
+              chrome.tabs.onUpdated.removeListener(listener);
+              
+              setResponse("Tab is ready. Injecting automation script...");
 
-          // Step 5: Send Credentials
-          setResponse((prev) => prev + "\n5/8: Submitting credentials to Merge...");
-          const credentialsFormData = {
-            customDomain: process.env.REACT_APP_WORKDAY_CUSTOM_DOMAIN, username: process.env.REACT_APP_WORKDAY_USERNAME, password: process.env.REACT_APP_WORKDAY_PASSWORD,
-            oauthClientID: process.env.REACT_APP_WORKDAY_OAUTH_CLIENT_ID, oauthClientSecret: process.env.REACT_APP_WORKDAY_OAUTH_CLIENT_SECRET, oauthRefreshToken: process.env.REACT_APP_WORKDAY_OAUTH_REFRESH_TOKEN,
-            overrideOAuthTokenUrl: process.env.REACT_APP_WORKDAY_OAUTH_TOKEN_URL, baseURL: process.env.REACT_APP_WORKDAY_BASE_URL,
+              const workdayCredentials = {
+                customDomain: process.env.REACT_APP_WORKDAY_CUSTOM_DOMAIN,
+                username: process.env.REACT_APP_WORKDAY_USERNAME,
+                password: process.env.REACT_APP_WORKDAY_PASSWORD,
+                oauthClientID: process.env.REACT_APP_WORKDAY_OAUTH_CLIENT_ID,
+                oauthClientSecret: process.env.REACT_APP_WORKDAY_OAUTH_CLIENT_SECRET,
+                oauthRefreshToken: process.env.REACT_APP_WORKDAY_OAUTH_REFRESH_TOKEN,
+                overrideOAuthTokenUrl: process.env.REACT_APP_WORKDAY_OAUTH_TOKEN_URL,
+                baseURL: process.env.REACT_APP_WORKDAY_BASE_URL,
+              };
+              
+              // Execute the script and wait for its result
+              const [injectionResult] = await chrome.scripting.executeScript({
+                target: { tabId: newTab.id },
+                func: workdaySetupScript,
+                args: [workdayCredentials, mergeField],
+              });
+              
+              const { result } = injectionResult;
+              if (result && result.success) {
+                finalReport.mergeIntegration = true;
+                setResponse(prev => prev + "\n✅ Workday integration setup complete!");
+                // Optional: Close the tab after success
+                // chrome.tabs.remove(newTab.id); 
+              } else {
+                throw new Error(`Workday automation failed: ${result?.error || 'Unknown error'}`);
+              }
+            }
           };
-          const submitCredsRes = await fetch("https://api.merge.dev/api/integrations/linking-flow/next-page", {
-            method: "POST", headers: mergeHeaders,
-            body: JSON.stringify({ link_token: linkToken, current_page: "INTEGRATION_SETUP", form_data: { linked_account_form_data: credentialsFormData, selected_step_path_id: "b5f16891-9bcf-49ad-a107-28a32e001933" } }),
-          });
-          if (!submitCredsRes.ok) throw new Error(`Merge Step 5 (Submit Credentials) failed: ${submitCredsRes.status}`);
-          const { linking_flow_payload } = await submitCredsRes.json();
-          const { public_token } = linking_flow_payload?.linked_account;
-          if (!public_token) throw new Error("Did not receive public_token from Step 5.");
+
+          // Listen for status updates from the injected script
+          const messageListener = (message) => {
+            if (message.type === 'AUTOMATION_STATUS') {
+              setResponse(prev => prev + `\n- ${message.payload.status}`);
+            }
+          };
+
+          chrome.tabs.onUpdated.addListener(listener);
+          chrome.runtime.onMessage.addListener(messageListener);
           
-          // Step 6: Confirm Connection
-          setResponse((prev) => prev + "\n6/8: Confirming connection with Staffbase...");
-          const confirmRes = await fetch(`https://app.staffbase.com/api/merge-dev/accounts/${accountId}/confirm-connection`, { method: "POST", headers: staffbaseHeaders, body: JSON.stringify({ publicToken: public_token }) });
-          if (!confirmRes.ok) throw new Error(`Merge Step 6 (Confirm Connection) failed: ${confirmRes.status}`);
-
-          // Step 7: Kick off Sync
-          setResponse((prev) => prev + "\n7/8: Kicking off initial sync...");
-          const syncRes = await fetch("https://api.merge.dev/api/integrations/linking-flow/end-linking-flow-and-kickoff-initial-sync", { method: "POST", headers: mergeHeaders, body: JSON.stringify({ link_token: linkToken }) });
-          if (!syncRes.ok) throw new Error(`Merge Step 7 (Kickoff Sync) failed: ${syncRes.status}`);
-
-          finalReport.mergeIntegration = true;
+          // Clean up the message listener when the component unmounts or setup is done
+          // This is a simplified cleanup; in a real app you might manage this more robustly.
         }
       }
 
-      // 3. Email Templates (Replify Backend)
+      // 3. Email Templates 
       if (setupEmailChecked) {
         setResponse((prev) => prev + "\nSetting up email templates...");
-        const emailResponse = await fetch("https://sb-news-generator.uc.r.appspot.com/api/v1/generate/email-templates", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiToken}` },
-          body: JSON.stringify({ domain: "app.staffbase.com" }),
-        });
+        const emailResponse = await fetch(
+          "https://sb-news-generator.uc.r.appspot.com/api/v1/generate/email-templates",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiToken}`,
+            },
+            body: JSON.stringify({ domain: "app.staffbase.com" }),
+          }
+        );
         finalReport.emailTemplates = emailResponse.ok;
-        if (!emailResponse.ok) throw new Error(`Email template setup failed: ${emailResponse.statusText}`);
+        if (!emailResponse.ok)
+          throw new Error(
+            `Email template setup failed: ${emailResponse.statusText}`
+          );
       }
 
       // Build final success message
       const successMessages = Object.entries(finalReport)
         .filter(([, success]) => success !== null)
-        .map(([key, success]) => `${key}: ${success ? '✅' : '❌'}`);
-      setResponse(`Setup Complete:\n${successMessages.join('\n')}`);
-
+        .map(([key, success]) => `${key}: ${success ? "✅" : "❌"}`);
+      setResponse(`Setup Complete:\n${successMessages.join("\n")}`);
     } catch (err) {
       // Build final error message
       const errorMessages = Object.entries(finalReport)
         .filter(([, success]) => success !== null)
-        .map(([key, success]) => `${key}: ${success ? '✅' : '❌'}`);
-      setResponse(`Setup failed:\n${errorMessages.join('\n')}\n\nError: ${err.message}`);
+        .map(([key, success]) => `${key}: ${success ? "✅" : "❌"}`);
+      setResponse(
+        `Setup failed:\n${errorMessages.join("\n")}\n\nError: ${err.message}`
+      );
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -1221,11 +1313,17 @@ const handleUseOptionClick = async ({ mode, token, branchId: initialBranchId }) 
      UI UTILS & RENDER
   ────────────────────────────────────────────────────────────── */
 
-
-
   const renderBreadcrumbs = () => (
     <div style={{ marginBottom: 20 }}>
-      <button style={{ background: "none", border: "none", color: colors.primary, cursor: "pointer", padding: 0, fontSize: 14 }}
+      <button
+        style={{
+          background: "none",
+          border: "none",
+          color: colors.primary,
+          cursor: "pointer",
+          padding: 0,
+          fontSize: 14,
+        }}
         onClick={() => {
           setUseOption({ type: null });
           setUserManagementView("selection");
@@ -1238,7 +1336,15 @@ const handleUseOptionClick = async ({ mode, token, branchId: initialBranchId }) 
 
   const renderUserMgmtBreadcrumbs = () => (
     <div style={{ marginBottom: 20 }}>
-      <button style={{ background: "none", border: "none", color: colors.primary, cursor: "pointer", padding: 0, fontSize: 14 }}
+      <button
+        style={{
+          background: "none",
+          border: "none",
+          color: colors.primary,
+          cursor: "pointer",
+          padding: 0,
+          fontSize: 14,
+        }}
         onClick={() => setUserManagementView("selection")}
       >
         ← Back to User Options
@@ -1258,7 +1364,10 @@ const handleUseOptionClick = async ({ mode, token, branchId: initialBranchId }) 
   const handleQuickLinkSwap = (aIdx, bIdx) => {
     setMobileQuickLinks((prev) => {
       const copy = [...prev];
-      [copy[aIdx].position, copy[bIdx].position] = [copy[bIdx].position, copy[aIdx].position];
+      [copy[aIdx].position, copy[bIdx].position] = [
+        copy[bIdx].position,
+        copy[aIdx].position,
+      ];
       return copy;
     });
   };
@@ -1269,7 +1378,10 @@ const handleUseOptionClick = async ({ mode, token, branchId: initialBranchId }) 
     );
 
   const handleQuickLinkAdd = () =>
-    setMobileQuickLinks((prev) => [...prev, { name: "", title: "", position: prev.length, enabled: true }]);
+    setMobileQuickLinks((prev) => [
+      ...prev,
+      { name: "", title: "", position: prev.length, enabled: true },
+    ]);
 
   return (
     <div style={containerStyle}>
@@ -1284,7 +1396,9 @@ const handleUseOptionClick = async ({ mode, token, branchId: initialBranchId }) 
         savedTokens={savedTokens}
         showFull={showFullToken}
         selectedSlug={selectedSlug}
-        onUse={({ slug, token, branchId }) => setUseOption({ type: "select", slug, token, branchId })}
+        onUse={({ slug, token, branchId }) =>
+          setUseOption({ type: "select", slug, token, branchId })
+        }
         onCancel={() => setUseOption(null)}
         onToggle={handleShowFullToken}
         onDelete={handleDeleteToken}
@@ -1313,7 +1427,13 @@ const handleUseOptionClick = async ({ mode, token, branchId: initialBranchId }) 
       {useOption?.type === "select" && (
         <UseEnvironmentOptions
           slug={useOption.slug}
-          onChoose={(mode) => handleUseOptionClick({ mode, token: useOption.token, branchId: useOption.branchId })}
+          onChoose={(mode) =>
+            handleUseOptionClick({
+              mode,
+              token: useOption.token,
+              branchId: useOption.branchId,
+            })
+          }
         />
       )}
 
@@ -1323,18 +1443,30 @@ const handleUseOptionClick = async ({ mode, token, branchId: initialBranchId }) 
 
           {userManagementView === "selection" && (
             <div style={{ marginTop: "10px" }}>
-              <button style={brandingButtonStyle} onClick={() => setUserManagementView("automation")}>
+              <button
+                style={brandingButtonStyle}
+                onClick={() => setUserManagementView("automation")}
+              >
                 Automation
               </button>
-              <p style={subDescriptionStyle}>Populate the platform with comments, reactions, chats, and survey responses.</p>
-              <button style={{ ...brandingButtonStyle, marginTop: "20px" }} onClick={() => setUserManagementView("profile")}>
+              <p style={subDescriptionStyle}>
+                Populate the platform with comments, reactions, chats, and
+                survey responses.
+              </p>
+              <button
+                style={{ ...brandingButtonStyle, marginTop: "20px" }}
+                onClick={() => setUserManagementView("profile")}
+              >
                 Manage Users
               </button>
-              <p style={subDescriptionStyle}>Update user profiles, change avatars/banners, or log in as a specific user.</p>
+              <p style={subDescriptionStyle}>
+                Update user profiles, change avatars/banners, or log in as a
+                specific user.
+              </p>
             </div>
           )}
 
-{userManagementView === "automation" && (
+          {userManagementView === "automation" && (
             <AutomationForm
               users={usersList}
               isStaffbaseTab={isStaffbaseTab}

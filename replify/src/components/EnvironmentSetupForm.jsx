@@ -7,6 +7,7 @@ import {
   checkboxLabelStyle,
   checkboxStyle,
   brandingButtonStyle,
+  psaStyle
 } from "../styles";
 import LaunchpadSelect from "./LaunchpadSelect";
 import MobileQuickLinks from "./MobileQuickLinks";
@@ -178,7 +179,13 @@ export default function EnvironmentSetupForm({
         </div>
       ))}
 
-      {mergeIntegrationsChecked && (
+{mergeIntegrationsChecked && (
+        <div style={psaStyle}>
+          <strong>Heads up:</strong> This will open a new tab to automate the Workday integration setup. Please do not close it until it's finished.
+        </div>
+      )}
+
+{mergeIntegrationsChecked && (
         <div style={formGroupStyle}>
           <label style={labelStyle}>Workday Mapping Field:</label>
           <select
@@ -198,6 +205,8 @@ export default function EnvironmentSetupForm({
           </select>
         </div>
       )}
+
+
 
       <div style={formGroupStyle}>
         <button style={brandingButtonStyle} onClick={onSetup}>
