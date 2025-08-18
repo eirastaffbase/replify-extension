@@ -118,7 +118,8 @@ function App() {
   const [userProfile, setUserProfile] = useState(null);
   const [fieldToUpdate, setFieldToUpdate] = useState("");
   const [newValue, setNewValue] = useState("");
-  const [allProfileFields, setAllProfileFields] = useState([]);
+  const [allProfileFields, setAllProfileFields] = useState([]); // Holds slugs for user mgmt
+  const [setupProfileFields, setSetupProfileFields] = useState([]); // Holds {slug, title} for setup form
   const [adminUserId, setAdminUserId] = useState(null);
   const [userManagementView, setUserManagementView] = useState("selection");
   const [selectedFile, setSelectedFile] = useState(null);
@@ -145,16 +146,18 @@ function App() {
 
   // When profile fields are loaded, set the default for the Merge dropdown
   useEffect(() => {
-    if (allProfileFields.length > 0 && !mergeField) {
-      const defaultField = allProfileFields.includes("publicEmailAddress")
+    if (setupProfileFields.length > 0 && !mergeField) {
+      const defaultField = setupProfileFields.find(
+        (field) => field.slug === "publicEmailAddress"
+      )
         ? "publicEmailAddress"
-        : allProfileFields[0];
+        : setupProfileFields[0]?.slug || "";
       setMergeField(defaultField);
     }
-  }, [allProfileFields, mergeField]);
+  }, [setupProfileFields, mergeField]);
 
   // --------------------------------------------------
-  //   Message Listeners and other simple effects
+  //    Message Listeners and other simple effects
   // --------------------------------------------------
   useEffect(() => {
     const messageListener = (message) => {
@@ -452,8 +455,8 @@ function App() {
   };
 
   /* ──────────────────────────────────────────────────────────────
-   BRANDING  (delete, preview on/off)
-   ────────────────────────────────────────────────────────────── */
+    BRANDING  (delete, preview on/off)
+    ────────────────────────────────────────────────────────────── */
 
   /** Remove the entire Replify comment-block from the Staffbase CSS. */
 
@@ -553,8 +556,8 @@ function App() {
   }
 
   /* ──────────────────────────────────────────────────────────────
-   LAUNCHPAD SELECTION
-   ────────────────────────────────────────────────────────────── */
+    LAUNCHPAD SELECTION
+    ────────────────────────────────────────────────────────────── */
 
   /** Toggle an item in the Launchpad multiselect. */
 
@@ -572,8 +575,8 @@ function App() {
   };
 
   /* ──────────────────────────────────────────────────────────────
-   AUTHENTICATION  (save/retrieve tokens)
-   ────────────────────────────────────────────────────────────── */
+    AUTHENTICATION  (save/retrieve tokens)
+    ────────────────────────────────────────────────────────────── */
 
   /**
    * Exchange the user-supplied API key for Staffbase metadata, stash the
@@ -624,8 +627,8 @@ function App() {
   };
 
   /* ──────────────────────────────────────────────────────────────
-   SAVED-TOKEN INTERACTIONS
-   ────────────────────────────────────────────────────────────── */
+    SAVED-TOKEN INTERACTIONS
+    ────────────────────────────────────────────────────────────── */
 
   /** Pre-configures the "New Environment" form with default email and user ID. */
 
@@ -775,8 +778,8 @@ function App() {
     setShowFullToken((cur) => (cur === slug ? null : slug));
 
   /* ──────────────────────────────────────────────────────────────
-   BRAND / NEWS CREATION
-   ────────────────────────────────────────────────────────────── */
+    BRAND / NEWS CREATION
+    ────────────────────────────────────────────────────────────── */
 
   /**
    * Create or update demo resources:
@@ -919,9 +922,9 @@ function App() {
 
   /* ──────────────────────────────────────────────────────────────
   
-  LIVE CSS PREVIEW
+   LIVE CSS PREVIEW
   
-  ────────────────────────────────────────────────────────────── */
+   ────────────────────────────────────────────────────────────── */
 
   /** Inject (or update) a <style> tag with the current colour config. */
 
@@ -964,8 +967,8 @@ function App() {
   }
 
   /* ──────────────────────────────────────────────────────────────
-    USER MANAGEMENT
-    ────────────────────────────────────────────────────────────── */
+     USER MANAGEMENT
+     ────────────────────────────────────────────────────────────── */
 
   /** * Fetches all users, finds the first admin ID for updates,
    * and cleans up usernames for display.
@@ -1013,9 +1016,6 @@ function App() {
   const fetchAllProfileFields = async (token, branchId) => {
     const fieldsToExclude = ["avatar", "profileHeaderImage", "apitoken"];
     try {
-      console.log(localStorage.getItem("staffbaseTokens"));
-      console.log("Using token:", token);
-      console.log("Slug:", useOption?.slug);
       const response = await fetch(
         `https://app.staffbase.com/api/branches/${branchId}/profilefields`,
         {
@@ -1024,11 +1024,24 @@ function App() {
       );
       if (!response.ok) throw new Error("Failed to fetch profile fields");
       const data = await response.json();
-      const fields = Object.values(data.schema)
-        .filter((field) => !field.readOnly)
-        .map((field) => field.slug)
-        .filter((slug) => !fieldsToExclude.includes(slug));
-      setAllProfileFields(fields);
+
+      const filteredFields = Object.values(data.schema).filter(
+        (field) =>
+          !field.readOnly &&
+          !fieldsToExclude.includes(field.slug) &&
+          field.localization?.en_US?.title
+      );
+
+      // Set slugs for User Management
+      const slugs = filteredFields.map((field) => field.slug);
+      setAllProfileFields(slugs);
+
+      // Set {slug, title} objects for Environment Setup
+      const setupFields = filteredFields.map((field) => ({
+        slug: field.slug,
+        title: field.localization.en_US.title,
+      }));
+      setSetupProfileFields(setupFields);
     } catch (err) {
       console.error(err.message);
       setResponse((prev) => prev + "\n⚠️ Could not fetch all profile fields.");
@@ -1036,8 +1049,8 @@ function App() {
   };
 
   /* ──────────────────────────────────────────────────────────────
-   ENVIRONMENT CREATION (NEW IMPLEMENTATION)
-   ────────────────────────────────────────────────────────────── */
+    ENVIRONMENT CREATION (NEW IMPLEMENTATION)
+    ────────────────────────────────────────────────────────────── */
 
   /**
    * Helper to get the CSRF token from the active tab.
@@ -1209,67 +1222,77 @@ function App() {
         // 2b. Merge/Workday Integration
         if (mergeIntegrationsChecked) {
           setResponse("🚀 Starting Workday UI Automation...");
-          
-          const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+          const [currentTab] = await chrome.tabs.query({
+            active: true,
+            currentWindow: true,
+          });
           const origin = new URL(currentTab.url).origin;
           const integrationUrl = `${origin}/studio/settings/extensions/hr-integrations`;
-          
+
           // Open a new tab and wait for it to be ready
-          const newTab = await chrome.tabs.create({ url: integrationUrl, active: true });
-          
+          const newTab = await chrome.tabs.create({
+            url: integrationUrl,
+            active: true,
+          });
+
           const listener = async (tabId, changeInfo) => {
-            if (tabId === newTab.id && changeInfo.status === 'complete') {
+            if (tabId === newTab.id && changeInfo.status === "complete") {
               // The tab is ready, remove the listener so we don't run this again
               chrome.tabs.onUpdated.removeListener(listener);
-              
+
               setResponse("Tab is ready. Injecting automation script...");
 
               const workdayCredentials = {
-                customDomain: process.env.REACT_APP_WORKDAY_CUSTOM_DOMAIN,
+                baseURL: process.env.REACT_APP_WORKDAY_BASE_URL,
                 username: process.env.REACT_APP_WORKDAY_USERNAME,
                 password: process.env.REACT_APP_WORKDAY_PASSWORD,
-                oauthClientID: process.env.REACT_APP_WORKDAY_OAUTH_CLIENT_ID,
-                oauthClientSecret: process.env.REACT_APP_WORKDAY_OAUTH_CLIENT_SECRET,
-                oauthRefreshToken: process.env.REACT_APP_WORKDAY_OAUTH_REFRESH_TOKEN,
-                overrideOAuthTokenUrl: process.env.REACT_APP_WORKDAY_OAUTH_TOKEN_URL,
-                baseURL: process.env.REACT_APP_WORKDAY_BASE_URL,
               };
-              
+
+              const mappingFieldTitle =
+                setupProfileFields.find((f) => f.slug === mergeField)?.title ||
+                mergeField;
+
               // Execute the script and wait for its result
               const [injectionResult] = await chrome.scripting.executeScript({
                 target: { tabId: newTab.id },
                 func: workdaySetupScript,
-                args: [workdayCredentials, mergeField],
+                args: [workdayCredentials, mappingFieldTitle],
               });
-              
+
               const { result } = injectionResult;
               if (result && result.success) {
                 finalReport.mergeIntegration = true;
-                setResponse(prev => prev + "\n✅ Workday integration setup complete!");
+                setResponse(
+                  (prev) => prev + "\n✅ Workday integration setup complete!"
+                );
                 // Optional: Close the tab after success
-                // chrome.tabs.remove(newTab.id); 
+                // chrome.tabs.remove(newTab.id);
               } else {
-                throw new Error(`Workday automation failed: ${result?.error || 'Unknown error'}`);
+                throw new Error(
+                  `Workday automation failed: ${
+                    result?.error || "Unknown error"
+                  }`
+                );
               }
             }
           };
 
           // Listen for status updates from the injected script
           const messageListener = (message) => {
-            if (message.type === 'AUTOMATION_STATUS') {
-              setResponse(prev => prev + `\n- ${message.payload.status}`);
+            if (message.type === "AUTOMATION_STATUS") {
+              setResponse((prev) => prev + `\n- ${message.payload.status}`);
             }
           };
 
           chrome.tabs.onUpdated.addListener(listener);
           chrome.runtime.onMessage.addListener(messageListener);
-          
-          // Clean up the message listener when the component unmounts or setup is done
+
           // This is a simplified cleanup; in a real app you might manage this more robustly.
         }
       }
 
-      // 3. Email Templates 
+      // 3. Email Templates
       if (setupEmailChecked) {
         setResponse((prev) => prev + "\nSetting up email templates...");
         const emailResponse = await fetch(
@@ -1310,8 +1333,8 @@ function App() {
   }
 
   /* ──────────────────────────────────────────────────────────────
-     UI UTILS & RENDER
-  ────────────────────────────────────────────────────────────── */
+       UI UTILS & RENDER
+   ────────────────────────────────────────────────────────────── */
 
   const renderBreadcrumbs = () => (
     <div style={{ marginBottom: 20 }}>
@@ -1585,7 +1608,7 @@ function App() {
           setSetupEmailChecked={setSetupEmailChecked}
           mergeField={mergeField}
           setMergeField={setMergeField}
-          allProfileFields={allProfileFields}
+          allProfileFields={setupProfileFields}
           /* submit */
           onSetup={handleSetupNewEnv}
         />

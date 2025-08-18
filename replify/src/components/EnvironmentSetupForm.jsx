@@ -7,7 +7,7 @@ import {
   checkboxLabelStyle,
   checkboxStyle,
   brandingButtonStyle,
-  psaStyle
+  psaStyle,
 } from "../styles";
 import LaunchpadSelect from "./LaunchpadSelect";
 import MobileQuickLinks from "./MobileQuickLinks";
@@ -15,7 +15,7 @@ import MobileQuickLinks from "./MobileQuickLinks";
 /**
  * EnvironmentSetupForm Component
  * * This component provides a form for configuring various environment settings, including toggles for enabling features,
- * managing launchpad items, quick links, custom widgets, merge integrations, and email templates. It also includes a 
+ * managing launchpad items, quick links, custom widgets, merge integrations, and email templates. It also includes a
  * submit button to finalize the setup.
  * * @param {Object} props - The props object.
  * @param {boolean} props.chatEnabled - Indicates if chat is enabled.
@@ -72,7 +72,7 @@ export default function EnvironmentSetupForm({
   onToggleLaunchpadOpen,
   onToggleLaunchpadItem,
 
-  /* quick links  */
+  /* quick links */
   quickLinksEnabled,
   setQuickLinksEnabled,
   mobileQuickLinks,
@@ -179,13 +179,14 @@ export default function EnvironmentSetupForm({
         </div>
       ))}
 
-{mergeIntegrationsChecked && (
+      {mergeIntegrationsChecked && (
         <div style={psaStyle}>
-          <strong>Heads up:</strong> This will open a new tab to automate the Workday integration setup. Please do not close it until it's finished.
+          <strong>Heads up:</strong> This will open a new tab to automate the
+          Workday integration setup. Please do not close it until it's finished.
         </div>
       )}
 
-{mergeIntegrationsChecked && (
+      {mergeIntegrationsChecked && (
         <div style={formGroupStyle}>
           <label style={labelStyle}>Workday Mapping Field:</label>
           <select
@@ -195,8 +196,8 @@ export default function EnvironmentSetupForm({
           >
             {allProfileFields.length > 0 ? (
               allProfileFields.map((field) => (
-                <option key={field} value={field}>
-                  {field}
+                <option key={field.slug} value={field.slug}>
+                  {field.title}
                 </option>
               ))
             ) : (
@@ -205,8 +206,6 @@ export default function EnvironmentSetupForm({
           </select>
         </div>
       )}
-
-
 
       <div style={formGroupStyle}>
         <button style={brandingButtonStyle} onClick={onSetup}>
