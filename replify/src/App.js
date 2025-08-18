@@ -19,7 +19,6 @@ import {
   saveTokensToStorage,
 } from "./utils/tokenStorage";
 import { automationScript } from "./utils/automationRunner";
-import { workdaySetupScript } from "./utils/workdaySetup";
 import { normaliseLinkedInUrl, buildImagePayload } from "./utils/helpers";
 import { parseBrandingFromCSS } from "./utils/branding";
 
@@ -574,58 +573,78 @@ function App() {
     );
   };
 
-  /* ──────────────────────────────────────────────────────────────
-    AUTHENTICATION  (save/retrieve tokens)
-    ────────────────────────────────────────────────────────────── */
 
-  /**
-   * Exchange the user-supplied API key for Staffbase metadata, stash the
-   * token in local-storage, and prime the UI so the user can pick
-   * “Brand” vs “Set Up”.
-   */
+  /* ──────────────────────────────────────────────────────────────
+    AUTHENTICATION  (save/retrieve tokens)
+    ────────────────────────────────────────────────────────────── */
 
-  const handleAuth = async () => {
-    setResponse("Authenticating …");
-    try {
-      const spacesRes = await fetch("https://app.staffbase.com/api/spaces", {
-        headers: { Authorization: `Basic ${apiToken}` },
-      });
-      if (!spacesRes.ok)
-        throw new Error(`Failed to fetch spaces: ${spacesRes.status}`);
-      const firstSpace = (await spacesRes.json())?.data?.[0];
-      const slug = firstSpace?.accessors?.branch?.slug || "unknown-slug";
-      const branchId =
-        firstSpace?.accessors?.branch?.id || firstSpace?.branchID;
-      const hasNewUI =
-        !!firstSpace?.accessors?.branch?.config?.flags?.includes(
-          "wow_desktop_menu"
-        );
-      const stored = loadTokensFromStorage();
-      if (!stored.find((t) => t.slug === slug)) {
-        stored.push({ slug, token: apiToken, branchId, hasNewUI });
-        saveTokensToStorage(stored);
-      }
-      const mapped = stored.map((t) => ({
-        slug: t.slug,
-        truncatedToken:
-          typeof t.token === "string"
-            ? `${t.token.slice(0, 8)}...`
-            : "[invalid]",
-        fullToken: t.token,
-        branchId: t.branchId,
-        hasNewUI: t.hasNewUI,
-      }));
-      setSavedTokens(mapped);
-      setBranchId(branchId);
-      setUseOption({ type: "select", slug, token: apiToken, branchId });
-      setResponse(
-        `Authentication successful! Stored token for slug “${slug}”.`
-      );
-    } catch (err) {
-      setResponse(`Authentication failed: ${err.message}`);
-    }
-  };
+  /**
+   * A centralized helper to fetch the primary space object from the API.
+   * This is the source of truth for branchId, slug, etc.
+   * @param {string} token - The API token for authentication.
+   * @returns {Promise<object>} The first space object from the API response.
+   */
+  const getFirstSpace = async (token) => {
+    const spacesRes = await fetch("https://app.staffbase.com/api/spaces", {
+      headers: { Authorization: `Basic ${token}` },
+    });
 
+    if (!spacesRes.ok) {
+      throw new Error(`Failed to fetch spaces: ${spacesRes.statusText}`);
+    }
+
+    const firstSpace = (await spacesRes.json())?.data?.[0];
+    if (!firstSpace) {
+      throw new Error("No spaces found in the API response.");
+    }
+
+    return firstSpace;
+  };
+
+  /**
+   * Exchange the user-supplied API key for Staffbase metadata, stash the
+   * token in local-storage, and prime the UI so the user can pick
+   * “Brand” vs “Set Up”.
+   */
+  const handleAuth = async () => {
+    setResponse("Authenticating …");
+    try {
+      const firstSpace = await getFirstSpace(apiToken); // Use the new helper
+      const slug = firstSpace?.accessors?.branch?.slug || "unknown-slug";
+      const branchId =
+        firstSpace?.accessors?.branch?.id || firstSpace?.branchID;
+      const hasNewUI =
+        !!firstSpace?.accessors?.branch?.config?.flags?.includes(
+          "wow_desktop_menu"
+        );
+
+      const stored = loadTokensFromStorage();
+      if (!stored.find((t) => t.slug === slug)) {
+        stored.push({ slug, token: apiToken, branchId, hasNewUI });
+        saveTokensToStorage(stored);
+      }
+
+      const mapped = stored.map((t) => ({
+        slug: t.slug,
+        truncatedToken:
+          typeof t.token === "string"
+            ? `${t.token.slice(0, 8)}...`
+            : "[invalid]",
+        fullToken: t.token,
+        branchId: t.branchId,
+        hasNewUI: t.hasNewUI,
+      }));
+
+      setSavedTokens(mapped);
+      setBranchId(branchId);
+      setUseOption({ type: "select", slug, token: apiToken, branchId });
+      setResponse(
+        `Authentication successful! Stored token for slug “${slug}”.`
+      );
+    } catch (err) {
+      setResponse(`Authentication failed: ${err.message}`);
+    }
+  };
   /* ──────────────────────────────────────────────────────────────
     SAVED-TOKEN INTERACTIONS
     ────────────────────────────────────────────────────────────── */
@@ -1142,157 +1161,7 @@ function App() {
           );
       }
 
-      // 2. NEW SETUP (DIRECT API CALLS FROM EXTENSION)
-      const isNewFeatureSetupNeeded =
-        customWidgetsChecked || mergeIntegrationsChecked;
-      if (isNewFeatureSetupNeeded) {
-        if (!isStaffbaseTab)
-          throw new Error(
-            "Custom widgets/integrations require an active Staffbase tab."
-          );
-
-        setResponse((prev) => prev + "\nFetching CSRF token...");
-        const discoverResponse = await fetch(
-          "https://app.staffbase.com/auth/discover",
-          {
-            method: "GET",
-            headers: {
-              Accept: "application/vnd.staffbase.auth.discovery.v2+json",
-              "Content-Type": "application/json",
-            },
-          }
-        );
-        if (!discoverResponse.ok)
-          throw new Error(`CSRF Discovery failed: ${discoverResponse.status}`);
-        const { csrfToken } = await discoverResponse.json();
-        if (!csrfToken)
-          throw new Error("Could not get CSRF token from discovery endpoint.");
-
-        const staffbaseHeaders = {
-          "Content-Type": "application/json",
-          Authorization: `Basic ${apiToken}`,
-          "x-csrf-token": csrfToken,
-        };
-
-        // 2a. Custom Widgets
-        if (customWidgetsChecked) {
-          setResponse((prev) => prev + "\nInstalling Custom Widgets...");
-          const widgetPayloads = [
-            {
-              url: "https://eirastaffbase.github.io/weather-time/dist/eira.weather-time.js",
-              elements: ["weather-time"],
-              attributes: [
-                "city",
-                "allowcityoverride",
-                "mobileview",
-                "usenewimages",
-              ],
-            },
-            {
-              url: "https://eirastaffbase.github.io/job-postings/dist/staffbase.job-postings.js",
-              elements: ["job-postings"],
-              attributes: [
-                "postingsjson",
-                "buttontext",
-                "buttoncolor",
-                "lefticon",
-                "righticon",
-              ],
-            },
-            {
-              url: "https://eirastaffbase.github.io/stock-ticker/dist/staffbase.stock-ticker.js",
-              elements: ["stock-ticker"],
-              attributes: ["symbol", "weeks", "logo", "stockgraphcolor"],
-            },
-          ];
-          const results = await Promise.all(
-            widgetPayloads.map((payload) =>
-              fetch("https://app.staffbase.com/api/branch/widgets", {
-                method: "POST",
-                headers: staffbaseHeaders,
-                body: JSON.stringify(payload),
-              })
-            )
-          );
-          finalReport.customWidgets = results.every((res) => res.ok);
-          if (!finalReport.customWidgets)
-            throw new Error("One or more custom widgets failed to install.");
-        }
-
-        // 2b. Merge/Workday Integration
-        if (mergeIntegrationsChecked) {
-          setResponse("🚀 Starting Workday UI Automation...");
-
-          const [currentTab] = await chrome.tabs.query({
-            active: true,
-            currentWindow: true,
-          });
-          const origin = new URL(currentTab.url).origin;
-          const integrationUrl = `${origin}/studio/settings/extensions/hr-integrations`;
-
-          // Open a new tab and wait for it to be ready
-          const newTab = await chrome.tabs.create({
-            url: integrationUrl,
-            active: true,
-          });
-
-          const listener = async (tabId, changeInfo) => {
-            if (tabId === newTab.id && changeInfo.status === "complete") {
-              // The tab is ready, remove the listener so we don't run this again
-              chrome.tabs.onUpdated.removeListener(listener);
-
-              setResponse("Tab is ready. Injecting automation script...");
-
-              const workdayCredentials = {
-                baseURL: process.env.REACT_APP_WORKDAY_BASE_URL,
-                username: process.env.REACT_APP_WORKDAY_USERNAME,
-                password: process.env.REACT_APP_WORKDAY_PASSWORD,
-              };
-
-              const mappingFieldTitle =
-                setupProfileFields.find((f) => f.slug === mergeField)?.title ||
-                mergeField;
-
-              // Execute the script and wait for its result
-              const [injectionResult] = await chrome.scripting.executeScript({
-                target: { tabId: newTab.id },
-                func: workdaySetupScript,
-                args: [workdayCredentials, mappingFieldTitle],
-              });
-
-              const { result } = injectionResult;
-              if (result && result.success) {
-                finalReport.mergeIntegration = true;
-                setResponse(
-                  (prev) => prev + "\n✅ Workday integration setup complete!"
-                );
-                // Optional: Close the tab after success
-                // chrome.tabs.remove(newTab.id);
-              } else {
-                throw new Error(
-                  `Workday automation failed: ${
-                    result?.error || "Unknown error"
-                  }`
-                );
-              }
-            }
-          };
-
-          // Listen for status updates from the injected script
-          const messageListener = (message) => {
-            if (message.type === "AUTOMATION_STATUS") {
-              setResponse((prev) => prev + `\n- ${message.payload.status}`);
-            }
-          };
-
-          chrome.tabs.onUpdated.addListener(listener);
-          chrome.runtime.onMessage.addListener(messageListener);
-
-          // This is a simplified cleanup; in a real app you might manage this more robustly.
-        }
-      }
-
-      // 3. Email Templates
+      // 2. Email Templates
       if (setupEmailChecked) {
         setResponse((prev) => prev + "\nSetting up email templates...");
         const emailResponse = await fetch(

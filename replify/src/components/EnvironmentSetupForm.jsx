@@ -159,11 +159,11 @@ export default function EnvironmentSetupForm({
       {/* Custom widgets / merge / email */}
       {[
         ["Custom Widgets?", customWidgetsChecked, setCustomWidgetsChecked],
-        // [
-        //   "Merge Integrations?",
-        //   mergeIntegrationsChecked,
-        //   setMergeIntegrationsChecked, // removed merge temporarily while chino fixes
-        // ],
+        [
+          "Merge Integrations?",
+          mergeIntegrationsChecked,
+          setMergeIntegrationsChecked, // removed merge temporarily while chino fixes
+        ],
         ["Email Templates?", setupEmailChecked, setSetupEmailChecked],
       ].map(([lbl, val, setter]) => (
         <div key={lbl} style={formGroupStyle}>
@@ -179,12 +179,6 @@ export default function EnvironmentSetupForm({
         </div>
       ))}
 
-      {mergeIntegrationsChecked && (
-        <div style={psaStyle}>
-          <strong>Heads up:</strong> This will open a new tab to automate the
-          Workday integration setup. Please do not close it until it's finished.
-        </div>
-      )}
 
       {mergeIntegrationsChecked && (
         <div style={formGroupStyle}>
