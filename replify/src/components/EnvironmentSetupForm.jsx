@@ -162,7 +162,7 @@ export default function EnvironmentSetupForm({
         [
           "Merge Integrations?",
           mergeIntegrationsChecked,
-          setMergeIntegrationsChecked, // removed merge temporarily while chino fixes
+          setMergeIntegrationsChecked, 
         ],
         ["Email Templates?", setupEmailChecked, setSetupEmailChecked],
       ].map(([lbl, val, setter]) => (

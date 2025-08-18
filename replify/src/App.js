@@ -574,77 +574,77 @@ function App() {
   };
 
 
-  /* ──────────────────────────────────────────────────────────────
-    AUTHENTICATION  (save/retrieve tokens)
-    ────────────────────────────────────────────────────────────── */
+  /* ──────────────────────────────────────────────────────────────
+    AUTHENTICATION  (save/retrieve tokens)
+    ────────────────────────────────────────────────────────────── */
 
-  /**
-   * A centralized helper to fetch the primary space object from the API.
-   * This is the source of truth for branchId, slug, etc.
-   * @param {string} token - The API token for authentication.
-   * @returns {Promise<object>} The first space object from the API response.
-   */
-  const getFirstSpace = async (token) => {
-    const spacesRes = await fetch("https://app.staffbase.com/api/spaces", {
-      headers: { Authorization: `Basic ${token}` },
-    });
+  /**
+   * A centralized helper to fetch the primary space object from the API.
+   * This is the source of truth for branchId, slug, etc.
+   * @param {string} token - The API token for authentication.
+   * @returns {Promise<object>} The first space object from the API response.
+   */
+  const getFirstSpace = async (token) => {
+    const spacesRes = await fetch("https://app.staffbase.com/api/spaces", {
+      headers: { Authorization: `Basic ${token}` },
+    });
 
-    if (!spacesRes.ok) {
-      throw new Error(`Failed to fetch spaces: ${spacesRes.statusText}`);
-    }
+    if (!spacesRes.ok) {
+      throw new Error(`Failed to fetch spaces: ${spacesRes.statusText}`);
+    }
 
-    const firstSpace = (await spacesRes.json())?.data?.[0];
-    if (!firstSpace) {
-      throw new Error("No spaces found in the API response.");
-    }
+    const firstSpace = (await spacesRes.json())?.data?.[0];
+    if (!firstSpace) {
+      throw new Error("No spaces found in the API response.");
+    }
 
-    return firstSpace;
-  };
+    return firstSpace;
+  };
 
-  /**
-   * Exchange the user-supplied API key for Staffbase metadata, stash the
-   * token in local-storage, and prime the UI so the user can pick
-   * “Brand” vs “Set Up”.
-   */
-  const handleAuth = async () => {
-    setResponse("Authenticating …");
-    try {
-      const firstSpace = await getFirstSpace(apiToken); // Use the new helper
-      const slug = firstSpace?.accessors?.branch?.slug || "unknown-slug";
-      const branchId =
-        firstSpace?.accessors?.branch?.id || firstSpace?.branchID;
-      const hasNewUI =
-        !!firstSpace?.accessors?.branch?.config?.flags?.includes(
-          "wow_desktop_menu"
-        );
+  /**
+   * Exchange the user-supplied API key for Staffbase metadata, stash the
+   * token in local-storage, and prime the UI so the user can pick
+   * “Brand” vs “Set Up”.
+   */
+  const handleAuth = async () => {
+    setResponse("Authenticating …");
+    try {
+      const firstSpace = await getFirstSpace(apiToken); // Use the new helper
+      const slug = firstSpace?.accessors?.branch?.slug || "unknown-slug";
+      const branchId =
+        firstSpace?.accessors?.branch?.id || firstSpace?.branchID;
+      const hasNewUI =
+        !!firstSpace?.accessors?.branch?.config?.flags?.includes(
+          "wow_desktop_menu"
+        );
 
-      const stored = loadTokensFromStorage();
-      if (!stored.find((t) => t.slug === slug)) {
-        stored.push({ slug, token: apiToken, branchId, hasNewUI });
-        saveTokensToStorage(stored);
-      }
+      const stored = loadTokensFromStorage();
+      if (!stored.find((t) => t.slug === slug)) {
+        stored.push({ slug, token: apiToken, branchId, hasNewUI });
+        saveTokensToStorage(stored);
+      }
 
-      const mapped = stored.map((t) => ({
-        slug: t.slug,
-        truncatedToken:
-          typeof t.token === "string"
-            ? `${t.token.slice(0, 8)}...`
-            : "[invalid]",
-        fullToken: t.token,
-        branchId: t.branchId,
-        hasNewUI: t.hasNewUI,
-      }));
+      const mapped = stored.map((t) => ({
+        slug: t.slug,
+        truncatedToken:
+          typeof t.token === "string"
+            ? `${t.token.slice(0, 8)}...`
+            : "[invalid]",
+        fullToken: t.token,
+        branchId: t.branchId,
+        hasNewUI: t.hasNewUI,
+      }));
 
-      setSavedTokens(mapped);
-      setBranchId(branchId);
-      setUseOption({ type: "select", slug, token: apiToken, branchId });
-      setResponse(
-        `Authentication successful! Stored token for slug “${slug}”.`
-      );
-    } catch (err) {
-      setResponse(`Authentication failed: ${err.message}`);
-    }
-  };
+      setSavedTokens(mapped);
+      setBranchId(branchId);
+      setUseOption({ type: "select", slug, token: apiToken, branchId });
+      setResponse(
+        `Authentication successful! Stored token for slug “${slug}”.`
+      );
+    } catch (err) {
+      setResponse(`Authentication failed: ${err.message}`);
+    }
+  };
   /* ──────────────────────────────────────────────────────────────
     SAVED-TOKEN INTERACTIONS
     ────────────────────────────────────────────────────────────── */
@@ -754,10 +754,10 @@ function App() {
 
       if (mode === "new") {
         prepareNewEnvironmentSetup(token, useOption.slug);
-        fetchAllProfileFields(token, currentBranchId); // Now uses the correct ID
+        fetchAllProfileFields(token, currentBranchId, useOption.slug);
       } else if (mode === "users") {
         fetchUsers(token);
-        fetchAllProfileFields(token, currentBranchId); // Now uses the correct ID
+        fetchAllProfileFields(token, currentBranchId, useOption.slug);
       } else if (mode === "existing") {
         try {
           const css = await fetchCurrentCSS(token);
@@ -1032,16 +1032,70 @@ function App() {
     }
   };
 
-  const fetchAllProfileFields = async (token, branchId) => {
+  const fetchAllProfileFields = async (token, initialBranchId, slug) => {
     const fieldsToExclude = ["avatar", "profileHeaderImage", "apitoken"];
+
+    const makeRequest = (id) =>
+      fetch(`https://app.staffbase.com/api/branches/${id}/profilefields`, {
+        headers: { Authorization: `Basic ${token}` },
+      });
+
     try {
-      const response = await fetch(
-        `https://app.staffbase.com/api/branches/${branchId}/profilefields`,
-        {
+      let response = await makeRequest(initialBranchId);
+
+      // If the first attempt fails, start the recovery and retry logic.
+      if (!response.ok) {
+        setResponse((prev) => prev + "\n⚠️ Profile fields fetch failed. Attempting to recover branch ID...");
+
+        // a) Call spaces API to verify login and get correct branch ID
+        const spacesRes = await fetch("https://app.staffbase.com/api/spaces", {
           headers: { Authorization: `Basic ${token}` },
+        });
+
+        if (!spacesRes.ok) {
+          throw new Error(`Recovery failed: Could not contact spaces API (${spacesRes.statusText}).`);
         }
-      );
-      if (!response.ok) throw new Error("Failed to fetch profile fields");
+
+        const firstSpace = (await spacesRes.json())?.data?.[0];
+        if (!firstSpace) {
+          throw new Error("Recovery failed: No spaces found for this API key.");
+        }
+
+        const currentSlug = firstSpace?.accessors?.branch?.slug;
+
+        // a) Confirm the slug from the API matches the selected environment
+        if (currentSlug !== slug) {
+          // c) If it doesn't match, inform the user they are logged into the wrong account.
+          throw new Error(`Login Mismatch: You seem to be logged into the account for "${currentSlug}", but are trying to use the environment for "${slug}". Please log in to the correct Staffbase account and try again.`);
+        }
+
+        // b) Slugs match, so get the correct branch ID and overwrite the old one.
+        const newBranchId = firstSpace?.accessors?.branch?.id || firstSpace?.branchID;
+        if (!newBranchId) {
+          throw new Error("Recovery failed: Could not extract a valid branch ID from the spaces API.");
+        }
+
+        // Overwrite the broken branchId in the UI state and browser storage
+        setBranchId(newBranchId);
+        setSavedTokens((currentTokens) => {
+          const updatedTokens = currentTokens.map((t) =>
+            t.slug === slug ? { ...t, branchId: newBranchId } : t
+          );
+          saveTokensToStorage(updatedTokens); // Persist the fix
+          return updatedTokens;
+        });
+
+        setResponse((prev) => prev + "\n✅ Branch ID recovered. Retrying fetch...");
+
+        // Retry the API call with the newly recovered branchId
+        response = await makeRequest(newBranchId);
+
+        // If the second attempt fails, there's a deeper issue.
+        if (!response.ok) {
+          throw new Error("There appears to be a persistent issue with the branch ID for your environment. Please remove it and add it again.");
+        }
+      }
+
       const data = await response.json();
 
       const filteredFields = Object.values(data.schema).filter(
@@ -1061,11 +1115,13 @@ function App() {
         title: field.localization.en_US.title,
       }));
       setSetupProfileFields(setupFields);
+
     } catch (err) {
       console.error(err.message);
-      setResponse((prev) => prev + "\n⚠️ Could not fetch all profile fields.");
+      setResponse((prev) => prev + `\n❌ ${err.message}`);
     }
   };
+
 
   /* ──────────────────────────────────────────────────────────────
     ENVIRONMENT CREATION (NEW IMPLEMENTATION)
