@@ -1,6 +1,8 @@
 // components/BrandingForm.jsx
 
 import React, { useState } from "react";
+import { BsSave2 } from "react-icons/bs";
+
 import {
   formGroupStyle,
   inputStyle,
@@ -10,8 +12,15 @@ import {
   labelStyle,
 } from "../styles";
 import { colors } from "../styles/colors";
+import SavedProspects from "./SavedProspects"; // ✨ New Component
 
 export default function BrandingForm({
+  /* ✨ Prospect saving */
+  savedProspects,
+  onSaveProspect,
+  onLoadProspect,
+  onDeleteProspect,
+
   /* flags & handlers */
   isStaffbaseTab,
   includeBranding,
@@ -21,8 +30,8 @@ export default function BrandingForm({
   includeArticles,
   setIncludeArticles,
   brandingExists,
-  resetThemeOnDelete,      // new prop
-  setResetThemeOnDelete,   // new prop
+  resetThemeOnDelete,      
+  setResetThemeOnDelete,   
 
 
   /* live preview */
@@ -147,6 +156,11 @@ export default function BrandingForm({
       {/* ───────── Branding details ───────── */}
       {includeBranding && (
         <>
+        <SavedProspects
+          prospects={savedProspects}
+          onSelect={onLoadProspect}
+          onDelete={onDeleteProspect}
+        />
           {/* CHECKBOX FOR THEME COLORS */}
           <div style={{...formGroupStyle, paddingLeft: '20px'}}>
             <label style={checkboxLabelStyle}>
@@ -285,6 +299,26 @@ export default function BrandingForm({
               }
             />
           </div>
+          {prospectName && (
+            <div style={{ ...formGroupStyle }}>
+              <button
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: colors.primary,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '5px',
+                }}
+                onClick={onSaveProspect}
+              >
+                <BsSave2 size={18} />
+                Save this prospect
+              </button>
+            </div>
+          )}
         </>
       )}
 
