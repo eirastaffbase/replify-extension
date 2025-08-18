@@ -616,22 +616,73 @@ function App() {
     }
   };
 
-    /** “Set Up” or “Brand” button inside <UseEnvironmentOptions>. */
+  /**
+ * Fetches the branchId for a given token from the /api/spaces endpoint
+ * and updates the state and localStorage.
+ */
+const recoverBranchId = async (tokenToRecover, slugToUpdate) => {
+  console.log("Attempting to recover branch ID for slug:", slugToUpdate);
+  try {
+    const spacesRes = await fetch("https://app.staffbase.com/api/spaces", {
+      headers: { Authorization: `Basic ${tokenToRecover}` },
+    });
+    if (!spacesRes.ok) throw new Error(`API returned status ${spacesRes.status}`);
 
-  const handleUseOptionClick = async ({ mode, token, branchId }) => {
+    const firstSpace = (await spacesRes.json())?.data?.[0];
+    const recoveredId = firstSpace?.accessors?.branch?.id || firstSpace?.branchID;
+
+    if (!recoveredId) throw new Error("Could not find branch ID in the spaces API response.");
+
+    // Update state and localStorage with the recovered ID
+    setSavedTokens((currentTokens) => {
+      const updatedTokens = currentTokens.map((t) =>
+        t.slug === slugToUpdate ? { ...t, branchId: recoveredId } : t
+      );
+      // Persist the fix so we don't have to do this again
+      saveTokensToStorage(updatedTokens);
+      return updatedTokens;
+    });
+
+    return recoveredId;
+  } catch (err) {
+    // Throw the user-friendly error message you requested
+    throw new Error(
+      "Error fetching branch ID. Remove the environment and try again with an admin API key. Apologies for the error."
+    );
+  }
+};
+
+
+/** “Set Up” or “Brand” button inside <UseEnvironmentOptions>. */
+const handleUseOptionClick = async ({ mode, token, branchId: initialBranchId }) => {
+  // Use a try/catch block to handle potential recovery errors
+  try {
+    let currentBranchId = initialBranchId;
+    
+    // If branchId is missing (null) or the old invalid string
+    if (!currentBranchId || currentBranchId === "unknown-branch-id") {
+      setIsLoading(true);
+      setResponse("Legacy environment detected. Attempting to recover branch ID...");
+      
+      // Call the recovery function
+      currentBranchId = await recoverBranchId(token, useOption.slug);
+      setResponse(`✅ Branch ID recovered successfully!`);
+      setIsLoading(false);
+    }
+    
+    // --- The rest of the function proceeds as normal, using currentBranchId ---
     setApiToken(token);
-    setBranchId(branchId);
+    setBranchId(currentBranchId);
     setIsAuthenticated(true);
-    // Persist the slug in the state object to keep the env list filtered
-    setUseOption({ type: mode, slug: useOption.slug, token, branchId });
+    setUseOption({ type: mode, slug: useOption.slug, token, branchId: currentBranchId });
     setUserManagementView("selection");
 
     if (mode === "new") {
       prepareNewEnvironmentSetup(token, useOption.slug);
-      fetchAllProfileFields(token, branchId); // Fetch fields for Merge setup
+      fetchAllProfileFields(token, currentBranchId); // Now uses the correct ID
     } else if (mode === "users") {
       fetchUsers(token);
-      fetchAllProfileFields(token, branchId);
+      fetchAllProfileFields(token, currentBranchId); // Now uses the correct ID
     } else if (mode === "existing") {
       try {
         const css = await fetchCurrentCSS(token);
@@ -650,7 +701,12 @@ function App() {
         ? "Ready for user management!"
         : "Using saved environment – ready to set up!"
     );
-  };
+  } catch (err) {
+    setResponse(`❌ ${err.message}`);
+    setIsLoading(false);
+  }
+};
+
     /** Delete button next to a saved token. */
 
   const handleDeleteToken = (slug) => {
@@ -906,6 +962,9 @@ function App() {
   const fetchAllProfileFields = async (token, branchId) => {
     const fieldsToExclude = ["avatar", "profileHeaderImage", "apitoken"];
     try {
+      console.log(localStorage.getItem("staffbaseTokens"));
+      console.log("Using token:", token);
+      console.log("Slug:", useOption?.slug);  
       const response = await fetch(
         `https://app.staffbase.com/api/branches/${branchId}/profilefields`,
         {
@@ -1189,8 +1248,6 @@ function App() {
         src="https://eirastaffbase.github.io/replify/replifyLogo.svg"
         alt="Replify Logo"
         style={logoStyle}
-        onMouseEnter={() => setIsLogoHovered(true)}
-        onMouseLeave={() => setIsLogoHovered(false)}
       />
       <FeedbackBanner />
 
