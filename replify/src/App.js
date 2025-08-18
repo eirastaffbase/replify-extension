@@ -1127,38 +1127,6 @@ function App() {
     ENVIRONMENT CREATION (NEW IMPLEMENTATION)
     ────────────────────────────────────────────────────────────── */
 
-  /**
-   * Helper to get the CSRF token from the active tab.
-   * This is required for POST/PUT requests to the Staffbase API.
-   */
-  const getCsrfToken = async () => {
-    try {
-      const [tab] = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-
-      const injectionResult = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: () => {
-          // This function is executed in the page's context
-          const el = document.querySelector('meta[name="csrf-token"]');
-          return el ? el.content : null;
-        },
-      });
-
-      const token = injectionResult?.[0]?.result;
-      if (!token) {
-        throw new Error(
-          "CSRF token meta tag not found. Are you on a Staffbase admin page?"
-        );
-      }
-      return token;
-    } catch (e) {
-      throw new Error(`Failed to get CSRF token: ${e.message}`);
-    }
-  };
-
   async function handleSetupNewEnv() {
     setResponse("Processing setup request...");
     setIsLoading(true);
