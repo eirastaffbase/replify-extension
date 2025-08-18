@@ -96,8 +96,8 @@ function App() {
   const [customWidgetsChecked, setCustomWidgetsChecked] = useState(false);
   const [mergeIntegrationsChecked, setMergeIntegrationsChecked] =
     useState(false);
-  const [sbEmail, setSbEmail] = useState(""); // Kept for other potential uses
-  const [sbPassword, setSbPassword] = useState(""); // Kept for other potential uses
+  const [sbEmail, setSbEmail] = useState("");
+  const [sbPassword, setSbPassword] = useState("");
   const [mergeField, setMergeField] = useState("");
   const [setupEmailChecked, setSetupEmailChecked] = useState(false);
 
@@ -1163,11 +1163,8 @@ function App() {
     setResponse("Processing setup request...");
     setIsLoading(true);
 
-    // Keep track of successes to build a final report
     const finalReport = {
       installations: null,
-      customWidgets: null,
-      mergeIntegration: null,
       emailTemplates: null,
     };
 
@@ -1175,11 +1172,14 @@ function App() {
       chatEnabled ||
       microsoftEnabled ||
       (journeysEnabled && loggedInUserId) ||
+      campaignsEnabled ||
       launchpadSel.length > 0 ||
-      quickLinksEnabled;
+      quickLinksEnabled ||
+      customWidgetsChecked ||
+      mergeIntegrationsChecked;
 
     try {
-      // 1. Chino's Endpoint
+      // 1. Installations Endpoint
       if (isInstallationSetupNeeded) {
         setResponse("Setting up environment features...");
         const body = {
@@ -1187,15 +1187,27 @@ function App() {
           microsoft: microsoftEnabled,
           campaigns: campaignsEnabled,
         };
+
         if (launchpadSel.length) body.launchpad = launchpadSel;
-        if (journeysEnabled && loggedInUserId)
+
+        if (journeysEnabled && loggedInUserId) {
           body.journeys = { user: loggedInUserId, desired: ["all"] };
+        }
+
         if (quickLinksEnabled) {
           body.mobileQuickLinks = Object.fromEntries(
             mobileQuickLinks
               .filter((l) => l.name.trim())
               .map((l) => [l.name, { title: l.title, position: l.position }])
           );
+        }
+
+        if (customWidgetsChecked) {
+          body.customWidgets = [sbEmail, sbPassword];
+        }
+
+        if (mergeIntegrationsChecked) {
+          body.workdayMerge = [sbEmail, sbPassword, mergeField];
         }
 
         const envResponse = await fetch(
@@ -1211,10 +1223,11 @@ function App() {
         );
 
         finalReport.installations = envResponse.ok;
-        if (!envResponse.ok)
+        if (!envResponse.ok) {
           throw new Error(
             `Installations endpoint failed: ${envResponse.statusText}`
           );
+        }
       }
 
       // 2. Email Templates
@@ -1256,6 +1269,7 @@ function App() {
       setIsLoading(false);
     }
   }
+
 
   /* ──────────────────────────────────────────────────────────────
        UI UTILS & RENDER
@@ -1531,6 +1545,10 @@ function App() {
           setMergeIntegrationsChecked={setMergeIntegrationsChecked}
           setupEmailChecked={setupEmailChecked}
           setSetupEmailChecked={setSetupEmailChecked}
+          sbEmail={sbEmail}
+          setSbEmail={setSbEmail}
+          sbPassword={sbPassword}
+          setSbPassword={setSbPassword}
           mergeField={mergeField}
           setMergeField={setMergeField}
           allProfileFields={setupProfileFields}
