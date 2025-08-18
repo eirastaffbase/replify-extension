@@ -13,11 +13,9 @@ export const workdaySetupScript = async (credentials, mappingField) => {
         const intervalTime = 100;
         let elapsedTime = 0;
         const interval = setInterval(() => {
-          // querySelectorAll returns a NodeList, which can be empty.
           const elements = document.querySelectorAll(selector);
           if (elements.length > 0) {
             clearInterval(interval);
-            // Resolve with the first element found
             resolve(elements[0]);
           }
           elapsedTime += intervalTime;
@@ -27,6 +25,33 @@ export const workdaySetupScript = async (credentials, mappingField) => {
           }
         }, intervalTime);
       });
+    };
+
+    // Finds an element (like a button or div) that contains specific text.
+    const findElementByText = (selector, text) => {
+        return Array.from(document.querySelectorAll(selector)).find((el) =>
+          el.textContent.trim().includes(text)
+        );
+    };
+
+    // NEW: Polls the DOM until an element with the specified text is found.
+    const waitForElementWithText = (selector, text, timeout = 20000) => {
+        return new Promise((resolve, reject) => {
+            const intervalTime = 100;
+            let elapsedTime = 0;
+            const interval = setInterval(() => {
+                const element = findElementByText(selector, text);
+                if (element) {
+                    clearInterval(interval);
+                    resolve(element);
+                }
+                elapsedTime += intervalTime;
+                if (elapsedTime >= timeout) {
+                    clearInterval(interval);
+                    reject(new Error(`Timeout: Element "${selector}" with text "${text}" not found`));
+                }
+            }, intervalTime);
+        });
     };
   
     // Clicks an element and sends a message back to the extension
@@ -51,13 +76,6 @@ export const workdaySetupScript = async (credentials, mappingField) => {
       // Dispatch input event to ensure React state updates
       element.dispatchEvent(new Event("input", { bubbles: true }));
       element.blur(); // Unfocus to trigger any onBlur events
-    };
-  
-    // Finds an element (like a button or div) that contains specific text.
-    const findElementByText = (selector, text) => {
-      return Array.from(document.querySelectorAll(selector)).find((el) =>
-        el.textContent.trim().includes(text)
-      );
     };
   
     // --- Main Automation Flow ---
@@ -97,7 +115,7 @@ export const workdaySetupScript = async (credentials, mappingField) => {
         payload: { status: `Checking mapping field: "${mappingField}"...` },
       });
   
-      const studioLabel = await waitForElement("label", 2000).then(() => findElementByText("label", "Staffbase Studio"));
+      const studioLabel = await waitForElementWithText("label", "Staffbase Studio");
       if (!studioLabel) throw new Error('Could not find "Staffbase Studio" label.');
       
       const studioDropdownButton = studioLabel.parentElement.querySelector("button");
@@ -127,11 +145,9 @@ export const workdaySetupScript = async (credentials, mappingField) => {
       await clickElement('.ds-modal__button--accept', 'Proceeding to authentication...');
   
       // Step 5: "How would you like to authenticate?" modal
-      const authChoiceHeader = await waitForElement("h4").then(() => findElementByText("h4", "How would you like to authenticate?"));
-      if (!authChoiceHeader) throw new Error("Authentication modal did not load.");
-  
-      const authChoice = findElementByText("p", "Use my Workday credentials and also provide OAuth credentials");
-      if (!authChoice) throw new Error("Could not find OAuth authentication option.");
+      // Use the new waitForElementWithText helper to ensure the element is ready
+      const authChoice = await waitForElementWithText("p", "Use my Workday credentials and also provide OAuth credentials.");
+      if (!authChoice) throw new Error("Could not find OAuth authentication option."); // Redundant, but safe.
       chrome.runtime.sendMessage({
         type: "AUTOMATION_STATUS",
         payload: { status: "Selecting OAuth auth method..." },
@@ -139,10 +155,7 @@ export const workdaySetupScript = async (credentials, mappingField) => {
       authChoice.closest("button").click();
   
       // Step 6: "Administrator role required" modal
-      const adminRoleHeader = await waitForElement("h4").then(() => findElementByText("h4", "Administrator role required"));
-      if (!adminRoleHeader) throw new Error("Admin role modal did not load.");
-  
-      const adminButton = findElementByText("button", "I am an admin");
+      const adminButton = await waitForElementWithText("button", "I am an admin");
       if (!adminButton) throw new Error('Could not find "I am an admin" button.');
       chrome.runtime.sendMessage({
         type: "AUTOMATION_STATUS",
@@ -151,10 +164,7 @@ export const workdaySetupScript = async (credentials, mappingField) => {
       adminButton.click();
   
       // Step 7: Data access permissions modal
-      const accessHeader = await waitForElement("h4").then(() => findElementByText("h4", "has read access to:"));
-      if (!accessHeader) throw new Error("Data access modal did not load.");
-  
-      const nextButtonPermissions = findElementByText("button#requested-data-custom-button", "Next");
+      const nextButtonPermissions = await waitForElementWithText("button#requested-data-custom-button", "Next");
       if (!nextButtonPermissions) throw new Error("Could not find 'Next' on permissions screen.");
       chrome.runtime.sendMessage({
         type: "AUTOMATION_STATUS",
@@ -163,9 +173,7 @@ export const workdaySetupScript = async (credentials, mappingField) => {
       nextButtonPermissions.click();
       
       // Step 8: "Enter your web services endpoint URL" modal
-      const endpointHeader = await waitForElement("h4").then(() => findElementByText("h4", "Enter your web services endpoint URL"));
-      if (!endpointHeader) throw new Error("Endpoint URL modal did not load.");
-  
+      await waitForElementWithText("h4", "Enter your web services endpoint URL");
       await typeIntoElement(
         'input[placeholder="URL"]',
         credentials.baseURL,
@@ -180,9 +188,7 @@ export const workdaySetupScript = async (credentials, mappingField) => {
       nextButtonURL.click();
   
       // Step 9: "Enter the credentials for the ISU" modal
-      const isuHeader = await waitForElement("h4").then(() => findElementByText("h4", "Enter the credentials for the ISU"));
-      if (!isuHeader) throw new Error("ISU credentials modal did not load.");
-  
+      await waitForElementWithText("h4", "Enter the credentials for the ISU");
       await typeIntoElement(
         'input[placeholder="Username"]',
         credentials.username,

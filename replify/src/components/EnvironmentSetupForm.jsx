@@ -159,11 +159,11 @@ export default function EnvironmentSetupForm({
       {/* Custom widgets / merge / email */}
       {[
         ["Custom Widgets?", customWidgetsChecked, setCustomWidgetsChecked],
-        [
-          "Merge Integrations?",
-          mergeIntegrationsChecked,
-          setMergeIntegrationsChecked,
-        ],
+        // [
+        //   "Merge Integrations?",
+        //   mergeIntegrationsChecked,
+        //   setMergeIntegrationsChecked, // removed merge temporarily while chino fixes
+        // ],
         ["Email Templates?", setupEmailChecked, setSetupEmailChecked],
       ].map(([lbl, val, setter]) => (
         <div key={lbl} style={formGroupStyle}>
