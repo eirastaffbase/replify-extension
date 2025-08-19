@@ -8,6 +8,7 @@ import {
   dropdownHeaderStyle,
   psaStyle
 } from "../styles";
+import { colors } from "../styles/colors";
 
 import { ANALYTICS_TYPES } from "../constants/appConstants";
 
@@ -15,7 +16,7 @@ import { ANALYTICS_TYPES } from "../constants/appConstants";
 const enableButtonStyle = {
   marginTop: '12px',
   padding: '8px 15px',
-  backgroundColor: '#007bff',
+  backgroundColor: colors.primary,
   color: 'white',
   border: 'none',
   borderRadius: '4px',

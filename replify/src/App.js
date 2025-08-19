@@ -8,23 +8,31 @@ import React, { useState, useEffect } from "react";
 import useStaffbaseTab from "./hooks/useStaffbaseTab";
 import useSavedTokens from "./hooks/useSavedTokens";
 import useAnalyticsRedirects from "./hooks/useAnalyticsRedirects";
+import useSavedProspects from "./hooks/useSavedProspects"; // ✨ New Hook
 import buildPreviewCss from "./utils/buildPreviewCss";
-import { fetchCurrentCSS, postUpdatedCSS } from "./utils/staffbaseCss";
+import {
+  fetchCurrentCSS,
+  postUpdatedCSS,
+  resetDesktopTheme,
+} from "./utils/staffbaseCss";
 import {
   loadTokensFromStorage,
   saveTokensToStorage,
 } from "./utils/tokenStorage";
 import { automationScript } from "./utils/automationRunner";
+import { normaliseLinkedInUrl, buildImagePayload } from "./utils/helpers";
+import { parseBrandingFromCSS } from "./utils/branding";
 
 /* ───── Constants & styles ───── */
 import { LAUNCHPAD_DICT, blockRegex } from "./constants/appConstants";
 import {
   responseStyle,
   containerStyle,
-  headingStyle,
   brandingButtonStyle,
   subDescriptionStyle,
+  logoStyle,
 } from "./styles";
+import { colors } from "./styles/colors"; // Import new colors
 
 /* ───── Components ───── */
 import SavedEnvironments from "./components/SavedEnvironments";
@@ -64,6 +72,35 @@ function App() {
   const [bgVertical, setBgVertical] = useState(0);
   const [previewActive, setPreviewActive] = useState(false);
   const [brandingExists, setBrandingExists] = useState(false); // Replify block already in CSS?
+  const [resetThemeOnDelete, setResetThemeOnDelete] = useState(false);
+  const [changeLogoSize, setChangeLogoSize] = useState(false);
+  const [logoHeight, setLogoHeight] = useState(100);
+  const [logoMarginTop, setLogoMarginTop] = useState(0);
+
+  /* 🎨 Prospect saving --------------------------------------------------- */
+  const [savedProspects, setSavedProspects] = useSavedProspects();
+  
+  /* 🎨 Multi-branding state --------------------------------------------------- */
+  const [multiBrandings, setMultiBrandings] = useState([]);
+  const [multiBrandingEnabled, setMultiBrandingEnabled] = useState(false);
+  const [multiBrandingTarget, setMultiBrandingTarget] = useState({ type: null, id: null });
+  const [allGroups, setAllGroups] = useState([]);
+  const handleAddMultiBranding = (newBrandingConfig) => {
+    // Adds a new group's branding config
+    setMultiBrandings(prev => [...prev, newBrandingConfig]);
+  };
+  const handleUpdateMultiBranding = (updatedConfig) => {
+    // Updates an existing group's config
+    setMultiBrandings(prev => 
+      prev.map(mb => mb.groupId === updatedConfig.groupId ? updatedConfig : mb)
+    );
+  };
+  const handleRemoveMultiBranding = (groupIdToRemove) => {
+    // Removes a group's config
+    setMultiBrandings(prev => prev.filter(mb => mb.groupId !== groupIdToRemove));
+  };
+
+  
 
   /* 📰  News scraping (LinkedIn) ------------------------------------------ */
   const [includeArticles, setIncludeArticles] = useState(false);
@@ -72,10 +109,7 @@ function App() {
 
   /* 📈  Analytics / redirect toggles ---- */
   const [redirectOpen, setRedirectOpen] = useState(false);
-  const {
-    redirectState,
-    handleToggleRedirect,
-  } = useAnalyticsRedirects();
+  const { redirectState, handleToggleRedirect } = useAnalyticsRedirects();
 
   /* ⚙️  Prospect / misc branding inputs ----------------------------------- */
   const [prospectName, setProspectName] = useState("");
@@ -85,8 +119,8 @@ function App() {
   /* 🏗️  Environment setup toggles ---------------------------------------- */
   const [chatEnabled, setChatEnabled] = useState(false);
   const [microsoftEnabled, setMicrosoftEnabled] = useState(false);
-  const [journeysEnabled, setJourneysEnabled] = useState(false); // New state for Journeys
-  const [loggedInUserId, setLoggedInUserId] = useState(null); // New state for user ID
+  const [journeysEnabled, setJourneysEnabled] = useState(false);
+  const [loggedInUserId, setLoggedInUserId] = useState(null);
   const [campaignsEnabled, setCampaignsEnabled] = useState(false);
   const [customWidgetsChecked, setCustomWidgetsChecked] = useState(false);
   const [mergeIntegrationsChecked, setMergeIntegrationsChecked] =
@@ -112,7 +146,8 @@ function App() {
   const [userProfile, setUserProfile] = useState(null);
   const [fieldToUpdate, setFieldToUpdate] = useState("");
   const [newValue, setNewValue] = useState("");
-  const [allProfileFields, setAllProfileFields] = useState([]);
+  const [allProfileFields, setAllProfileFields] = useState([]); // Holds slugs for user mgmt
+  const [setupProfileFields, setSetupProfileFields] = useState([]); // Holds {slug, title} for setup form
   const [adminUserId, setAdminUserId] = useState(null);
   const [userManagementView, setUserManagementView] = useState("selection");
   const [selectedFile, setSelectedFile] = useState(null);
@@ -134,17 +169,61 @@ function App() {
     currentStatus: null,
   });
 
-  // --------------------------------------------------
-  //   SMALL HELPERS
-  // --------------------------------------------------
+  // Get the slug from the useOption state if it exists.
+  const selectedSlug = useOption?.slug ?? null;
 
   useEffect(() => {
-    const messageListener = (message, sender, sendResponse) => {
+    // Only fetch if we're authenticated for an existing environment
+    if (useOption?.type === "existing" && apiToken) {
+      const fetchGroups = async () => {
+        try {
+          const response = await fetch("https://app.staffbase.com/api/branch/groups", {
+            headers: { Authorization: `Basic ${apiToken}` },
+          });
+          if (!response.ok) {
+            console.error(`Failed to fetch groups: ${response.statusText}`);
+            setAllGroups([]); // Set to empty array on failure
+            return;
+          }
+          const result = await response.json();
+          const processedData = result.data
+            .map((group) => ({
+              id: group.id,
+              name: group.config?.localization?.en_US?.title || group.name,
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+          setAllGroups(processedData);
+        } catch (error) {
+          console.error(error);
+          setAllGroups([]);
+        }
+      };
+      fetchGroups();
+    }
+  }, [useOption, apiToken]); // Re-run when these change
+
+
+  // When profile fields are loaded, set the default for the Merge dropdown
+  useEffect(() => {
+    if (setupProfileFields.length > 0 && !mergeField) {
+      const defaultField = setupProfileFields.find(
+        (field) => field.slug === "publicEmailAddress"
+      )
+        ? "publicEmailAddress"
+        : setupProfileFields[0]?.slug || "";
+      setMergeField(defaultField);
+    }
+  }, [setupProfileFields, mergeField]);
+
+  // --------------------------------------------------
+  //    Message Listeners and other simple effects
+  // --------------------------------------------------
+  useEffect(() => {
+    const messageListener = (message) => {
       if (message.type === "automationProgress") {
         setProgressData((prev) => ({
           tasksCompleted: message.payload.tasksCompleted,
           totalTasks: message.payload.totalTasks,
-          // Only update user/status if they are provided, otherwise keep the last known value
           currentUser: message.payload.user || prev.currentUser,
           currentStatus: message.payload.status || prev.currentStatus,
         }));
@@ -157,975 +236,10 @@ function App() {
     chrome.runtime.onMessage.addListener(messageListener);
 
     return () => chrome.runtime.onMessage.removeListener(messageListener);
-  }, []); // Empty array ensures this runs only once
+  }, []);
 
-  const handleLoginAsUser = async () => {
-    if (!selectedUserId) {
-      setResponse("⚠️ Please select a user to log in as.");
-      return;
-    }
-    if (!isStaffbaseTab) {
-      setResponse("❌ This action can only be run on a Staffbase tab.");
-      return;
-    }
-
-    const userToLogin = usersList.find((user) => user.id === selectedUserId);
-    const identifier =
-      userToLogin?.emails?.find((e) => e.primary)?.value ||
-      userToLogin?.emails?.[0]?.value;
-
-    if (!identifier) {
-      setResponse(
-        `❌ Could not find a primary email for user ID ${selectedUserId}.`
-      );
-      return;
-    }
-
-    setResponse(`Attempting to log in as ${identifier}...`);
-    setIsLoading(true);
-
-    try {
-      const [tab] = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-
-      // This function will be executed in the page's context
-      const scriptToInject = (userIdentifier) => {
-        const loginAndReload = async () => {
-          try {
-            console.log(`Inject: Attempting login for ${userIdentifier}`);
-            const loginResponse = await fetch("/api/sessions", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                identifier: userIdentifier,
-                secret: "Clone12345", // Using the same hardcoded password as the automation script
-                locale: "en_US",
-              }),
-            });
-
-            if (!loginResponse.ok) {
-              const errorData = await loginResponse.json();
-              throw new Error(
-                `Login API failed with status ${loginResponse.status}: ${
-                  errorData.message || "Unknown error"
-                }`
-              );
-            }
-
-            console.log("Inject: Login successful. Reloading page...");
-            alert(
-              `Successfully logged in as ${userIdentifier}. The page will now reload.`
-            );
-            window.location.reload();
-          } catch (error) {
-            console.error("Inject: Login script failed.", error);
-            alert(
-              `Failed to log in as ${userIdentifier}. See console for details. Error: ${error.message}`
-            );
-          }
-        };
-        loginAndReload();
-      };
-
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: scriptToInject,
-        args: [identifier],
-      });
-
-      setResponse(`✅ Login script injected for ${identifier}. Check the tab.`);
-    } catch (err) {
-      setResponse(`❌ Script injection failed: ${err.message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  /**
-   * Builds the image payload. Original URL has no transforms.
-   * Thumbs and icons use a standard fill-crop.
-   */
-  const buildImagePayload = (fileId) => {
-    const baseUrl = `https://app.staffbase.com/api/media/secure/external/v2/image/upload/`;
-    return {
-      original: {
-        url: `${baseUrl}${fileId}`, // No cropping on original
-        size: 100000,
-        width: 1920,
-        height: 1080, // Placeholder data
-        created: String(Date.now()),
-        format: "jpg",
-        mimeType: "image/jpeg",
-      },
-      icon: {
-        url: `${baseUrl}c_fill,w_70,h_70/${fileId}`,
-        format: "jpg",
-        mimeType: "image/jpeg",
-      },
-      thumb: {
-        url: `${baseUrl}c_fill,w_200,h_200/${fileId}`,
-        format: "jpg",
-        mimeType: "image/jpeg",
-      },
-    };
-  };
-
-  /**
-   * Handles all profile updates: text fields, images, or both together.
-   */
-  const handleProfileUpdate = async () => {
-    if (!selectedUserId || !adminUserId) {
-      setResponse("⚠️ Please select a user. Admin ID is also required.");
-      return;
-    }
-    if (!fieldToUpdate && (!selectedFile || imageType === "none")) {
-      setResponse(
-        "⚠️ Nothing to update. Select a field or choose an image and type (Avatar/Banner)."
-      );
-      return;
-    }
-
-    setIsLoading(true);
-    setResponse("Processing update...");
-
-    try {
-      let profileChanges = {};
-
-      if (selectedFile && imageType !== "none") {
-        setResponse("Uploading image...");
-        const mediaMeta = JSON.stringify({
-          type: "image",
-          fileName: selectedFile.name,
-        });
-        const uploadResponse = await fetch(
-          "https://app.staffbase.com/api/media",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Basic ${apiToken}`,
-              "Content-Type": selectedFile.type,
-              "staffbase-media-meta": mediaMeta,
-            },
-            body: selectedFile,
-          }
-        );
-
-        if (!uploadResponse.ok)
-          throw new Error(`Media upload failed: ${uploadResponse.statusText}`);
-
-        const { id: rawFileId } = await uploadResponse.json();
-        if (!rawFileId) throw new Error("Media API did not return an ID.");
-
-        const fileIdWithExt = `${rawFileId}.jpg`;
-        profileChanges[imageType] = buildImagePayload(fileIdWithExt);
-      }
-
-      if (fieldToUpdate && newValue) {
-        profileChanges[fieldToUpdate] = newValue;
-      }
-
-      setResponse("Updating user profile...");
-      const finalBody = { profile: profileChanges };
-
-      const updateUserResponse = await fetch(
-        `https://app.staffbase.com/api/users/${selectedUserId}`,
-        {
-          method: "PUT",
-          mode: "cors",
-          credentials: "omit",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Basic ${apiToken}`,
-            USERID: adminUserId,
-          },
-          body: JSON.stringify(finalBody),
-        }
-      );
-
-      if (!updateUserResponse.ok) {
-        const errorData = await updateUserResponse.json();
-        throw new Error(
-          `User update failed: ${
-            errorData.message || updateUserResponse.statusText
-          }`
-        );
-      }
-
-      const updatedUserData = await updateUserResponse.json();
-      setResponse(`✅ Profile updated successfully!`);
-      setUserProfile(updatedUserData);
-
-      setFieldToUpdate("");
-      setNewValue("");
-      setSelectedFile(null);
-      setImageType("none"); // Reset image type to 'none'
-    } catch (err) {
-      setResponse(`❌ Update Failed: ${err.message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleRunAutomation = async (selectedUserIds, automationOptions) => {
-    if (selectedUserIds.length === 0) {
-      setResponse("⚠️ Please select at least one user.");
-      return;
-    }
-
-    setResponse("🚀 Starting automation... preparing new tab.");
-    setProgressData({
-      tasksCompleted: 0,
-      totalTasks: 0,
-      currentUser: null,
-      currentStatus: "Initializing...",
-    });
-    setAutomationRunning(true);
-    setIsLoading(true);
-
-    const selectedUsers = usersList.filter((user) =>
-      selectedUserIds.includes(user.id)
-    );
-    if (selectedUsers.length === 0) {
-      setResponse(
-        "❌ Error: Could not find user data for the current selection."
-      );
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      const [currentTab] = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-      const origin = new URL(currentTab.url).origin;
-      const rootUrl = `${origin}/`;
-
-      const newTab = await chrome.tabs.create({ url: rootUrl, active: true });
-
-      // Prevent Chrome from automatically discarding the tab to save memory
-      await chrome.tabs.update(newTab.id, { autoDiscardable: false });
-
-      const listener = (tabId, changeInfo, tab) => {
-        if (tabId === newTab.id && changeInfo.status === "complete") {
-          chrome.tabs.onUpdated.removeListener(listener);
-
-          setResponse(`Tab ready. Injecting main automation script...`);
-
-          chrome.scripting.executeScript({
-            target: { tabId: newTab.id },
-            func: automationScript,
-            args: [selectedUsers, apiToken, adminUserId, automationOptions],
-          });
-
-          setResponse(
-            `✅ Script injected. The new tab will now run the automation.`
-          );
-          setIsLoading(false);
-        }
-      };
-      chrome.tabs.onUpdated.addListener(listener);
-    } catch (err) {
-      setResponse(`❌ Automation failed: ${err.message}`);
-      setIsLoading(false);
-      setAutomationRunning(false);
-    }
-  };
-
-  /** Returns CTA label for the “Create” button depending on the two checkboxes. */
-  const getCreateLabel = () => {
-    if (includeBranding && includeArticles) return "Create Branding and News";
-    if (includeBranding) return "Create Branding";
-    if (includeArticles) return "Create News";
-    return "Nothing to create";
-  };
-
-  /* ──────────────────────────────────────────────────────────────
-   BRANDING  (delete, preview on/off)
-   ────────────────────────────────────────────────────────────── */
-
-  /** Remove the entire Replify comment-block from the Staffbase CSS. */
-  async function deleteBranding() {
-    try {
-      const css = await fetchCurrentCSS(apiToken);
-
-      if (!css.trim())
-        throw new Error("Fetched CSS is empty – aborting delete.");
-
-      // Bail if no Replify block was found
-      if (!blockRegex.test(css)) {
-        setResponse("Nothing to delete – no Replify block found.");
-        return;
-      }
-
-      const cleaned = css.replace(blockRegex, "").trim();
-      await postUpdatedCSS(apiToken, branchId, cleaned);
-
-      setBrandingExists(false);
-      setResponse("✅ Replify branding deleted");
-    } catch (err) {
-      setResponse(`❌ ${err.message}`);
-    }
-  }
-
-  /** Pull colors / images / prospect‑name from the existing Replify CSS */
-  const pullCurrentBranding = async () => {
-    try {
-      console.log("start");
-      const css = await fetchCurrentCSS(apiToken);
-      const match = css.match(blockRegex);
-      if (!match) throw new Error("No Replify block found.");
-
-      const block = match[0];
-
-      const nameMatch = block.match(/\/\*\s*prospect:(.*?)\*\//i);
-      if (nameMatch) setProspectName(nameMatch[1].trim());
-      // helper utilities -------------------------------------------------
-      const grabRaw = (v) =>
-        (block.match(new RegExp(`--${v}\\s*:\\s*([^;]+);`, "i")) ||
-          [])[1]?.trim();
-      const clean = (val = "") =>
-        val
-          .replace(/!important/i, "")
-          .trim()
-          .replace(/^['"]|['"]$/g, "");
-      const pxToNum = (val = "") => parseInt(val.replace("px", ""), 10) || 0;
-      const extractUrl = (
-        raw = "" // url("…") → …
-      ) => (raw.match(/url\(["']?(.*?)["']?\)/i) || [])[1] || "";
-
-      setPrimaryColor(clean(grabRaw("color-client-primary")) || primaryColor);
-      setTextColor(clean(grabRaw("color-client-text")) || textColor);
-      setBackgroundColor(
-        clean(grabRaw("color-client-background")) || backgroundColor
-      );
-      setFloatingNavBgColor(
-        clean(grabRaw("color-floating-nav-bg")) || floatingNavBgColor
-      );
-      setFloatingNavTextColor(
-        clean(grabRaw("color-floating-nav-text")) || floatingNavTextColor
-      );
-
-      setBgURL(extractUrl(grabRaw("bg-image")) || bgUrl);
-      setLogoUrl(extractUrl(grabRaw("logo-url")) || logoUrl);
-
-      /* padding & bg‑vert come back as plain numbers */
-      const pad = (grabRaw("padding-logo-size") || "").split(" ") || [];
-      setLogoPadHeight(pxToNum(pad[0]) || logoPadHeight);
-      setLogoPadWidth(pxToNum(pad[1]) || logoPadWidth);
-
-      const pos = (grabRaw("bg-image-position") || "").split(" ") || [];
-      setBgVertical(
-        parseInt((pos[1] || "").replace("%", ""), 10) || bgVertical
-      );
-
-      setResponse("✅ Pulled current branding into the form.");
-    } catch (err) {
-      setResponse(`❌ ${err.message}`);
-    }
-  };
-
-  /** Remove the live-preview <style> tag that we injected into the active tab. */
-  async function cancelPreview() {
-    try {
-      const [tab] = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: (styleId) => {
-          const el = document.getElementById(styleId);
-          if (el) el.remove();
-        },
-        args: ["replify-preview-styles"], // keep id in sync with handlePreview
-      });
-
-      setPreviewActive(false);
-      setResponse("Preview cancelled.");
-    } catch (err) {
-      setResponse(`Failed to cancel preview: ${err.message}`);
-    }
-  }
-
-  /* ──────────────────────────────────────────────────────────────
-   LAUNCHPAD SELECTION
-   ────────────────────────────────────────────────────────────── */
-
-  /** Toggle an item in the Launchpad multiselect. */
-  const handleLaunchpadSelect = (option) => {
-    if (option === "all") {
-      setLaunchpadSel(["all"]);
-      return;
-    }
-    const current = launchpadSel.filter((it) => it !== "all");
-    setLaunchpadSel(
-      current.includes(option)
-        ? current.filter((it) => it !== option)
-        : [...current, option]
-    );
-  };
-
-  /* ──────────────────────────────────────────────────────────────
-   AUTHENTICATION  (save/retrieve tokens)
-   ────────────────────────────────────────────────────────────── */
-
-  /**
-   * Exchange the user-supplied API key for Staffbase metadata, stash the
-   * token in local-storage, and prime the UI so the user can pick
-   * “Brand” vs “Set Up”.
-   */
-  const handleAuth = async () => {
-    setResponse("Authenticating …");
-
-    try {
-      const spacesRes = await fetch("https://app.staffbase.com/api/spaces", {
-        headers: { Authorization: `Basic ${apiToken}` },
-      });
-      if (!spacesRes.ok)
-        throw new Error(`Failed to fetch spaces: ${spacesRes.status}`);
-
-      /* 1️⃣ pull data we care about */
-      const firstSpace = (await spacesRes.json())?.data?.[0];
-      const slug = firstSpace?.accessors?.branch?.slug || "unknown-slug";
-      const branchId =
-        firstSpace?.accessors?.branch?.id || firstSpace?.branchID;
-      const hasNewUI =
-        !!firstSpace?.accessors?.branch?.config?.flags?.includes(
-          "wow_desktop_menu"
-        );
-
-      /* 2️⃣ persist token in localStorage (idempotent) */
-      const stored = loadTokensFromStorage();
-      if (!stored.find((t) => t.slug === slug)) {
-        stored.push({ slug, token: apiToken, branchId, hasNewUI });
-        saveTokensToStorage(stored);
-      }
-
-      /* 3️⃣ update UI state */
-      const mapped = stored.map((t) => ({
-        slug: t.slug,
-        truncatedToken:
-          typeof t.token === "string"
-            ? `${t.token.slice(0, 8)}...`
-            : "[invalid]",
-        fullToken: t.token,
-        branchId: t.branchId,
-        hasNewUI: t.hasNewUI,
-      }));
-      setSavedTokens(mapped);
-      setBranchId(branchId);
-      setUseOption({ type: "select", slug, token: apiToken, branchId });
-      setResponse(
-        `Authentication successful! Stored token for slug “${slug}”.`
-      );
-    } catch (err) {
-      setResponse(`Authentication failed: ${err.message}`);
-    }
-  };
-
-  /* ──────────────────────────────────────────────────────────────
-   SAVED-TOKEN INTERACTIONS
-   ────────────────────────────────────────────────────────────── */
-
-  /** Pre-configures the "New Environment" form with default email and user ID. */
-  const prepareNewEnvironmentSetup = async (token, slug) => {
-    if (!slug) {
-      setResponse("⚠️ Slug not found, cannot set up default email.");
-      return;
-    }
-
-    // Set default email immediately
-    const defaultEmail = `admin+${slug}@staffbase.com`;
-    setSbEmail(defaultEmail);
-    setResponse(`Default email set to ${defaultEmail}. Fetching user ID...`);
-
-    // Fetch user ID for journeys
-    try {
-      const meResponse = await fetch("https://app.staffbase.com/api/users/me", {
-        headers: { Authorization: `Basic ${token}` },
-      });
-      if (!meResponse.ok) throw new Error("Failed to fetch current user ID");
-      const meData = await meResponse.json();
-      setLoggedInUserId(meData.id);
-      setResponse(
-        (prev) => prev + `\n✅ User ID for Journeys is ${meData.id}.`
-      );
-    } catch (error) {
-      setResponse(
-        (prev) =>
-          prev +
-          `\n⚠️ Could not fetch user ID for Journeys. Error: ${error.message}`
-      );
-    }
-  };
-
-  /** “Set Up” or “Brand” button inside <UseEnvironmentOptions>. */
-  const handleUseOptionClick = async ({ mode, token, branchId }) => {
-    setApiToken(token);
-    setBranchId(branchId);
-    setIsAuthenticated(true);
-    setUseOption({ type: mode, token, branchId });
-    setUserManagementView("selection"); // Reset to main selection view
-
-    if (mode === "new") {
-      prepareNewEnvironmentSetup(token, useOption.slug);
-    } else if (mode === "users") {
-      fetchUsers(token); // Fetch users when entering this mode
-      fetchAllProfileFields(token, branchId);
-    } else if (mode === "existing") {
-      try {
-        const css = await fetchCurrentCSS(token);
-        const hasBlock =
-          /\/\*\s*⇢\s*REPLIFY START[\s\S]*?REPLIFY END\s*⇠\s*\*\//.test(css);
-        setBrandingExists(hasBlock);
-      } catch {
-        setBrandingExists(false);
-      }
-    }
-
-    setResponse(
-      mode === "existing"
-        ? "Using saved environment – ready to brand!"
-        : mode === "users"
-        ? "Ready for user management!"
-        : "Using saved environment – ready to set up!"
-    );
-  };
-
-  /** Trash-can icon next to a saved token. */
-  const handleDeleteToken = (slug) => {
-    const filtered = savedTokens.filter((t) => t.slug !== slug);
-    setSavedTokens(filtered);
-    saveTokensToStorage(
-      filtered.map(({ slug, fullToken }) => ({ slug, token: fullToken }))
-    );
-    setShowFullToken(null);
-  };
-
-  /** Show/hide the full API key in the token list. */
-  const handleShowFullToken = (slug) =>
-    setShowFullToken((cur) => (cur === slug ? null : slug));
-
-  /* ──────────────────────────────────────────────────────────────
-   BRAND / NEWS CREATION
-   ────────────────────────────────────────────────────────────── */
-
-  /** Helper: ensure the LinkedIn URL ends with `/posts/?feedView=images`. */
-  const normaliseLinkedInUrl = (raw) =>
-    raw
-      .replace(/\/posts.*$/i, "") // drop an existing /posts…
-      .replace(/\/$/, "") + // drop trailing slash
-    "/posts/?feedView=images";
-
-  /**
-   * Create or update demo resources:
-   * 1. Inject / replace Replify CSS block and optionally update theme colors.
-   * 2. Trigger sb-news LinkedIn scraper (optional).
-   */
-  async function handleCreateDemo() {
-    try {
-      /* ---------- 1️⃣  CSS block & Theme Colors -------------------------- */
-      if (includeBranding) {
-        setResponse("Processing branding request…");
-
-        const existingCss = await fetchCurrentCSS(apiToken);
-        const trimmedCss = existingCss ? existingCss.trim() : "";
-
-        const newCssBody = buildPreviewCss({
-          primary: primaryColor,
-          text: textColor,
-          background: backgroundColor,
-          floatingNavBg: floatingNavBgColor,
-          floatingNavText: floatingNavTextColor,
-          bg: bgUrl,
-          logo: logoUrl,
-          padW: logoPadWidth,
-          padH: logoPadHeight,
-          bgVert: bgVertical,
-          prospectName,
-        });
-
-        const newBlock = `/* ⇢ REPLIFY START ⇠ */\n${newCssBody}\n/* ⇢ REPLIFY END ⇠ */`;
-        const finalCss = blockRegex.test(trimmedCss)
-          ? trimmedCss.replace(blockRegex, newBlock)
-          : `${trimmedCss}\n\n${newBlock}`;
-
-        const colorConfig = updateThemeColors
-          ? {
-              primary: primaryColor,
-              text: textColor,
-              background: backgroundColor,
-              floatingNavText: floatingNavTextColor,
-              floatingNavBg: floatingNavBgColor,
-            }
-          : null;
-
-        await postUpdatedCSS(apiToken, branchId, finalCss, colorConfig);
-
-        setBrandingExists(true);
-        // Adjust success message based on whether colors were updated
-        const successMessage = updateThemeColors
-          ? "✅ Demo CSS and theme colors updated!"
-          : "✅ Demo CSS updated!";
-        setResponse(successMessage);
-      }
-
-      /* ---------- 2️⃣ LinkedIn articles ---------------------------------- */
-
-      if (
-        includeArticles &&
-        prospectLinkedInUrl &&
-        /linkedin\.com/i.test(prospectLinkedInUrl)
-      ) {
-        const fixedUrl = normaliseLinkedInUrl(prospectLinkedInUrl);
-
-        if (fixedUrl !== prospectLinkedInUrl) setProspectLinkedInUrl(fixedUrl);
-
-        setResponse(
-          (p) =>
-            p +
-            "\nFetching LinkedIn posts… allow 5-7 min; you can close this panel."
-        );
-
-        /* 2-a) resolve / create “Top News” channel */
-
-        let topNewsChannelId = null;
-
-        try {
-          const r = await fetch(
-            `https://app.staffbase.com/api/spaces/${branchId}/installations?pluginID=news`,
-
-            { headers: { Authorization: `Basic ${apiToken.trim()}` } }
-          );
-
-          if (r.ok) {
-            const hit = (await r.json())?.data?.find((i) =>
-              i.config?.localization?.en_US?.title
-
-                ?.toLowerCase()
-
-                .includes("top news")
-            );
-
-            if (hit) topNewsChannelId = hit.id;
-          }
-        } catch {
-          /* ignore */
-        }
-
-        if (!topNewsChannelId) {
-          const payload = {
-            pluginID: "news",
-
-            contentType: "articles",
-
-            accessorIDs: [branchId],
-
-            config: {
-              localization: {
-                en_US: { title: `Top News // ${prospectName || "Demo"}` },
-              },
-            },
-          };
-
-          const crt = await fetch(
-            `https://app.staffbase.com/api/spaces/${branchId}/installations`,
-
-            {
-              method: "POST",
-
-              headers: {
-                Authorization: `Basic ${apiToken.trim()}`,
-
-                "Content-Type": "application/json",
-              },
-
-              body: JSON.stringify(payload),
-            }
-          );
-
-          if (!crt.ok)
-            throw new Error(`failed to create “Top News” (${crt.status})`);
-
-          topNewsChannelId = (await crt.json()).id;
-        }
-
-        /* 2-b) fire sb-news scraper */
-
-        const payload = {
-          channelID: topNewsChannelId,
-
-          pageURL: fixedUrl,
-
-          totalPosts: linkedInPostsCount || 20,
-        };
-
-        const newsRes = await fetch(
-          "https://sb-news-generator.uc.r.appspot.com/api/v1/bulkscrape/linkedin/article",
-
-          {
-            method: "POST",
-
-            headers: {
-              Authorization: `Basic ${apiToken.trim()}`,
-
-              "Content-Type": "application/json",
-            },
-
-            body: JSON.stringify(payload),
-          }
-        );
-
-        if (!newsRes.ok) throw new Error(`sb-news responded ${newsRes.status}`);
-
-        setResponse("Complete! Refresh for your branded demo!");
-      }
-    } catch (err) {
-      setResponse(`❌ ${err.message}`);
-    }
-  }
-
-  /* ──────────────────────────────────────────────────────────────
-  
-  LIVE CSS PREVIEW
-  
-  ────────────────────────────────────────────────────────────── */
-
-  /** Inject (or update) a <style> tag with the current colour config. */
-  async function handlePreview() {
-    try {
-      const [tab] = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-
-      const css = buildPreviewCss({
-        primary: primaryColor,
-        text: textColor,
-        background: backgroundColor,
-        floatingNavBg: floatingNavBgColor,
-        floatingNavText: floatingNavTextColor,
-        bg: bgUrl,
-        logo: logoUrl,
-        padW: logoPadWidth,
-        padH: logoPadHeight,
-        bgVert: bgVertical,
-      });
-
-      setPreviewActive(true);
-
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: (cssText, styleId) => {
-          let style = document.getElementById(styleId);
-          if (!style) {
-            style = document.createElement("style");
-            style.id = styleId;
-            document.head.appendChild(style);
-          }
-          style.textContent = cssText;
-        },
-        args: [css, "replify-preview-styles"],
-      });
-
-      setResponse("Preview applied. Refresh the tab to clear it");
-    } catch (err) {
-      setResponse(`Preview failed: ${err.message}`);
-    }
-  }
-
-  /* ──────────────────────────────────────────────────────────────
-   ENVIRONMENT CREATION
-   ────────────────────────────────────────────────────────────── */
-
-  /** POST to Replify backend to spin up a fresh environment with selected extras. */
-  async function handleSetupNewEnv() {
-    setResponse("Processing setup request...");
-    setIsLoading(true);
-
-    const messages = [];
-
-    // Determine if the installations endpoint needs to be called
-    const isInstallationSetupNeeded =
-      chatEnabled ||
-      microsoftEnabled ||
-      (journeysEnabled && loggedInUserId) ||
-      launchpadSel.length > 0 ||
-      quickLinksEnabled ||
-      customWidgetsChecked ||
-      mergeIntegrationsChecked;
-
-    try {
-      // 1. Conditionally set up environment features (installations)
-      if (isInstallationSetupNeeded) {
-        setResponse("Setting up environment features...");
-        const body = {
-          chat: chatEnabled,
-          microsoft: microsoftEnabled,
-          campaigns: campaignsEnabled,
-        };
-        if (launchpadSel.length) body.launchpad = launchpadSel;
-        if (journeysEnabled && loggedInUserId) {
-          body.journeys = { user: loggedInUserId, desired: ["all"] };
-        }
-        if (quickLinksEnabled) {
-          body.mobileQuickLinks = Object.fromEntries(
-            mobileQuickLinks
-              .filter((l) => l.name.trim())
-              .map((l) => [l.name, { title: l.title, position: l.position }])
-          );
-        }
-        if (customWidgetsChecked) body.customWidgets = [sbEmail, sbPassword];
-        if (mergeIntegrationsChecked) {
-          body.workdayMerge = [sbEmail, sbPassword, mergeField];
-        }
-
-        const envResponse = await fetch(
-          "https://sb-news-generator.uc.r.appspot.com/api/v1/installations",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${apiToken}`,
-            },
-            body: JSON.stringify(body),
-          }
-        );
-
-        if (envResponse.ok) {
-          messages.push("✅ Environment features configured successfully!");
-        } else {
-          throw new Error(
-            `Environment setup failed: ${envResponse.statusText}`
-          );
-        }
-      }
-
-      // 2. Conditionally set up email templates
-      if (setupEmailChecked) {
-        setResponse("Setting up email templates...");
-        const emailResponse = await fetch(
-          "https://sb-news-generator.uc.r.appspot.com/api/v1/generate/email-templates",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${apiToken}`,
-            },
-            body: JSON.stringify({ domain: "app.staffbase.com" }),
-          }
-        );
-
-        if (emailResponse.ok) {
-          messages.push("✅ Email templates set up successfully!");
-        } else {
-          throw new Error(
-            `Failed to set up email templates: ${emailResponse.statusText}`
-          );
-        }
-      }
-
-      // Set final response message
-      if (messages.length === 0) {
-        setResponse("Nothing to set up. Please check an option.");
-      } else {
-        setResponse(messages.join("\n"));
-      }
-    } catch (err) {
-      setResponse(`❌ Error: ${err.message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  /* ──────────────────────────────────────────────────────────────
-    USER MANAGEMENT
-    ────────────────────────────────────────────────────────────── */
-
-  /** * Fetches all users, finds the first admin ID for updates,
-   * and cleans up usernames for display.
-   */
-  const fetchUsers = async (token) => {
-    setIsLoading(true);
-    setResponse("Fetching users...");
-    try {
-      const response = await fetch("https://app.staffbase.com/api/users", {
-        credentials: "omit",
-        headers: { Authorization: `Basic ${token}` },
-      });
-      if (!response.ok)
-        throw new Error(`Failed to fetch users: ${response.statusText}`);
-
-      const data = await response.json();
-      const allUsers = data.data || [];
-
-      // 1. Find the first user with the admin role and set their ID
-      const adminUser = allUsers.find(
-        (user) => user.branchRole === "WeBranchAdminRole"
-      );
-      if (adminUser) {
-        setAdminUserId(adminUser.id);
-      } else {
-        setAdminUserId(null); // Explicitly set to null if no admin is found
-        setResponse(
-          (prev) => prev + "\n⚠️ No admin user found. Updates will be disabled."
-        );
-      }
-
-      // 2. Clean the username data before setting it to state
-      const cleanedUsers = allUsers.map((user) => {
-        // Safety check: Only call replace if user.username is a string
-        const cleanedUsername =
-          typeof user.username === "string"
-            ? user.username.replace(/^\(|\)$/g, "")
-            : user.username; // If not a string, leave it as is (e.g., null)
-
-        return { ...user, username: cleanedUsername };
-      });
-
-      setUsersList(cleanedUsers);
-      setResponse("✅ Users loaded. Ready for user management.");
-    } catch (err) {
-      setResponse(`❌ ${err.message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  /** Fetches all available, non-read-only profile fields for the branch. */
-  const fetchAllProfileFields = async (token, branchId) => {
-    // UPDATE: Only exclude image fields for now.
-    const fieldsToExclude = ["avatar", "profileHeaderImage", "apitoken"];
-
-    try {
-      const response = await fetch(
-        `https://app.staffbase.com/api/branches/${branchId}/profilefields`,
-        {
-          headers: { Authorization: `Basic ${token}` },
-        }
-      );
-      if (!response.ok) throw new Error("Failed to fetch profile fields");
-
-      const data = await response.json();
-      const fields = Object.values(data.schema)
-        .filter((field) => !field.readOnly)
-        .map((field) => field.slug)
-        .filter((slug) => !fieldsToExclude.includes(slug));
-
-      setAllProfileFields(fields);
-    } catch (err) {
-      console.error(err.message);
-      setResponse((prev) => prev + "\n⚠️ Could not fetch all profile fields.");
-    }
-  };
-
-  /** Fetch the full profile for a single selected user. */
+  // Fetch the full profile for a single selected user.
   useEffect(() => {
-    // This hook is now simplified, as it no longer needs to find nested keys.
     if (!selectedUserId || !apiToken) {
       setUserProfile(null);
       return;
@@ -1158,26 +272,1073 @@ function App() {
     fetchUserProfile();
   }, [selectedUserId, apiToken]);
 
+  const handleLoginAsUser = async () => {
+    if (!selectedUserId) {
+      setResponse("⚠️ Please select a user to log in as.");
+      return;
+    }
+    if (!isStaffbaseTab) {
+      setResponse("❌ This action can only be run on a Staffbase tab.");
+      return;
+    }
+
+    const userToLogin = usersList.find((user) => user.id === selectedUserId);
+    const identifier =
+      userToLogin?.emails?.find((e) => e.primary)?.value ||
+      userToLogin?.emails?.[0]?.value;
+
+    if (!identifier) {
+      setResponse(
+        `❌ Could not find a primary email for user ID ${selectedUserId}.`
+      );
+      return;
+    }
+
+    setResponse(`Attempting to log in as ${identifier}...`);
+    setIsLoading(true);
+
+    try {
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+
+      const scriptToInject = (userIdentifier) => {
+        const loginAndReload = async () => {
+          try {
+            console.log(`Inject: Attempting login for ${userIdentifier}`);
+            const loginResponse = await fetch("/api/sessions", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                identifier: userIdentifier,
+                secret: "Clone12345",
+                locale: "en_US",
+              }),
+            });
+
+            if (!loginResponse.ok) {
+              const errorData = await loginResponse.json();
+              throw new Error(
+                `Login API failed with status ${loginResponse.status}: ${
+                  errorData.message || "Unknown error"
+                }`
+              );
+            }
+            alert(
+              `Successfully logged in as ${userIdentifier}. The page will now reload.`
+            );
+            window.location.reload();
+          } catch (error) {
+            console.error("Inject: Login script failed.", error);
+            alert(
+              `Failed to log in as ${userIdentifier}. See console for details. Error: ${error.message}`
+            );
+          }
+        };
+        loginAndReload();
+      };
+
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: scriptToInject,
+        args: [identifier],
+      });
+
+      setResponse(`✅ Login script injected for ${identifier}. Check the tab.`);
+    } catch (err) {
+      setResponse(`❌ Script injection failed: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+    /**
+   * Handles all profile updates: text fields, images, or both together.
+   */
+    const handleProfileUpdate = async () => {
+      if (!selectedUserId || !adminUserId) {
+        setResponse("⚠️ Please select a user. Admin ID is also required.");
+        return;
+      }
+      if (!fieldToUpdate && (!selectedFile || imageType === "none")) {
+        setResponse(
+          "⚠️ Nothing to update. Select a field or choose an image and type (Avatar/Banner)."
+        );
+        return;
+      }
+      setIsLoading(true);
+      setResponse("Processing update...");
+  
+      try {
+        let profileChanges = {};
+  
+        if (selectedFile && imageType !== "none") {
+          setResponse("Uploading image...");
+          const mediaMeta = JSON.stringify({
+            type: "image",
+            fileName: selectedFile.name,
+          });
+          const uploadResponse = await fetch(
+            "https://app.staffbase.com/api/media",
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Basic ${apiToken}`,
+                "Content-Type": selectedFile.type,
+                "staffbase-media-meta": mediaMeta,
+              },
+              body: selectedFile,
+            }
+          );
+  
+          if (!uploadResponse.ok)
+            throw new Error(`Media upload failed: ${uploadResponse.statusText}`);
+  
+          const { id: rawFileId } = await uploadResponse.json();
+          if (!rawFileId) throw new Error("Media API did not return an ID.");
+  
+          const fileIdWithExt = `${rawFileId}.jpg`;
+          profileChanges[imageType] = buildImagePayload(fileIdWithExt);
+        }
+  
+        if (fieldToUpdate && newValue) {
+          profileChanges[fieldToUpdate] = newValue;
+        }
+  
+        setResponse("Updating user profile...");
+        const finalBody = { profile: profileChanges };
+  
+        const updateUserResponse = await fetch(
+          `https://app.staffbase.com/api/users/${selectedUserId}`,
+          {
+            method: "PUT",
+            mode: "cors",
+            credentials: "omit",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Basic ${apiToken}`,
+              USERID: adminUserId,
+            },
+            body: JSON.stringify(finalBody),
+          }
+        );
+  
+        if (!updateUserResponse.ok) {
+          const errorData = await updateUserResponse.json();
+          throw new Error(
+            `User update failed: ${
+              errorData.message || updateUserResponse.statusText
+            }`
+          );
+        }
+        const updatedUserData = await updateUserResponse.json();
+        setResponse(`✅ Profile updated successfully!`);
+        setUserProfile(updatedUserData);
+  
+        setFieldToUpdate("");
+        setNewValue("");
+        setSelectedFile(null);
+        setImageType("none");
+      } catch (err) {
+        setResponse(`❌ Update Failed: ${err.message}`);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+  
+    const handleRunAutomation = async (selectedUserIds, automationOptions) => {
+      if (selectedUserIds.length === 0) {
+        setResponse("⚠️ Please select at least one user.");
+        return;
+      }
+      setResponse("🚀 Starting automation... preparing new tab.");
+      setProgressData({
+        tasksCompleted: 0,
+        totalTasks: 0,
+        currentUser: null,
+        currentStatus: "Initializing...",
+      });
+      setAutomationRunning(true);
+      setIsLoading(true);
+  
+      const selectedUsers = usersList.filter((user) =>
+        selectedUserIds.includes(user.id)
+      );
+      if (selectedUsers.length === 0) {
+        setResponse(
+          "❌ Error: Could not find user data for the current selection."
+        );
+        setIsLoading(false);
+        return;
+      }
+  
+      try {
+        const [currentTab] = await chrome.tabs.query({
+          active: true,
+          currentWindow: true,
+        });
+        const origin = new URL(currentTab.url).origin;
+        const rootUrl = `${origin}/`;
+        const newTab = await chrome.tabs.create({ url: rootUrl, active: true });
+        await chrome.tabs.update(newTab.id, { autoDiscardable: false });
+  
+        const listener = (tabId, changeInfo, tab) => {
+          if (tabId === newTab.id && changeInfo.status === "complete") {
+            chrome.tabs.onUpdated.removeListener(listener);
+            setResponse(`Tab ready. Injecting main automation script...`);
+            chrome.scripting.executeScript({
+              target: { tabId: newTab.id },
+              func: automationScript,
+              args: [selectedUsers, apiToken, adminUserId, automationOptions],
+            });
+            setResponse(
+              `✅ Script injected. The new tab will now run the automation.`
+            );
+            setIsLoading(false);
+          }
+        };
+        chrome.tabs.onUpdated.addListener(listener);
+      } catch (err) {
+        setResponse(`❌ Automation failed: ${err.message}`);
+        setIsLoading(false);
+        setAutomationRunning(false);
+      }
+    };
+  
+    const getCreateLabel = () => {
+      if (includeBranding && includeArticles) return "Create Branding and News";
+      if (includeBranding) return "Create Branding";
+      if (includeArticles) return "Create News";
+      return "Nothing to create";
+    };
+  
+    /* ──────────────────────────────────────────────────────────────
+      BRANDING  (delete, preview on/off)
+      ────────────────────────────────────────────────────────────── */
+  
+    /** Remove the entire Replify comment-block from the Staffbase CSS. */
+  
+    async function deleteBranding() {
+      setIsLoading(true);
+      setResponse("Deleting branding...");
+      try {
+        // Fetch current CSS to clean it for the legacy endpoint
+        const css = await fetchCurrentCSS(apiToken);
+        const cleanedCss = css ? css.replace(blockRegex, "").trim() : "";
+  
+        if (resetThemeOnDelete) {
+          // If resetting, perform two actions in parallel:
+          // 1. Reset the new Theme API by removing the desktop theme
+          const themeResetPromise = resetDesktopTheme(apiToken);
+  
+          // 2. Update the old Branch Config API with cleaned CSS
+          const legacyCssUpdatePromise = fetch(
+            `https://app.staffbase.com/api/branches/${branchId}/config`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Basic ${apiToken.trim()}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ customCSS: cleanedCss }),
+            }
+          );
+  
+          await Promise.all([themeResetPromise, legacyCssUpdatePromise]);
+          setResponse(
+            "✅ Replify branding deleted and app/intranet theme was reset."
+          );
+        } else {
+          // If not resetting, just remove the CSS block from both systems
+          if (!blockRegex.test(css)) {
+            setResponse("Nothing to delete – no Replify CSS block found.");
+            return;
+          }
+          await postUpdatedCSS(apiToken, branchId, cleanedCss);
+          setResponse("✅ Replify CSS block deleted.");
+        }
+  
+        setBrandingExists(false);
+      } catch (err) {
+        setResponse(`❌ ${err.message}`);
+      } finally {
+        setIsLoading(false);
+        setResetThemeOnDelete(false); // Reset checkbox after action
+      }
+    }
+  
+    const pullCurrentBranding = async () => {
+      try {
+        const css = await fetchCurrentCSS(apiToken);
+        const brandingData = parseBrandingFromCSS(css, blockRegex);
+        if (brandingData.prospectName) setProspectName(brandingData.prospectName);
+        setPrimaryColor(brandingData.primaryColor || primaryColor);
+        setTextColor(brandingData.textColor || textColor);
+        setBackgroundColor(brandingData.backgroundColor || backgroundColor);
+        setFloatingNavBgColor(
+          brandingData.floatingNavBgColor || floatingNavBgColor
+        );
+        setFloatingNavTextColor(
+          brandingData.floatingNavTextColor || floatingNavTextColor
+        );
+        setBgURL(brandingData.bgUrl || bgUrl);
+        setLogoUrl(brandingData.logoUrl || logoUrl);
+        setLogoPadHeight(brandingData.logoPadHeight || logoPadHeight);
+        setLogoPadWidth(brandingData.logoPadWidth || logoPadWidth);
+        setBgVertical(brandingData.bgVertical || bgVertical);
+        setChangeLogoSize(brandingData.changeLogoSize || false);
+        setLogoHeight(brandingData.logoHeight || 100);
+        setLogoMarginTop(brandingData.logoMarginTop || 0);
+        setResponse("✅ Pulled current branding into the form.");
+      } catch (err) {
+        setResponse(`❌ ${err.message}`);
+      }
+    };
+  
+    async function cancelPreview() {
+      try {
+        const [tab] = await chrome.tabs.query({
+          active: true,
+          currentWindow: true,
+        });
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: (styleId) => {
+            const el = document.getElementById(styleId);
+            if (el) el.remove();
+          },
+          args: ["replify-preview-styles"],
+        });
+        setPreviewActive(false);
+        setResponse("Preview cancelled.");
+      } catch (err) {
+        setResponse(`Failed to cancel preview: ${err.message}`);
+      }
+    }
+  
+    /* ──────────────────────────────────────────────────────────────
+      LAUNCHPAD SELECTION
+      ────────────────────────────────────────────────────────────── */
+  
+    /** Toggle an item in the Launchpad multiselect. */
+  
+    const handleLaunchpadSelect = (option) => {
+      if (option === "all") {
+        setLaunchpadSel(["all"]);
+        return;
+      }
+      const current = launchpadSel.filter((it) => it !== "all");
+      setLaunchpadSel(
+        current.includes(option)
+          ? current.filter((it) => it !== option)
+          : [...current, option]
+      );
+    };
+  
+  
+    /* ──────────────────────────────────────────────────────────────
+      AUTHENTICATION  (save/retrieve tokens)
+      ────────────────────────────────────────────────────────────── */
+  
+    /**
+     * A centralized helper to fetch the primary space object from the API.
+     * This is the source of truth for branchId, slug, etc.
+     * @param {string} token - The API token for authentication.
+     * @returns {Promise<object>} The first space object from the API response.
+     */
+    const getFirstSpace = async (token) => {
+      const spacesRes = await fetch("https://app.staffbase.com/api/spaces", {
+        headers: { Authorization: `Basic ${token}` },
+      });
+  
+      if (!spacesRes.ok) {
+        throw new Error(`Failed to fetch spaces: ${spacesRes.statusText}`);
+      }
+  
+      const firstSpace = (await spacesRes.json())?.data?.[0];
+      if (!firstSpace) {
+        throw new Error("No spaces found in the API response.");
+      }
+  
+      return firstSpace;
+    };
+  
+    /**
+     * Exchange the user-supplied API key for Staffbase metadata, stash the
+     * token in local-storage, and prime the UI so the user can pick
+     * “Brand” vs “Set Up”.
+     */
+    const handleAuth = async () => {
+      setResponse("Authenticating …");
+      try {
+        const firstSpace = await getFirstSpace(apiToken); // Use the new helper
+        const slug = firstSpace?.accessors?.branch?.slug || "unknown-slug";
+        const branchId =
+          firstSpace?.accessors?.branch?.id || firstSpace?.branchID;
+        const hasNewUI =
+          !!firstSpace?.accessors?.branch?.config?.flags?.includes(
+            "wow_desktop_menu"
+          );
+  
+        const stored = loadTokensFromStorage();
+        if (!stored.find((t) => t.slug === slug)) {
+          stored.push({ slug, token: apiToken, branchId, hasNewUI });
+          saveTokensToStorage(stored);
+        }
+  
+        const mapped = stored.map((t) => ({
+          slug: t.slug,
+          truncatedToken:
+            typeof t.token === "string"
+              ? `${t.token.slice(0, 8)}...`
+              : "[invalid]",
+          fullToken: t.token,
+          branchId: t.branchId,
+          hasNewUI: t.hasNewUI,
+        }));
+  
+        setSavedTokens(mapped);
+        setBranchId(branchId);
+        setUseOption({ type: "select", slug, token: apiToken, branchId });
+        setResponse(
+          `Authentication successful! Stored token for slug “${slug}”.`
+        );
+      } catch (err) {
+        setResponse(`Authentication failed: ${err.message}`);
+      }
+    };
+    /* ──────────────────────────────────────────────────────────────
+      SAVED-TOKEN INTERACTIONS
+      ────────────────────────────────────────────────────────────── */
+  
+    /** Pre-configures the "New Environment" form with default email and user ID. */
+  
+    const prepareNewEnvironmentSetup = async (token, slug) => {
+      if (!slug) {
+        setResponse("⚠️ Slug not found, cannot set up default email.");
+        return;
+      }
+      const defaultEmail = `admin+${slug}@staffbase.com`;
+      setSbEmail(defaultEmail);
+      setResponse(`Default email set to ${defaultEmail}. Fetching user ID...`);
+      try {
+        const meResponse = await fetch("https://app.staffbase.com/api/users/me", {
+          headers: { Authorization: `Basic ${token}` },
+        });
+        if (!meResponse.ok) throw new Error("Failed to fetch current user ID");
+        const meData = await meResponse.json();
+        setLoggedInUserId(meData.id);
+        setResponse(
+          (prev) => prev + `\n✅ User ID for Journeys is ${meData.id}.`
+        );
+      } catch (error) {
+        setResponse(
+          (prev) =>
+            prev +
+            `\n⚠️ Could not fetch user ID for Journeys. Error: ${error.message}`
+        );
+      }
+    };
+  
+    /**
+     * Fetches the branchId for a given token from the /api/spaces endpoint
+     * and updates the state and localStorage.
+     */
+    const recoverBranchId = async (tokenToRecover, slugToUpdate) => {
+      console.log("Attempting to recover branch ID for slug:", slugToUpdate);
+      try {
+        const spacesRes = await fetch("https://app.staffbase.com/api/spaces", {
+          headers: { Authorization: `Basic ${tokenToRecover}` },
+        });
+        if (!spacesRes.ok)
+          throw new Error(`API returned status ${spacesRes.status}`);
+  
+        const firstSpace = (await spacesRes.json())?.data?.[0];
+        const recoveredId =
+          firstSpace?.accessors?.branch?.id || firstSpace?.branchID;
+  
+        if (!recoveredId)
+          throw new Error("Could not find branch ID in the spaces API response.");
+  
+        // Update state and localStorage with the recovered ID
+        setSavedTokens((currentTokens) => {
+          const updatedTokens = currentTokens.map((t) =>
+            t.slug === slugToUpdate ? { ...t, branchId: recoveredId } : t
+          );
+          // Persist the fix so we don't have to do this again
+          saveTokensToStorage(updatedTokens);
+          return updatedTokens;
+        });
+  
+        return recoveredId;
+      } catch (err) {
+        // Throw the user-friendly error message you requested
+        throw new Error(
+          "Error fetching branch ID. Remove the environment and try again with an admin API key. Apologies for the error."
+        );
+      }
+    };
+  
+    /** “Set Up” or “Brand” button inside <UseEnvironmentOptions>. */
+    const handleUseOptionClick = async ({
+      mode,
+      token,
+      branchId: initialBranchId,
+    }) => {
+      // Use a try/catch block to handle potential recovery errors
+      try {
+        let currentBranchId = initialBranchId;
+  
+        // If branchId is missing (null) or the old invalid string
+        if (!currentBranchId || currentBranchId === "unknown-branch-id") {
+          setIsLoading(true);
+          setResponse(
+            "Legacy environment detected. Attempting to recover branch ID..."
+          );
+  
+          // Call the recovery function
+          currentBranchId = await recoverBranchId(token, useOption.slug);
+          setResponse(`✅ Branch ID recovered successfully!`);
+          setIsLoading(false);
+        }
+  
+        // --- The rest of the function proceeds as normal, using currentBranchId ---
+        setApiToken(token);
+        setBranchId(currentBranchId);
+        setIsAuthenticated(true);
+        setUseOption({
+          type: mode,
+          slug: useOption.slug,
+          token,
+          branchId: currentBranchId,
+        });
+        setUserManagementView("selection");
+  
+        if (mode === "new") {
+          prepareNewEnvironmentSetup(token, useOption.slug);
+          fetchAllProfileFields(token, currentBranchId, useOption.slug);
+        } else if (mode === "users") {
+          fetchUsers(token);
+          fetchAllProfileFields(token, currentBranchId, useOption.slug);
+        } else if (mode === "existing") {
+          try {
+            const css = await fetchCurrentCSS(token);
+            const hasBlock =
+              /\/\*\s*⇢\s*REPLIFY START[\s\S]*?REPLIFY END\s*⇠\s*\*\//.test(css);
+            setBrandingExists(hasBlock);
+          } catch {
+            setBrandingExists(false);
+          }
+        }
+  
+        setResponse(
+          mode === "existing"
+            ? "Using saved environment – ready to brand!"
+            : mode === "users"
+            ? "Ready for user management!"
+            : "Using saved environment – ready to set up!"
+        );
+      } catch (err) {
+        setResponse(`❌ ${err.message}`);
+        setIsLoading(false);
+      }
+    };
+  
+    /** Delete button next to a saved token. */
+  
+    const handleDeleteToken = (slug) => {
+      const filtered = savedTokens.filter((t) => t.slug !== slug);
+      setSavedTokens(filtered);
+      saveTokensToStorage(
+        filtered.map(({ slug, fullToken }) => ({ slug, token: fullToken }))
+      );
+      setShowFullToken(null);
+    };
+  
+    const handleShowFullToken = (slug) =>
+      setShowFullToken((cur) => (cur === slug ? null : slug));
+  
+      /* ──────────────────────────────────────────────────────────────
+    BRAND / NEWS CREATION
+    ────────────────────────────────────────────────────────────── */
+
+  /**
+   * Create or update demo resources:
+   * 1. Inject / replace Replify CSS block and optionally update theme colors.
+   * 2. Trigger sb-news LinkedIn scraper (optional).
+   */
+
+  async function handleCreateDemo() {
+
+    try {
+      /* ---------- 1️⃣  CSS block & Theme Colors -------------------------- */
+      if (includeBranding) {
+        setResponse("Processing branding request…");
+  
+        const existingCss = await fetchCurrentCSS(apiToken);
+        const trimmedCss = existingCss ? existingCss.trim() : "";
+  
+        const newCssBody = buildPreviewCss({
+          primary: primaryColor,
+          text: textColor,
+          background: backgroundColor,
+          floatingNavBg: floatingNavBgColor,
+          floatingNavText: floatingNavTextColor,
+          bg: bgUrl,
+          logo: logoUrl,
+          padW: logoPadWidth,
+          padH: logoPadHeight,
+          bgVert: bgVertical,
+          changeLogoSize,
+          logoHeight,
+          logoMarginTop,
+          prospectName,
+        }, multiBrandings);
+  
+        const newBlock = `/* ⇢ REPLIFY START ⇠ */\n${newCssBody}\n/* ⇢ REPLIFY END ⇠ */`;
+        const finalCss = blockRegex.test(trimmedCss)
+          ? trimmedCss.replace(blockRegex, newBlock)
+          : `${trimmedCss}\n\n${newBlock}`;
+
+        const colorConfig = updateThemeColors
+          ? {
+              primary: primaryColor,
+              text: textColor,
+              background: backgroundColor,
+              floatingNavText: floatingNavTextColor,
+              floatingNavBg: floatingNavBgColor,
+            }
+          : null;
+
+        await postUpdatedCSS(apiToken, branchId, finalCss, colorConfig);
+
+        setBrandingExists(true);
+        const successMessage = updateThemeColors
+          ? "✅ Demo CSS and theme colors updated!"
+          : "✅ Demo CSS updated!";
+        setResponse(successMessage);
+      }
+
+      /* ---------- 2️⃣ LinkedIn articles ---------------------------------- */
+
+      if (
+        includeArticles &&
+        prospectLinkedInUrl &&
+        /linkedin\.com/i.test(prospectLinkedInUrl)
+      ) {
+        const fixedUrl = normaliseLinkedInUrl(prospectLinkedInUrl);
+        if (fixedUrl !== prospectLinkedInUrl) setProspectLinkedInUrl(fixedUrl);
+        setResponse(
+          (p) =>
+            p +
+            "\nFetching LinkedIn posts… allow 5-7 min; you can close this panel."
+        );
+
+        /* 2-a) resolve / create “Top News” channel */
+
+        let topNewsChannelId = null;
+        try {
+          const r = await fetch(
+            `https://app.staffbase.com/api/spaces/${branchId}/installations?pluginID=news`,
+            { headers: { Authorization: `Basic ${apiToken.trim()}` } }
+          );
+
+          if (r.ok) {
+            const hit = (await r.json())?.data?.find((i) =>
+              i.config?.localization?.en_US?.title
+                ?.toLowerCase()
+                .includes("top news")
+            );
+            if (hit) topNewsChannelId = hit.id;
+          }
+        } catch {}
+        if (!topNewsChannelId) {
+          const payload = {
+            pluginID: "news",
+            contentType: "articles",
+            accessorIDs: [branchId],
+            config: {
+              localization: {
+                en_US: { title: `Top News // ${prospectName || "Demo"}` },
+              },
+            },
+          };
+          const crt = await fetch(
+            `https://app.staffbase.com/api/spaces/${branchId}/installations`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Basic ${apiToken.trim()}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(payload),
+            }
+          );
+          if (!crt.ok)
+            throw new Error(`failed to create “Top News” (${crt.status})`);
+          topNewsChannelId = (await crt.json()).id;
+        }
+
+        /* 2-b) fire sb-news scraper */
+
+        const payload = {
+          channelID: topNewsChannelId,
+          pageURL: fixedUrl,
+          totalPosts: linkedInPostsCount || 20,
+        };
+        const newsRes = await fetch(
+          "https://sb-news-generator.uc.r.appspot.com/api/v1/bulkscrape/linkedin/article",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Basic ${apiToken.trim()}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          }
+        );
+        if (!newsRes.ok) throw new Error(`sb-news responded ${newsRes.status}`);
+        setResponse("Complete! Refresh for your branded demo!");
+      }
+    } catch (err) {
+      setResponse(`❌ ${err.message}`);
+    }
+  }
 
   /* ──────────────────────────────────────────────────────────────
-   UI UTILS
+  
+   LIVE CSS PREVIEW
+  
    ────────────────────────────────────────────────────────────── */
 
-  /** Tiny breadcrumb nav that appears after the user clicks a saved token. */
+  /** Inject (or update) a <style> tag with the current colour config. */
+
+  async function handlePreview() {
+    try {
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      const css = buildPreviewCss({
+        primary: primaryColor,
+        text: textColor,
+        background: backgroundColor,
+        floatingNavBg: floatingNavBgColor,
+        floatingNavText: floatingNavTextColor,
+        bg: bgUrl,
+        logo: logoUrl,
+        padW: logoPadWidth,
+        padH: logoPadHeight,
+        bgVert: bgVertical,
+        changeLogoSize,
+        logoHeight,
+        logoMarginTop,        
+      },
+      multiBrandings
+    );
+      setPreviewActive(true);
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: (cssText, styleId) => {
+          let style = document.getElementById(styleId);
+          if (!style) {
+            style = document.createElement("style");
+            style.id = styleId;
+            document.head.appendChild(style);
+          }
+          style.textContent = cssText;
+        },
+        args: [css, "replify-preview-styles"],
+      });
+      setResponse("Preview applied. Refresh the tab to clear it");
+    } catch (err) {
+      setResponse(`Preview failed: ${err.message}`);
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────────
+     USER MANAGEMENT
+     ────────────────────────────────────────────────────────────── */
+
+  /** * Fetches all users, finds the first admin ID for updates,
+   * and cleans up usernames for display.
+   */
+
+  const fetchUsers = async (token) => {
+    setIsLoading(true);
+    setResponse("Fetching users...");
+    try {
+      const response = await fetch("https://app.staffbase.com/api/users", {
+        credentials: "omit",
+        headers: { Authorization: `Basic ${token}` },
+      });
+      if (!response.ok)
+        throw new Error(`Failed to fetch users: ${response.statusText}`);
+      const data = await response.json();
+      const allUsers = data.data || [];
+      const adminUser = allUsers.find(
+        (user) => user.branchRole === "WeBranchAdminRole"
+      );
+      if (adminUser) {
+        setAdminUserId(adminUser.id);
+      } else {
+        setAdminUserId(null);
+        setResponse(
+          (prev) => prev + "\n⚠️ No admin user found. Updates will be disabled."
+        );
+      }
+      const cleanedUsers = allUsers.map((user) => {
+        const cleanedUsername =
+          typeof user.username === "string"
+            ? user.username.replace(/^\(|\)$/g, "")
+            : user.username;
+        return { ...user, username: cleanedUsername };
+      });
+      setUsersList(cleanedUsers);
+      setResponse("✅ Users loaded. Ready for user management.");
+    } catch (err) {
+      setResponse(`❌ ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchAllProfileFields = async (token, initialBranchId, slug) => {
+    const fieldsToExclude = ["avatar", "profileHeaderImage", "apitoken"];
+
+    const makeRequest = (id) =>
+      fetch(`https://app.staffbase.com/api/branches/${id}/profilefields`, {
+        headers: { Authorization: `Basic ${token}` },
+      });
+
+    try {
+      let response = await makeRequest(initialBranchId);
+
+      // If the first attempt fails, start the recovery and retry logic.
+      if (!response.ok) {
+        setResponse((prev) => prev + "\n⚠️ Profile fields fetch failed. Attempting to recover branch ID...");
+
+        // a) Call spaces API to verify login and get correct branch ID
+        const spacesRes = await fetch("https://app.staffbase.com/api/spaces", {
+          headers: { Authorization: `Basic ${token}` },
+        });
+
+        if (!spacesRes.ok) {
+          throw new Error(`Recovery failed: Could not contact spaces API (${spacesRes.statusText}).`);
+        }
+
+        const firstSpace = (await spacesRes.json())?.data?.[0];
+        if (!firstSpace) {
+          throw new Error("Recovery failed: No spaces found for this API key.");
+        }
+
+        const currentSlug = firstSpace?.accessors?.branch?.slug;
+
+        // a) Confirm the slug from the API matches the selected environment
+        if (currentSlug !== slug) {
+          // c) If it doesn't match, inform the user they are logged into the wrong account.
+          throw new Error(`Login Mismatch: You seem to be logged into the account for "${currentSlug}", but are trying to use the environment for "${slug}". Please log in to the correct Staffbase account and try again.`);
+        }
+
+        // b) Slugs match, so get the correct branch ID and overwrite the old one.
+        const newBranchId = firstSpace?.accessors?.branch?.id || firstSpace?.branchID;
+        if (!newBranchId) {
+          throw new Error("Recovery failed: Could not extract a valid branch ID from the spaces API.");
+        }
+
+        // Overwrite the broken branchId in the UI state and browser storage
+        setBranchId(newBranchId);
+        setSavedTokens((currentTokens) => {
+          const updatedTokens = currentTokens.map((t) =>
+            t.slug === slug ? { ...t, branchId: newBranchId } : t
+          );
+          saveTokensToStorage(updatedTokens); // Persist the fix
+          return updatedTokens;
+        });
+
+        setResponse((prev) => prev + "\n✅ Branch ID recovered. Retrying fetch...");
+
+        // Retry the API call with the newly recovered branchId
+        response = await makeRequest(newBranchId);
+
+        // If the second attempt fails, there's a deeper issue.
+        if (!response.ok) {
+          throw new Error("There appears to be a persistent issue with the branch ID for your environment. Please remove it and add it again.");
+        }
+      }
+
+      const data = await response.json();
+
+      const filteredFields = Object.values(data.schema).filter(
+        (field) =>
+          !field.readOnly &&
+          !fieldsToExclude.includes(field.slug) &&
+          field.localization?.en_US?.title
+      );
+
+      // Set slugs for User Management
+      const slugs = filteredFields.map((field) => field.slug);
+      setAllProfileFields(slugs);
+
+      // Set {slug, title} objects for Environment Setup
+      const setupFields = filteredFields.map((field) => ({
+        slug: field.slug,
+        title: field.localization.en_US.title,
+      }));
+      setSetupProfileFields(setupFields);
+
+    } catch (err) {
+      console.error(err.message);
+      setResponse((prev) => prev + `\n❌ ${err.message}`);
+    }
+  };
+
+
+  /* ──────────────────────────────────────────────────────────────
+    ENVIRONMENT CREATION (NEW IMPLEMENTATION)
+    ────────────────────────────────────────────────────────────── */
+
+  async function handleSetupNewEnv() {
+    setResponse("Processing setup request...");
+    setIsLoading(true);
+
+    const finalReport = {
+      installations: null,
+      emailTemplates: null,
+    };
+
+    const isInstallationSetupNeeded =
+      chatEnabled ||
+      microsoftEnabled ||
+      (journeysEnabled && loggedInUserId) ||
+      campaignsEnabled ||
+      launchpadSel.length > 0 ||
+      quickLinksEnabled ||
+      customWidgetsChecked ||
+      mergeIntegrationsChecked;
+
+    try {
+      // 1. Installations Endpoint
+      if (isInstallationSetupNeeded) {
+        setResponse("Setting up environment features...");
+        const body = {
+          chat: chatEnabled,
+          microsoft: microsoftEnabled,
+          campaigns: campaignsEnabled,
+        };
+
+        if (launchpadSel.length) body.launchpad = launchpadSel;
+
+        if (journeysEnabled && loggedInUserId) {
+          body.journeys = { user: loggedInUserId, desired: ["all"] };
+        }
+
+        if (quickLinksEnabled) {
+          body.mobileQuickLinks = Object.fromEntries(
+            mobileQuickLinks
+              .filter((l) => l.name.trim())
+              .map((l) => [l.name, { title: l.title, position: l.position }])
+          );
+        }
+
+        if (customWidgetsChecked) {
+          body.customWidgets = [sbEmail, sbPassword];
+        }
+
+        if (mergeIntegrationsChecked) {
+          // Find the full profile field object to get its display title
+          const selectedProfileField = setupProfileFields.find(
+            (field) => field.slug === mergeField
+          );
+
+          // Use the title for the API payload, fallback to the slug if not found
+          const mergeFieldTitle = selectedProfileField
+            ? selectedProfileField.title
+            : mergeField;
+
+          body.workdayMerge = [sbEmail, sbPassword, mergeFieldTitle];
+        }
+
+        const envResponse = await fetch(
+          "https://sb-news-generator.uc.r.appspot.com/api/v1/installations",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiToken}`,
+            },
+            body: JSON.stringify(body),
+          }
+        );
+
+        finalReport.installations = envResponse.ok;
+        if (!envResponse.ok) {
+          throw new Error(
+            `Installations endpoint failed: ${envResponse.statusText}`
+          );
+        }
+      }
+
+      // 2. Email Templates
+      if (setupEmailChecked) {
+        setResponse((prev) => prev + "\nSetting up email templates...");
+        const emailResponse = await fetch(
+          "https://sb-news-generator.uc.r.appspot.com/api/v1/generate/email-templates",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiToken}`,
+            },
+            body: JSON.stringify({ domain: "app.staffbase.com" }),
+          }
+        );
+        finalReport.emailTemplates = emailResponse.ok;
+        if (!emailResponse.ok)
+          throw new Error(
+            `Email template setup failed: ${emailResponse.statusText}`
+          );
+      }
+
+      // Build final success message
+      const successMessages = Object.entries(finalReport)
+        .filter(([, success]) => success !== null)
+        .map(([key, success]) => `${key}: ${success ? "✅" : "❌"}`);
+      setResponse(`Setup Complete:\n${successMessages.join("\n")}`);
+    } catch (err) {
+      // Build final error message
+      const errorMessages = Object.entries(finalReport)
+        .filter(([, success]) => success !== null)
+        .map(([key, success]) => `${key}: ${success ? "✅" : "❌"}`);
+      setResponse(
+        `Setup failed:\n${errorMessages.join("\n")}\n\nError: ${err.message}`
+      );
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+
+  /* ──────────────────────────────────────────────────────────────
+       UI UTILS & RENDER
+   ────────────────────────────────────────────────────────────── */
+
   const renderBreadcrumbs = () => (
     <div style={{ marginBottom: 20 }}>
       <button
         style={{
           background: "none",
           border: "none",
-          color: "#007bff",
+          color: colors.primary,
           cursor: "pointer",
           padding: 0,
           fontSize: 14,
         }}
         onClick={() => {
           setUseOption({ type: null });
-          setUserManagementView("selection"); // Also reset user mgmt view
+          setUserManagementView("selection");
         }}
       >
         ← Back to Environments
@@ -1185,14 +1346,13 @@ function App() {
     </div>
   );
 
-  /** Breadcrumb nav for inside the User Management section. */
   const renderUserMgmtBreadcrumbs = () => (
     <div style={{ marginBottom: 20 }}>
       <button
         style={{
           background: "none",
           border: "none",
-          color: "#007bff",
+          color: colors.primary,
           cursor: "pointer",
           padding: 0,
           fontSize: 14,
@@ -1204,12 +1364,11 @@ function App() {
     </div>
   );
 
-  /* ——— Quick‑link helpers ——— */
   const handleQuickLinkChange = (idx, field, val) => {
     setMobileQuickLinks((prev) => {
       const copy = [...prev];
       copy[idx] = { ...copy[idx], [field]: val };
-      copy.forEach((l, i) => (l.position = i)); // keep positions tidy
+      copy.forEach((l, i) => (l.position = i));
       return copy;
     });
   };
@@ -1236,37 +1395,105 @@ function App() {
       { name: "", title: "", position: prev.length, enabled: true },
     ]);
 
-  // --------------------------------------------------
-  //  JSX
-  // --------------------------------------------------
+  // ==================================================================
+  // NEW PROSPECT HANDLERS
+  // ==================================================================
+  
+  const handleSaveProspect = () => {
+    if (!prospectName.trim()) {
+      setResponse("⚠️ Please enter a prospect name before saving.");
+      return;
+    }
+
+    const newProspect = {
+      id: prospectName.trim().toLowerCase().replace(/\s+/g, "-"),
+      prospectName,
+      logoUrl,
+      bgUrl,
+      primaryColor,
+      textColor,
+      backgroundColor,
+      floatingNavBgColor,
+      floatingNavTextColor,
+      logoPadWidth,
+      logoPadHeight,
+      bgVertical,
+      changeLogoSize,
+      logoHeight,
+      logoMarginTop,
+    };
+
+    setSavedProspects((prev) => {
+      const existingIndex = prev.findIndex((p) => p.id === newProspect.id);
+      if (existingIndex !== -1) {
+        // Update existing prospect
+        const updated = [...prev];
+        updated[existingIndex] = newProspect;
+        return updated;
+      }
+      // Add new prospect
+      return [...prev, newProspect];
+    });
+
+    setResponse(`✅ Prospect "${prospectName}" saved!`);
+  };
+
+  const handleLoadProspect = (prospect) => {
+    setProspectName(prospect.prospectName);
+    setLogoUrl(prospect.logoUrl);
+    setBgURL(prospect.bgUrl);
+    setPrimaryColor(prospect.primaryColor);
+    setTextColor(prospect.textColor);
+    setBackgroundColor(prospect.backgroundColor);
+    setFloatingNavBgColor(prospect.floatingNavBgColor);
+    setFloatingNavTextColor(prospect.floatingNavTextColor);
+    setLogoPadWidth(prospect.logoPadWidth);
+    setLogoPadHeight(prospect.logoPadHeight);
+    setBgVertical(prospect.bgVertical);
+    setChangeLogoSize(prospect.changeLogoSize || false);
+    setLogoHeight(prospect.logoHeight || 100);
+    setLogoMarginTop(prospect.logoMarginTop || 0);
+    setResponse(`🎨 Loaded branding for "${prospect.prospectName}".`);
+  };
+
+  const handleDeleteProspect = (prospectId) => {
+    setSavedProspects((prev) => prev.filter((p) => p.id !== prospectId));
+    setResponse("🗑️ Prospect deleted.");
+  };
+
   return (
     <div style={containerStyle}>
-      <h1 style={headingStyle}>Replify for Staffbase</h1>
-
+      <img
+        src="https://eirastaffbase.github.io/replify/replifyLogo.svg"
+        alt="Replify Logo"
+        style={logoStyle}
+      />
       <FeedbackBanner />
 
-      {/* ─────────── SAVED ENVIRONMENTS ─────────── */}
       <SavedEnvironments
         savedTokens={savedTokens}
         showFull={showFullToken}
+        selectedSlug={selectedSlug}
         onUse={({ slug, token, branchId }) =>
           setUseOption({ type: "select", slug, token, branchId })
         }
+        onCancel={() => setUseOption(null)}
         onToggle={handleShowFullToken}
         onDelete={handleDeleteToken}
         onAdd={() => setShowApiKeyInput((prev) => !prev)}
       />
 
-      <RedirectAnalyticsForm
-        open={redirectOpen} // This state should be managed in App.js
-        onToggleOpen={() => setRedirectOpen((o) => !o)} // This should be managed in App.js
-        state={redirectState}
-        onToggleType={handleToggleRedirect}
-      />
+      {!selectedSlug && (
+        <RedirectAnalyticsForm
+          open={redirectOpen}
+          onToggleOpen={() => setRedirectOpen((o) => !o)}
+          state={redirectState}
+          onToggleType={handleToggleRedirect}
+        />
+      )}
 
       {useOption?.type && renderBreadcrumbs()}
 
-      {/* ─────────── ENTER API-KEY FIRST TIME ─────────── */}
       {!useOption?.type && !isAuthenticated && showApiKeyInput && (
         <ApiKeyForm
           value={apiToken}
@@ -1275,7 +1502,6 @@ function App() {
         />
       )}
 
-      {/* ─────────── CHOOSE “SET-UP” vs “BRAND” ─────────── */}
       {useOption?.type === "select" && (
         <UseEnvironmentOptions
           slug={useOption.slug}
@@ -1289,7 +1515,6 @@ function App() {
         />
       )}
 
-      {/* ─────────── USER MANAGEMENT (AUTOMATION / PROFILE) ─────────── */}
       {isAuthenticated && useOption?.type === "users" && (
         <>
           {userManagementView !== "selection" && renderUserMgmtBreadcrumbs()}
@@ -1306,7 +1531,6 @@ function App() {
                 Populate the platform with comments, reactions, chats, and
                 survey responses.
               </p>
-
               <button
                 style={{ ...brandingButtonStyle, marginTop: "20px" }}
                 onClick={() => setUserManagementView("profile")}
@@ -1351,56 +1575,79 @@ function App() {
           )}
         </>
       )}
+  {/* ─────────── BRAND EXISTING ENV ─────────── */}
+  {isAuthenticated && useOption?.type === "existing" && (
+    <BrandingForm
+      /* Prospect saving */
+      savedProspects={savedProspects}
+      onSaveProspect={handleSaveProspect}
+      onLoadProspect={handleLoadProspect}
+      onDeleteProspect={handleDeleteProspect}
 
-      {/* ─────────── BRAND EXISTING ENV ─────────── */}
-      {isAuthenticated && useOption?.type === "existing" && (
-        <BrandingForm
-          /* flags & handlers */
-          isStaffbaseTab={isStaffbaseTab}
-          updateThemeColors={updateThemeColors}
-          setUpdateThemeColors={setUpdateThemeColors}
-          includeBranding={includeBranding}
-          setIncludeBranding={setIncludeBranding}
-          includeArticles={includeArticles}
-          setIncludeArticles={setIncludeArticles}
-          brandingExists={brandingExists}
-          /* live preview */
-          previewActive={previewActive}
-          onPreview={handlePreview}
-          onCancelPreview={cancelPreview}
-          /* helpers */
-          getCreateLabel={getCreateLabel}
-          /* prospect / style state */
-          prospectName={prospectName}
-          setProspectName={setProspectName}
-          logoUrl={logoUrl}
-          setLogoUrl={setLogoUrl}
-          bgUrl={bgUrl}
-          setBgURL={setBgURL}
-          primaryColor={primaryColor}
-          setPrimaryColor={setPrimaryColor}
-          textColor={textColor}
-          setTextColor={setTextColor}
-          backgroundColor={backgroundColor}
-          setBackgroundColor={setBackgroundColor}
-          floatingNavBgColor={floatingNavBgColor}
-          setFloatingNavBgColor={setFloatingNavBgColor}
-          floatingNavTextColor={floatingNavTextColor}
-          setFloatingNavTextColor={setFloatingNavTextColor}
-          logoPadWidth={logoPadWidth}
-          setLogoPadWidth={setLogoPadWidth}
-          logoPadHeight={logoPadHeight}
-          setLogoPadHeight={setLogoPadHeight}
-          bgVertical={bgVertical}
-          setBgVertical={setBgVertical}
-          prospectLinkedInUrl={prospectLinkedInUrl}
-          setProspectLinkedInUrl={setProspectLinkedInUrl}
-          /* action */
-          onCreateDemo={handleCreateDemo}
-          onDeleteBranding={deleteBranding}
-          onPullBranding={pullCurrentBranding}
-        />
-      )}
+      /* Multi-branding */
+      multiBrandingEnabled={multiBrandingEnabled}
+      setMultiBrandingEnabled={setMultiBrandingEnabled}
+      onTargetChange={setMultiBrandingTarget}
+      multiBrandings={multiBrandings}
+      onAddMultiBranding={handleAddMultiBranding}
+      onUpdateMultiBranding={handleUpdateMultiBranding}
+      onRemoveMultiBranding={handleRemoveMultiBranding}
+      allGroups={allGroups}
+
+      /* flags & handlers */
+      isStaffbaseTab={isStaffbaseTab}
+      updateThemeColors={updateThemeColors}
+      setUpdateThemeColors={setUpdateThemeColors}
+      includeBranding={includeBranding}
+      setIncludeBranding={setIncludeBranding}
+      includeArticles={includeArticles}
+      setIncludeArticles={setIncludeArticles}
+      brandingExists={brandingExists}
+      resetThemeOnDelete={resetThemeOnDelete}
+      setResetThemeOnDelete={setResetThemeOnDelete}
+      /* live preview */
+      previewActive={previewActive}
+      onPreview={handlePreview}
+      onCancelPreview={cancelPreview}
+      /* helpers */
+      getCreateLabel={getCreateLabel}
+      /* prospect / style state */
+      prospectName={prospectName}
+      setProspectName={setProspectName}
+      logoUrl={logoUrl}
+      setLogoUrl={setLogoUrl}
+      bgUrl={bgUrl}
+      setBgURL={setBgURL}
+      primaryColor={primaryColor}
+      setPrimaryColor={setPrimaryColor}
+      textColor={textColor}
+      setTextColor={setTextColor}
+      backgroundColor={backgroundColor}
+      setBackgroundColor={setBackgroundColor}
+      floatingNavBgColor={floatingNavBgColor}
+      setFloatingNavBgColor={setFloatingNavBgColor}
+      floatingNavTextColor={floatingNavTextColor}
+      setFloatingNavTextColor={setFloatingNavTextColor}
+      logoPadWidth={logoPadWidth}
+      setLogoPadWidth={setLogoPadWidth}
+      logoPadHeight={logoPadHeight}
+      setLogoPadHeight={setLogoPadHeight}
+      bgVertical={bgVertical}
+      setBgVertical={setBgVertical}
+      changeLogoSize={changeLogoSize}
+      setChangeLogoSize={setChangeLogoSize}
+      logoHeight={logoHeight}
+      setLogoHeight={setLogoHeight}
+      logoMarginTop={logoMarginTop}
+      setLogoMarginTop={setLogoMarginTop}
+      prospectLinkedInUrl={prospectLinkedInUrl}
+      setProspectLinkedInUrl={setProspectLinkedInUrl}
+      /* action */
+      onCreateDemo={handleCreateDemo}
+      onDeleteBranding={deleteBranding}
+      onPullBranding={pullCurrentBranding}
+/>
+  )}
 
       {/* ─────────── SET-UP BRAND-NEW ENV ─────────── */}
       {isAuthenticated && useOption?.type === "new" && (
@@ -1442,56 +1689,12 @@ function App() {
           sbPassword={sbPassword}
           setSbPassword={setSbPassword}
           mergeField={mergeField}
-          setSetMergeField={setMergeField}
+          setMergeField={setMergeField}
+          allProfileFields={setupProfileFields}
           /* submit */
           onSetup={handleSetupNewEnv}
         />
       )}
-
-      {/* ─────────── “DEFAULT” BRANDING VIEW WHEN AUTHED ─────────── */}
-      {isAuthenticated &&
-        !useOption &&
-        (isLoading ? (
-          <div>Loading…</div>
-        ) : (
-          <BrandingForm
-            isStaffbaseTab={isStaffbaseTab}
-            includeBranding={includeBranding}
-            setIncludeBranding={setIncludeBranding}
-            includeArticles={includeArticles}
-            setIncludeArticles={setIncludeArticles}
-            brandingExists={brandingExists}
-            previewActive={previewActive}
-            onPreview={handlePreview}
-            onCancelPreview={cancelPreview}
-            getCreateLabel={getCreateLabel}
-            prospectName={prospectName}
-            setProspectName={setProspectName}
-            logoUrl={logoUrl}
-            setLogoUrl={setLogoUrl}
-            bgUrl={bgUrl}
-            setBgURL={setBgURL}
-            primaryColor={primaryColor}
-            setPrimaryColor={setPrimaryColor}
-            textColor={textColor}
-            setTextColor={setTextColor}
-            backgroundColor={backgroundColor}
-            setBackgroundColor={setBackgroundColor}
-            floatingNavBgColor={floatingNavBgColor}
-            setFloatingNavBgColor={setFloatingNavBgColor}
-            floatingNavTextColor={floatingNavTextColor}
-            setFloatingNavTextColor={setFloatingNavTextColor}
-            logoPadWidth={logoPadWidth}
-            setLogoPadWidth={setLogoPadWidth}
-            logoPadHeight={logoPadHeight}
-            setLogoPadHeight={setLogoPadHeight}
-            bgVertical={bgVertical}
-            setBgVertical={setBgVertical}
-            prospectLinkedInUrl={prospectLinkedInUrl}
-            setProspectLinkedInUrl={setProspectLinkedInUrl}
-            onCreateDemo={handleCreateDemo}
-          />
-        ))}
 
       {/* ─────────── SERVER RESPONSES ─────────── */}
       {response && <pre style={responseStyle}>{response}</pre>}

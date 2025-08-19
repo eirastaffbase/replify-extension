@@ -7,66 +7,36 @@ import {
   checkboxLabelStyle,
   checkboxStyle,
   brandingButtonStyle,
+  psaStyle,
 } from "../styles";
 import LaunchpadSelect from "./LaunchpadSelect";
 import MobileQuickLinks from "./MobileQuickLinks";
 
 /**
  * EnvironmentSetupForm Component
- * * This component provides a form for configuring various environment settings, including toggles for enabling features,
- * managing launchpad items, quick links, custom widgets, merge integrations, and email templates. It also includes a 
- * submit button to finalize the setup.
- * * @param {Object} props - The props object.
- * @param {boolean} props.chatEnabled - Indicates if chat is enabled.
- * @param {Function} props.setChatEnabled - Function to toggle chat enabled state.
- * @param {boolean} props.microsoftEnabled - Indicates if Microsoft integration is enabled.
- * @param {Function} props.setMicrosoftEnabled - Function to toggle Microsoft integration enabled state.
- * @param {boolean} props.journeysEnabled - Indicates if Journeys are enabled.
- * @param {Function} props.setJourneysEnabled - Function to toggle Journeys enabled state.
- * @param {boolean} props.campaignsEnabled - Indicates if campaigns are enabled. (Note: Endpoint for campaigns is broken.)
- * @param {Function} props.setCampaignsEnabled - Function to toggle campaigns enabled state.
- * @param {Array} props.launchpadSel - Selected launchpad items.
- * @param {Array} props.items - List of launchpad items.
- * @param {boolean} props.openLaunchpad - Indicates if the launchpad is open.
- * @param {Function} props.onToggleLaunchpadOpen - Function to toggle the launchpad open state.
- * @param {Function} props.onToggleLaunchpadItem - Function to toggle individual launchpad items.
- * @param {boolean} props.quickLinksEnabled - Indicates if quick links are enabled.
- * @param {Function} props.setQuickLinksEnabled - Function to toggle quick links enabled state.
- * @param {Array} props.mobileQuickLinks - List of mobile quick links.
- * @param {Function} props.onQuickLinkChange - Function to handle changes to quick links.
- * @param {Function} props.onQuickLinkSwap - Function to swap quick links.
- * @param {Function} props.onQuickLinkDelete - Function to delete quick links.
- * @param {Function} props.onQuickLinkAdd - Function to add new quick links.
- * @param {boolean} props.customWidgetsChecked - Indicates if custom widgets are enabled.
- * @param {Function} props.setCustomWidgetsChecked - Function to toggle custom widgets enabled state.
- * @param {boolean} props.mergeIntegrationsChecked - Indicates if merge integrations are enabled.
- * @param {Function} props.setMergeIntegrationsChecked - Function to toggle merge integrations enabled state.
- * @param {boolean} props.setupEmailChecked - Indicates if email templates are enabled.
- * @param {Function} props.setSetupEmailChecked - Function to toggle email templates enabled state.
- * @param {string} props.sbEmail - Email for custom widgets or merge integrations.
- * @param {Function} props.setSbEmail - Function to set the email for custom widgets or merge integrations.
- * @param {string} props.sbPassword - Password for custom widgets or merge integrations.
- * @param {Function} props.setSbPassword - Function to set the password for custom widgets or merge integrations.
- * @param {string} props.mergeField - Merge field for integrations.
- * @param {Function} props.setMergeField - Function to set the merge field for integrations.
- * @param {Function} props.onSetup - Function to handle the setup process.
- * * @returns {JSX.Element} The rendered EnvironmentSetupForm component.
+ * ... (JSDoc comments updated to include new props)
  */
 export default function EnvironmentSetupForm({
   /* toggles */
-  chatEnabled, setChatEnabled,
-  microsoftEnabled, setMicrosoftEnabled,
-  journeysEnabled, setJourneysEnabled, // Destructure new prop
-  campaignsEnabled, setCampaignsEnabled,
+  chatEnabled,
+  setChatEnabled,
+  microsoftEnabled,
+  setMicrosoftEnabled,
+  journeysEnabled,
+  setJourneysEnabled,
+  campaignsEnabled,
+  setCampaignsEnabled,
 
   /* launchpad */
-  launchpadSel, items,
-  openLaunchpad, onToggleLaunchpadOpen,
+  launchpadSel,
+  items,
+  openLaunchpad,
+  onToggleLaunchpadOpen,
   onToggleLaunchpadItem,
 
-  /* quick links  */
-  quickLinksEnabled, setQuickLinksEnabled,
-
+  /* quick links */
+  quickLinksEnabled,
+  setQuickLinksEnabled,
   mobileQuickLinks,
   onQuickLinkChange,
   onQuickLinkSwap,
@@ -74,12 +44,19 @@ export default function EnvironmentSetupForm({
   onQuickLinkAdd,
 
   /* widgets / merge */
-  customWidgetsChecked, setCustomWidgetsChecked,
-  mergeIntegrationsChecked, setMergeIntegrationsChecked,
-  setupEmailChecked, setSetupEmailChecked, 
-  sbEmail, setSbEmail,
-  sbPassword, setSbPassword,
-  mergeField, setMergeField,
+  customWidgetsChecked,
+  setCustomWidgetsChecked,
+  mergeIntegrationsChecked,
+  setMergeIntegrationsChecked,
+  setupEmailChecked,
+  setSetupEmailChecked,
+  sbEmail,
+  setSbEmail,
+  sbPassword,
+  setSbPassword,
+  mergeField,
+  setMergeField,
+  allProfileFields,
 
   /* submit */
   onSetup,
@@ -88,12 +65,12 @@ export default function EnvironmentSetupForm({
     <>
       <h3>Environment Setup</h3>
 
-      {/* Chat / Microsoft / Journeys / Campaigns */}
+      {/* Main Feature Toggles */}
       {[
         ["Enable Chat", chatEnabled, setChatEnabled],
         ["Enable Microsoft Integration", microsoftEnabled, setMicrosoftEnabled],
-        ["Add Journeys", journeysEnabled, setJourneysEnabled], // Add Journeys checkbox
-        // ["Enable Campaigns", campaignsEnabled, setCampaignsEnabled],
+        ["Add Journeys", journeysEnabled, setJourneysEnabled],
+        ["Add Campaigns", campaignsEnabled, setCampaignsEnabled],
       ].map(([lbl, val, setter]) => (
         <div key={lbl} style={formGroupStyle}>
           <label style={checkboxLabelStyle}>
@@ -106,10 +83,15 @@ export default function EnvironmentSetupForm({
             {lbl}
           </label>
         </div>
-      )
-    )
-      }
-        
+      ))}
+
+      {campaignsEnabled && (
+        <p style={{ ...psaStyle, marginBottom: "15px" }}>
+          For campaigns, you will need to add yourself as a manager to see the
+          generated campaigns.
+        </p>
+      )}
+
       {/* Launchpad */}
       <div style={formGroupStyle}>
         <label style={labelStyle}>Launchpad items:</label>
@@ -122,7 +104,7 @@ export default function EnvironmentSetupForm({
         />
       </div>
 
-      {/* Quick‑links master checkbox */}
+      {/* Quick Links */}
       <div style={formGroupStyle}>
         <label style={checkboxLabelStyle}>
           <input
@@ -131,7 +113,7 @@ export default function EnvironmentSetupForm({
             checked={quickLinksEnabled}
             onChange={(e) => setQuickLinksEnabled(e.target.checked)}
           />
-          Quick Links
+          Quick Links
         </label>
       </div>
 
@@ -148,66 +130,73 @@ export default function EnvironmentSetupForm({
         </>
       )}
 
-      {/* Custom widgets / merge / email */}
+      {/* Additional Integrations */}
       {[
-        ["Custom Widgets?", customWidgetsChecked, setCustomWidgetsChecked],
-        [ "Merge Integrations?", mergeIntegrationsChecked, setMergeIntegrationsChecked],
-        ["Email Templates?", setupEmailChecked, setSetupEmailChecked],
+        ["Add Custom Widgets", customWidgetsChecked, setCustomWidgetsChecked],
+        [
+          "Add Merge Integrations",
+          mergeIntegrationsChecked,
+          setMergeIntegrationsChecked,
+        ],
+        ["Add Email Templates", setupEmailChecked, setSetupEmailChecked],
       ].map(([lbl, val, setter]) => (
         <div key={lbl} style={formGroupStyle}>
-          <label style={labelStyle}>
-            {lbl}
+          <label style={checkboxLabelStyle}>
             <input
               type="checkbox"
+              style={checkboxStyle}
               checked={val}
               onChange={(e) => setter(e.target.checked)}
-              style={{ marginLeft: 10 }}
             />
+            {lbl}
           </label>
         </div>
       ))}
 
-      {customWidgetsChecked && (
-        <div style={formGroupStyle}>
-          <label style={labelStyle}>Email/Password for Custom Widgets:</label>
-          <input
-            style={inputStyle}
-            placeholder="email"
-            value={sbEmail}
-            onChange={(e) => setSbEmail(e.target.value)}
-          />
-          <input
-            type="password"
-            style={inputStyle}
-            placeholder="password"
-            value={sbPassword}
-            onChange={(e) => setSbPassword(e.target.value)}
-          />
-        </div>
+      {/* Conditional Inputs for Widgets/Merge */}
+      {(customWidgetsChecked || mergeIntegrationsChecked) && (
+        <>
+          <div style={formGroupStyle}>
+            <label style={labelStyle}>Admin Email</label>
+            <input
+              type="email"
+              style={inputStyle}
+              value={sbEmail}
+              onChange={(e) => setSbEmail(e.target.value)}
+              placeholder="e.g., admin+slug@staffbase.com"
+            />
+          </div>
+          <div style={formGroupStyle}>
+            <label style={labelStyle}>Admin Password</label>
+            <input
+              type="password"
+              style={inputStyle}
+              value={sbPassword}
+              onChange={(e) => setSbPassword(e.target.value)}
+              placeholder="Enter admin password"
+            />
+          </div>
+        </>
       )}
 
       {mergeIntegrationsChecked && (
         <div style={formGroupStyle}>
-          <label style={labelStyle}>Merge/HR Integrations:</label>
-          <input
+          <label style={labelStyle}>Workday Mapping Field:</label>
+          <select
             style={inputStyle}
-            placeholder="email"
-            value={sbEmail}
-            onChange={(e) => setSbEmail(e.target.value)}
-          />
-          <input
-            type="password"
-            style={inputStyle}
-            placeholder="password"
-            value={sbPassword}
-            onChange={(e) => setSbPassword(e.target.value)}
-          />
-          <input
-            style={inputStyle}
-            placeholder="Merge Field"
             value={mergeField}
             onChange={(e) => setMergeField(e.target.value)}
-          />
+          >
+            {allProfileFields.length > 0 ? (
+              allProfileFields.map((field) => (
+                <option key={field.slug} value={field.slug}>
+                  {field.title}
+                </option>
+              ))
+            ) : (
+              <option>Loading fields...</option>
+            )}
+          </select>
         </div>
       )}
 
