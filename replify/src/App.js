@@ -81,6 +81,7 @@ function App() {
   const [multiBrandings, setMultiBrandings] = useState([]);
   const [multiBrandingEnabled, setMultiBrandingEnabled] = useState(false);
   const [multiBrandingTarget, setMultiBrandingTarget] = useState({ type: null, id: null });
+  const [allGroups, setAllGroups] = useState([]);
   const handleAddMultiBranding = (newBrandingConfig) => {
     // Adds a new group's branding config
     setMultiBrandings(prev => [...prev, newBrandingConfig]);
@@ -167,6 +168,37 @@ function App() {
 
   // Get the slug from the useOption state if it exists.
   const selectedSlug = useOption?.slug ?? null;
+
+  useEffect(() => {
+    // Only fetch if we're authenticated for an existing environment
+    if (useOption?.type === "existing" && apiToken) {
+      const fetchGroups = async () => {
+        try {
+          const response = await fetch("https://app.staffbase.com/api/branch/groups", {
+            headers: { Authorization: `Basic ${apiToken}` },
+          });
+          if (!response.ok) {
+            console.error(`Failed to fetch groups: ${response.statusText}`);
+            setAllGroups([]); // Set to empty array on failure
+            return;
+          }
+          const result = await response.json();
+          const processedData = result.data
+            .map((group) => ({
+              id: group.id,
+              name: group.config?.localization?.en_US?.title || group.name,
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+          setAllGroups(processedData);
+        } catch (error) {
+          console.error(error);
+          setAllGroups([]);
+        }
+      };
+      fetchGroups();
+    }
+  }, [useOption, apiToken]); // Re-run when these change
+
 
   // When profile fields are loaded, set the default for the Merge dropdown
   useEffect(() => {
@@ -832,15 +864,6 @@ function App() {
    */
 
   async function handleCreateDemo() {
-    if (multiBrandingEnabled) {
-      if (!multiBrandingTarget.id) {
-        setResponse("⚠️ Please select a page or group for multi-branding.");
-        return;
-      }
-      console.log("Multibranding Target:", multiBrandingTarget);
-      // NOTE: The actual API call for applying scoped CSS will go here.
-      // For now, we'll proceed with the standard branding call for demonstration.
-    }
 
     try {
       /* ---------- 1️⃣  CSS block & Theme Colors -------------------------- */
@@ -1551,7 +1574,7 @@ function App() {
       onAddMultiBranding={handleAddMultiBranding}
       onUpdateMultiBranding={handleUpdateMultiBranding}
       onRemoveMultiBranding={handleRemoveMultiBranding}
-
+      allGroups={allGroups}
 
       /* flags & handlers */
       isStaffbaseTab={isStaffbaseTab}

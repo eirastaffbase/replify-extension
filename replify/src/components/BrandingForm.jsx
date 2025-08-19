@@ -28,7 +28,11 @@ export default function BrandingForm({
   /* ✨ Multi-branding */
   multiBrandingEnabled,
   setMultiBrandingEnabled,
-  onTargetChange,
+  multiBrandings,
+  onAddMultiBranding,
+  onUpdateMultiBranding,
+  onRemoveMultiBranding,
+  allGroups,
 
   /* flags & handlers */
   isStaffbaseTab,
@@ -41,6 +45,7 @@ export default function BrandingForm({
   brandingExists,
   resetThemeOnDelete,
   setResetThemeOnDelete,
+
 
   /* live preview */
   previewActive,
@@ -168,6 +173,8 @@ export default function BrandingForm({
       {/* ───────── Branding details ───────── */}
       {includeBranding && (
         <>
+          {/* ... existing JSX for saved prospects, color pickers, etc. ... */}
+          
           <SavedProspects
             prospects={savedProspects}
             onSelect={onLoadProspect}
@@ -329,7 +336,7 @@ export default function BrandingForm({
               </button>
             )}
             
-            {/* ✨ Multi-Branding Toggle Button */}
+            {/* Multi-Branding Toggle Button */}
             <button
               style={{
                 background: "none",
@@ -356,7 +363,11 @@ export default function BrandingForm({
             <MultiBranding
               apiToken={apiToken}
               branchId={branchId}
-              onTargetChange={onTargetChange}
+              brandings={multiBrandings}
+              onAdd={onAddMultiBranding}
+              onUpdate={onUpdateMultiBranding}
+              onRemove={onRemoveMultiBranding}
+              allGroups={allGroups}
             />
           )}
         </>

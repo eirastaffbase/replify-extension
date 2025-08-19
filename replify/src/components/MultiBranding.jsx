@@ -1,202 +1,175 @@
 // components/MultiBranding.jsx
-import React, { useState, useEffect, useMemo } from "react";
-import { LuSearch } from "react-icons/lu";
-import { formGroupStyle, inputStyle, labelStyle } from "../styles";
+import React, { useState, useMemo } from "react";
+import { LuCirclePlus, LuTrash2, LuSearch } from "react-icons/lu";
+import { formGroupStyle, inputStyle, labelStyle, brandingButtonStyle } from "../styles";
 import { colors } from "../styles/colors";
 
-// --- Styles ---
-const selectStyle = {
-  ...inputStyle,
-  width: "100%",
-};
+// --- Sub-component for the Branding Form ---
+const BrandingConfigForm = ({ group, onSave, onCancel, existingBrandings = [] }) => {
+  const [primaryColor, setPrimaryColor] = useState(group.primaryColor || "#000000");
+  const [textColor, setTextColor] = useState(group.textColor || "#ffffff");
+  const [logoUrl, setLogoUrl] = useState(group.logoUrl || "");
 
-const searchContainerStyle = {
-  position: "relative",
-  marginBottom: "10px",
-};
-
-const searchIconStyle = {
-  position: "absolute",
-  top: "12px",
-  left: "10px",
-  color: "#999",
-};
-
-const searchInputStyle = {
-  ...inputStyle,
-  paddingLeft: "35px",
-};
-
-const itemListStyle = {
-  listStyle: "none",
-  margin: 0,
-  padding: 0,
-  border: `1px solid ${colors.border}`,
-  borderRadius: "4px",
-  maxHeight: "200px",
-  overflowY: "auto",
-};
-
-const itemStyle = {
-  padding: "8px 12px",
-  cursor: "pointer",
-  borderBottom: `1px solid ${colors.border}`,
-};
-
-// --- Main Component ---
-export default function MultiBranding({ apiToken, branchId, onTargetChange }) {
-  const [type, setType] = useState(""); // 'page' or 'group'
-  const [items, setItems] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedId, setSelectedId] = useState("");
-  const [manualId, setManualId] = useState("");
-
-  // Fetch data when the selected type changes
-  useEffect(() => {
-    if (!type || !apiToken || !branchId) {
-      setItems([]);
-      return;
-    }
-
-    const fetchData = async () => {
-      setIsLoading(true);
-      setSelectedId(""); // Reset selection when type changes
-      setSearchTerm("");
-      try {
-        let url = "";
-        if (type === "group") {
-          url = "https://app.staffbase.com/api/branch/groups";
-        } else if (type === "page") {
-          url = `https://app.staffbase.com/api/branch/installations`;
-        }
-
-        const response = await fetch(url, {
-          headers: { Authorization: `Basic ${apiToken}` },
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch ${type}s: ${response.statusText}`);
-        }
-
-        const result = await response.json();
-        let processedData = [];
-
-        if (type === "group") {
-          processedData = result.data.map((group) => ({
-            id: group.id,
-            name: group.config?.localization?.en_US?.title || group.name,
-          }));
-        } else if (type === "page") {
-          processedData = result.data
-            .filter((inst) => inst.pluginId === "page")
-            .map((page) => ({
-              id: page.id,
-              name: page.title,
-            }));
-        }
-        setItems(processedData);
-      } catch (error) {
-        console.error(error);
-        setItems([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [type, apiToken, branchId]);
-
-  // Notify parent component of the final target ID
-  useEffect(() => {
-    const finalId = manualId.trim() || selectedId;
-    onTargetChange({
-      type: finalId ? type : null,
-      id: finalId,
+  const handleSave = () => {
+    onSave({
+      groupId: group.groupId,
+      groupName: group.groupName,
+      primaryColor,
+      textColor,
+      logoUrl,
     });
-  }, [selectedId, manualId, type, onTargetChange]);
-
-  // Memoized filtered list for performance
-  const filteredItems = useMemo(() => {
-    return items.filter((item) =>
-      item.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [items, searchTerm]);
+  };
 
   return (
-    <div
-      style={{
-        padding: "10px",
-        border: `1px solid ${colors.border}`,
-        borderRadius: "4px",
-        marginTop: "10px",
-        marginBottom: "10px",
-      }}
-    >
+    <div style={{ border: `1px solid ${colors.border}`, padding: '15px', borderRadius: '4px', marginTop: '10px', background: '#fcfcfc' }}>
+      <h4 style={{ margin: '0 0 15px 0' }}>{existingBrandings.some(b => b.groupId === group.groupId) ? 'Editing' : 'Adding'} Branding for: <strong>{group.groupName}</strong></h4>
+      
+      {[
+        ["Primary Color", primaryColor, setPrimaryColor],
+        ["Text Color", textColor, setTextColor],
+      ].map(([lbl, val, setter]) => (
+        <div key={lbl} style={{ ...formGroupStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <label style={labelStyle}>{lbl}:</label>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input type="color" style={{ ...inputStyle, padding: 0, width: 40, height: 40, border: "none" }} value={val} onChange={(e) => setter(e.target.value)} />
+            <input type="text" style={{ ...inputStyle, width: 100 }} value={val} onChange={(e) => setter(e.target.value)} placeholder="#RRGGBB" />
+          </div>
+        </div>
+      ))}
+      
       <div style={formGroupStyle}>
-        <label style={labelStyle}>Target Type:</label>
-        <select
-          style={selectStyle}
-          value={type}
-          onChange={(e) => setType(e.target.value)}
-        >
-          <option value="">Select a type...</option>
-          <option value="page">Page</option>
-          <option value="group">Group</option>
-        </select>
+        <label style={labelStyle}>Logo URL (Optional):</label>
+        <input type="text" style={inputStyle} value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://..." />
       </div>
 
-      {type && (
-        <>
-          <div style={{ opacity: manualId.trim() ? 0.5 : 1 }}>
-            <div style={formGroupStyle}>
-              <label style={labelStyle}>Select a {type}:</label>
-              <div style={searchContainerStyle}>
-                <LuSearch size={18} style={searchIconStyle} />
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '15px' }}>
+        <button onClick={onCancel} style={{ ...brandingButtonStyle, background: colors.border }}>Cancel</button>
+        <button onClick={handleSave} style={brandingButtonStyle}>Save</button>
+      </div>
+    </div>
+  );
+};
+
+// --- Main MultiBranding Component ---
+export default function MultiBranding({ allGroups, brandings, onAdd, onUpdate, onRemove }) {
+  const [showForm, setShowForm] = useState(false);
+  const [editingGroup, setEditingGroup] = useState(null);
+  const [manualId, setManualId] = useState("");
+  const [manualName, setManualName] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const handleSave = (config) => {
+    const isEditing = brandings.some(b => b.groupId === config.groupId);
+    if (isEditing) {
+      onUpdate(config);
+    } else {
+      onAdd(config);
+    }
+    setShowForm(false);
+    setEditingGroup(null);
+  };
+  
+  const handleEdit = (branding) => {
+    setEditingGroup(branding);
+    setShowForm(true);
+  };
+
+  const handleAddNew = () => {
+    setEditingGroup(null); // Clear any previous selection
+    setShowForm(true);
+    setManualId("");
+    setManualName("");
+    setSearchTerm("");
+  };
+
+  const handleManualAdd = () => {
+    if (manualId.trim() && manualName.trim()) {
+      setEditingGroup({ groupId: manualId.trim(), groupName: manualName.trim() });
+    }
+  };
+
+  const filteredAndAvailableGroups = useMemo(() => {
+    const brandedGroupIds = brandings.map(b => b.groupId);
+    return allGroups
+      .filter(g => !brandedGroupIds.includes(g.id))
+      .filter(g => g.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  }, [allGroups, brandings, searchTerm]);
+
+  return (
+    <div style={{ padding: "15px", border: `1px solid ${colors.border}`, borderRadius: "4px", marginTop: "20px", marginBottom: "10px" }}>
+      <h3 style={{ marginTop: 0, borderBottom: `1px solid ${colors.border}`, paddingBottom: '10px' }}>Multi-Branding Configurations</h3>
+      
+      {brandings.length > 0 && (
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+          {brandings.map(branding => (
+            <li key={branding.groupId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${colors.borderLight}` }}>
+              <div>
+                <strong style={{ color: colors.primary }}>{branding.groupName}</strong>
+                <div style={{ fontSize: '12px', color: '#666', display: 'flex', alignItems: 'center', gap: '10px', marginTop: '5px' }}>
+                  <span>Primary: <span style={{display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: branding.primaryColor, verticalAlign: 'middle', border: '1px solid #ccc' }}></span> {branding.primaryColor}</span>
+                  {branding.logoUrl && <span>Has Logo ✅</span>}
+                </div>
+              </div>
+              <div style={{display: 'flex', gap: '10px'}}>
+                <button onClick={() => handleEdit(branding)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.primary }}>Edit</button>
+                <button onClick={() => onRemove(branding.groupId)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.danger }}>
+                  <LuTrash2 size={16} />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {brandings.length === 0 && !showForm && <p style={{color: '#666', textAlign: 'center', margin: '20px 0'}}>No multi-branding configurations added yet.</p>}
+
+      {showForm ? (
+        editingGroup ? (
+          <BrandingConfigForm group={editingGroup} onSave={handleSave} onCancel={() => { setShowForm(false); setEditingGroup(null); }} existingBrandings={brandings} />
+        ) : (
+          <div style={{ marginTop: '20px' }}>
+            <div>
+              <label style={labelStyle}>Select a Group to Brand:</label>
+              <div style={{ position: 'relative', marginBottom: '10px' }}>
+                <LuSearch size={18} style={{ position: 'absolute', top: '12px', left: '10px', color: '#999' }} />
                 <input
                   type="text"
-                  style={searchInputStyle}
-                  placeholder={`Search through ${items.length} ${type}s...`}
+                  style={{...inputStyle, paddingLeft: '35px'}}
+                  placeholder={`Search through ${filteredAndAvailableGroups.length} available groups...`}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  disabled={!!manualId.trim()}
                 />
               </div>
-            </div>
-            {isLoading ? (
-              <p>Loading...</p>
-            ) : (
-              <ul style={itemListStyle}>
-                {filteredItems.map((item) => (
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0, border: `1px solid ${colors.border}`, borderRadius: '4px', maxHeight: '150px', overflowY: 'auto' }}>
+                {filteredAndAvailableGroups.map((g, index) => (
                   <li
-                    key={item.id}
-                    style={{
-                      ...itemStyle,
-                      backgroundColor:
-                        selectedId === item.id ? colors.primaryLight : "transparent",
-                      color:
-                        selectedId === item.id ? colors.textOnPrimary : "inherit",
-                    }}
-                    onClick={() => !manualId.trim() && setSelectedId(item.id)}
+                    key={g.id}
+                    style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: index === filteredAndAvailableGroups.length - 1 ? 'none' : `1px solid ${colors.borderLight}`}}
+                    onClick={() => setEditingGroup({ groupId: g.id, groupName: g.name })}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = colors.primaryLight}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                   >
-                    {item.name}
+                    {g.name}
                   </li>
                 ))}
               </ul>
-            )}
-          </div>
+            </div>
 
-          <div style={{ ...formGroupStyle, marginTop: "15px" }}>
-            <label style={labelStyle}>Or manually enter ID:</label>
-            <input
-              type="text"
-              style={inputStyle}
-              placeholder={`Manually enter ${type} ID`}
-              value={manualId}
-              onChange={(e) => setManualId(e.target.value)}
-            />
+            <div style={{textAlign: 'center', margin: '15px 0', color: '#888'}}>OR</div>
+
+            <div>
+              <label style={labelStyle}>Manually Enter Group Details:</label>
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                <input type="text" style={inputStyle} placeholder="Group ID" value={manualId} onChange={e => setManualId(e.target.value)} />
+                <input type="text" style={inputStyle} placeholder="Group Name" value={manualName} onChange={e => setManualName(e.target.value)} />
+              </div>
+              <button onClick={handleManualAdd} style={{...brandingButtonStyle, width: '100%'}} disabled={!manualId.trim() || !manualName.trim()}>Add Manual Group</button>
+            </div>
           </div>
-        </>
+        )
+      ) : (
+        <button onClick={handleAddNew} style={{...brandingButtonStyle, width: '100%', marginTop: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+          <LuCirclePlus size={18} /> Add New Group Branding
+        </button>
       )}
     </div>
   );
