@@ -3,7 +3,7 @@
     Generate a **single giant CSS string** that can be injected
     into a Staffbase page for live-preview or permanent branding.
     ------------------------------------------------------------
-        @param {Object} o  “options” object
+            @param {Object} o  “options” object
       {
         primary        : "#RRGGBB",     // main brand colour
         text           : "#RRGGBB",     // text colour for nav / icons
@@ -58,13 +58,10 @@ export default function buildPreviewCss(o, multiBrandings = []) {
     return { h: h * 360, s: s * 100, l: l * 100 };
   };
 
-  /* This helper generates the raw CSS rules for a given set of options.
-    It's called for the main brand and then for each multi-brand configuration.
-  */
+  /* Helper for generating color, background, and general branding CSS.
+   */
   const buildCssBlock = (options) => {
-    /* ════════════════════════════════════════════
-       2.  Derived colours
-       ════════════════════════════════════════════ */
+    // Derived colours
     const primaryInverse = isDarkColor(options.primary) ? "#fff" : "rgba(0,0,0,.7)";
     const widgetTextColor = isDarkColor(options.background) ? "#fff" : "#000";
     const headerBgTranslucent = hexToRgba(options.primary, 0.7);
@@ -136,11 +133,10 @@ export default function buildPreviewCss(o, multiBrandings = []) {
         background-color: ${options.primary} !important;
       }
 
-      /* Newer env header text */
       .text-header-appintranet {
         color: ${primaryInverse} !important;
       }
-
+      
       /* ================= mobile ================= */
       static-content-block[background-color="#d3e6ec"] {
         background-color: ${options.background} !important;
@@ -429,7 +425,34 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       .mobile .header-container .header-button {
         color: var(--color-client-text) !important;
       }
-      
+    `;
+  };
+
+  /**
+   * ✨ NEW: Helper specifically for generating logo CSS.
+   * This is called for both the main brand and each multi-brand.
+   */
+  const buildLogoCss = (options) => {
+    if (options.logo) {
+      return `
+        /* ================= logo/header ================= */
+        .desktop.wow-header-activated .header-left-container img.header-logo{ opacity: 0 !important; }
+        .desktop.wow-header-activated .header-left-container::after{
+          content: "" !important;
+          position: absolute;
+          inset: 0;
+          background-image: var(--logo-url);
+          background-repeat: no-repeat;
+          background-size: contain;
+          background-position: left center;
+          pointer-events: none;
+        }
+        .header-container.with-logo .header-logo.css-v852x2-LogoImage { content: var(--logo-url) !important; }
+      `;
+    }
+    // If no logo, ensure the default is visible.
+    return `
+        .desktop.wow-header-activated .header-left-container img.header-logo{ opacity: 1 !important; }
     `;
   };
 
@@ -441,10 +464,13 @@ export default function buildPreviewCss(o, multiBrandings = []) {
     ? `/* prospect:${o.prospectName.trim()} */\n`
     : "";
 
-  // 1. Generate the MAIN branding CSS
+  // 1. Generate the MAIN branding CSS (colors, etc.)
   let finalCss = buildCssBlock(o);
+  
+  // 2. Add the MAIN logo CSS
+  finalCss += buildLogoCss(o);
 
-  // 2. Generate and append MULTI-BRANDING CSS
+  // 3. Generate and append MULTI-BRANDING CSS
   if (multiBrandings && multiBrandings.length > 0) {
     let multiBrandCss = `\n\n/* ✨ REPLIFY MULTIBRANDING START ✨ */\n`;
 
@@ -452,13 +478,19 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       if (!brandConfig.groupId) return;
 
       const brandOptions = { ...o, ...brandConfig };
-      let singleBrandBlock = buildCssBlock(brandOptions);
-      const prefix = `.group-${brandConfig.groupId} `;
       
+      // Generate color/background styles for this group
+      let singleBrandBlock = buildCssBlock(brandOptions);
+      
+      // ✨ NEW: Generate logo styles for this group
+      singleBrandBlock += buildLogoCss(brandOptions);
+
+      const prefix = `.group-${brandConfig.groupId} `;
       const prefixedCssBlock = singleBrandBlock.replace(
         /([^\r\n,{}]+)(,(?=[^}]*{)|\s*{)/g,
         (match, selector, suffix) => {
             const trimmedSelector = selector.trim();
+            // Avoid prefixing things that shouldn't be prefixed
             if (trimmedSelector.startsWith('@') || trimmedSelector.startsWith('/*') || trimmedSelector === ':root') {
                 return match;
             }
@@ -471,32 +503,9 @@ export default function buildPreviewCss(o, multiBrandings = []) {
     });
 
     multiBrandCss += `\n/* ✨ REPLIFY MULTIBRANDING END ✨ */\n`;
-    finalCss += multiBrandCss; // Append to the main CSS string
+    finalCss += multiBrandCss;
   }
-
-  // 3. Conditionally add the logo styles at the end
-  if (o.logo) {
-    finalCss += `
-      /* ================= logo/header ================= */
-      .desktop.wow-header-activated .header-left-container img.header-logo{ opacity: 0 !important; }
-      .desktop.wow-header-activated .header-left-container::after{
-        content: "" !important;
-        position: absolute;
-        inset: 0;
-        background-image: var(--logo-url);
-        background-repeat: no-repeat;
-        background-size: contain;
-        background-position: left center;
-        pointer-events: none;
-      }
-      .header-container.with-logo .header-logo.css-v852x2-LogoImage { content: var(--logo-url) !important; }
-    `;
-  } else {
-    finalCss += `
-      .desktop.wow-header-activated .header-left-container img.header-logo{ opacity: 1 !important; }
-    `;
-  }
-
-  // 4. Return the complete string wrapped in the main Replify comments
+  
+  // 4. Return the complete string with the prospect comment
   return prospectComment + finalCss;
 }
