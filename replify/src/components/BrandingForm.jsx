@@ -19,13 +19,13 @@ export default function BrandingForm({
   apiToken,
   branchId,
 
-  /* ✨ Prospect saving */
+  /* Prospect saving */
   savedProspects,
   onSaveProspect,
   onLoadProspect,
   onDeleteProspect,
 
-  /* ✨ Multi-branding */
+  /* Multi-branding */
   multiBrandingEnabled,
   setMultiBrandingEnabled,
   multiBrandings,
@@ -358,7 +358,7 @@ export default function BrandingForm({
             </button>
           </div>
           
-          {/* ✨ Conditionally render MultiBranding component */}
+          {/* Conditionally render MultiBranding component */}
           {multiBrandingEnabled && (
             <MultiBranding
               apiToken={apiToken}
