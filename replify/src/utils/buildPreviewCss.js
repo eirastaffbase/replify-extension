@@ -3,7 +3,7 @@
     Generate a **single giant CSS string** that can be injected
     into a Staffbase page for live-preview or permanent branding.
     ------------------------------------------------------------
-    @param {Object} o  “options” object
+        @param {Object} o  “options” object
       {
         primary        : "#RRGGBB",     // main brand colour
         text           : "#RRGGBB",     // text colour for nav / icons
@@ -17,20 +17,20 @@
         logoH          : Number (px)    // logo height (rarely used)
       }
     @returns {String} – fully-formed CSS ready for <style> injection
+
 */
 export default function buildPreviewCss(o, multiBrandings = []) {
-/* ════════════════════════════════════════════
-    1.  Helper functions
-    ════════════════════════════════════════════ */
-    const hexToRgba = (hex, alpha) =>
+  /* ════════════════════════════════════════════
+     1.  Helper functions
+     ════════════════════════════════════════════ */
+  const hexToRgba = (hex, alpha) =>
     `rgba(${parseInt(hex.slice(1, 3), 16)},` +
     `${parseInt(hex.slice(3, 5), 16)},` +
     `${parseInt(hex.slice(5, 7), 16)},${alpha})`;
 
   const isDarkColor = (hex) => {
-    if (!hex || hex.length < 7) return false; // Basic validation
+    if (!hex || hex.length < 7) return false;
     const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-    /* ITU-R BT.601 luma formula */
     return 0.299 * r + 0.587 * g + 0.114 * b < 128;
   };
 
@@ -44,7 +44,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
     let h, s, l = (max + min) / 2;
 
     if (max === min) {
-      h = s = 0; // achromatic
+      h = s = 0;
     } else {
       const d = max - min;
       s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
@@ -58,65 +58,52 @@ export default function buildPreviewCss(o, multiBrandings = []) {
     return { h: h * 360, s: s * 100, l: l * 100 };
   };
 
-  
-  /* Helper function to generate the raw CSS rules for a given set of options.
-    This prevents code duplication. We'll call this for the main brand
-    and then for each multi-brand configuration.
+  /* This helper generates the raw CSS rules for a given set of options.
+    It's called for the main brand and then for each multi-brand configuration.
   */
   const buildCssBlock = (options) => {
-      /* --------------------------------------------------
-    Persist the prospect name so we can read it later
-    -------------------------------------------------- */
+    /* ════════════════════════════════════════════
+       2.  Derived colours
+       ════════════════════════════════════════════ */
+    const primaryInverse = isDarkColor(options.primary) ? "#fff" : "rgba(0,0,0,.7)";
+    const widgetTextColor = isDarkColor(options.background) ? "#fff" : "#000";
+    const headerBgTranslucent = hexToRgba(options.primary, 0.7);
+    const metaTextColor = isDarkColor(options.background)
+      ? "rgba(255,255,255,0.7)"
+      : "rgba(0,0,0,0.7)";
+    
+    const getSurveyColor = () => {
+      const primaryIsDark = isDarkColor(options.primary);
+      const textIsDark = isDarkColor(options.text);
+      if (primaryIsDark) return options.primary;
+      if (textIsDark) return options.text;
+      const primaryHsl = hexToHsl(options.primary);
+      const textHsl = hexToHsl(options.text);
+      return (primaryHsl.s >= textHsl.s) ? options.primary : options.text;
+    };
+    
+    const surveyColor = getSurveyColor();
+    const surveyColorInverse = isDarkColor(surveyColor) ? '#fff' : 'rgba(0,0,0,0.7)';
+    const textColorHsl = hexToHsl(options.text);
+    const buttonBgColor = textColorHsl.l > 95 ? options.primary : options.text;
+    const buttonTextColor = isDarkColor(buttonBgColor) ? "#fff" : "rgba(0,0,0,.7)";
 
-  /* ════════════════════════════════════════════
-     2.  Derived colours
-     ════════════════════════════════════════════ */
-     const primaryInverse = isDarkColor(o.primary) ? "#fff" : "rgba(0,0,0,.7)";
-     const widgetTextColor = isDarkColor(o.background) ? "#fff" : "#000";
-     const headerBgTranslucent = hexToRgba(o.primary, 0.7);
-     const metaTextColor = isDarkColor(o.background)
-       ? "rgba(255,255,255,0.7)"
-       : "rgba(0,0,0,0.7)";
-   
-     // A "safe" color for surveys/buttons that prioritizes darkness, then saturation.
-     const getSurveyColor = () => {
-       const primaryIsDark = isDarkColor(o.primary);
-       const textIsDark = isDarkColor(o.text);
-   
-       if (primaryIsDark) return o.primary;
-       if (textIsDark) return o.text;
-   
-       // If both are light, compare saturation and pick the higher one.
-       const primaryHsl = hexToHsl(o.primary);
-       const textHsl = hexToHsl(o.text);
-       return (primaryHsl.s >= textHsl.s) ? o.primary : o.text;
-     };
-   
-     const surveyColor = getSurveyColor();
-     const surveyColorInverse = isDarkColor(surveyColor) ? '#fff' : 'rgba(0,0,0,0.7)';
-   
-     // If the desired text color is too light (like white), fall back to the primary color.
-     const textColorHsl = hexToHsl(o.text);
-     const buttonBgColor = textColorHsl.l > 95 ? o.primary : o.text;
-     const buttonTextColor = isDarkColor(buttonBgColor) ? "#fff" : "rgba(0,0,0,.7)";
-
-     return `
-
+    return `
       /* ================= root tokens ================= */
       :root{
-        --color-client-primary : ${o.primary} !important;
-        --color-client-text    : ${o.text}    !important;
-        --sb-text-nav-appintranet : ${o.text} !important;
-        --color-client-background : ${o.background} !important;
-        --color-floating-nav-bg   : ${o.floatingNavBg || '#FFFFFF'} !important;
-        --color-floating-nav-text : ${o.floatingNavText || '#000000'} !important;
-        --bg-image            : url("${o.bg || ""}");
-        --logo-url            : url("${o.logo || ""}");
-        --padding-logo-size   : ${o.padH || 0}px ${o.padW || 0}px;
-        --bg-image-position   : 25% ${o.bgVert || 50}%;
-        --logo-height         : ${o.logoH || 32}px;
+        --color-client-primary : ${options.primary} !important;
+        --color-client-text    : ${options.text}    !important;
+        --sb-text-nav-appintranet : ${options.text} !important;
+        --color-client-background : ${options.background} !important;
+        --color-floating-nav-bg   : ${options.floatingNavBg || '#FFFFFF'} !important;
+        --color-floating-nav-text : ${options.floatingNavText || '#000000'} !important;
+        --bg-image            : url("${options.bg || ""}");
+        --logo-url            : url("${options.logo || ""}");
+        --padding-logo-size   : ${options.padH || 0}px ${options.padW || 0}px;
+        --bg-image-position   : 25% ${options.bgVert || 50}%;
+        --logo-height         : ${options.logoH || 32}px;
       }
-
+      
       /* ================= header ================= */
       .desktop.wow-header-activated .header-left-container{
         position   : relative;
@@ -146,7 +133,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
 
       /* Newer env header background */
       .bg-header-appintranet {
-        background-color: ${o.primary} !important;
+        background-color: ${options.primary} !important;
       }
 
       /* Newer env header text */
@@ -156,7 +143,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
 
       /* ================= mobile ================= */
       static-content-block[background-color="#d3e6ec"] {
-        background-color: ${o.background} !important;
+        background-color: ${options.background} !important;
       }
 
       static-content-block[background-color="#d3e6ec"] p {
@@ -167,20 +154,20 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       /* ================= menu / icons ================= */
       .desktop.wow-header-activated .header-title,
       .desktop.wow-header-activated .header-title .css-1wac6i9-TitleWrapper{
-        color:${o.text}!important;
+        color:${options.text}!important;
       }
       .desktop.wow-header-activated .wow-app-header .css-8jz3c5-UserSettingsContainer > .user-menu-btn::after { /* Added this line */
-        color:${o.text}!important;
+        color:${options.text}!important;
       }
       .wow-header-activated .css-4557aa-StyledMegaMenuItem>a::before,
       .desktop.wow-header-activated #mega-menu li>a.item:before{
-        background-color:${hexToRgba(o.primary, 0.3)}!important;
+        background-color:${hexToRgba(options.primary, 0.3)}!important;
       }
       .wow-header-activated #menu  .we-icon,
       .desktop.wow-header-activated .wow-app-header .css-dgi6rr-Link::after,
       .wow-header-activated #menu .css-1ccn5tk-IconStyled,
       .desktop.wow-header-activated .wow-app-header .css-ol0i66-StyledLaunchpadIcon .we-icon::after { /* Added this line */
-        color: ${o.text}!important;
+        color: ${options.text}!important;
       }
 
       /* ================= floating nav ================= */
@@ -241,7 +228,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       /* ================= Quick Links & Specific Buttons ================= */
       /* "Design 2" Tiled Quick Links */
       .quick-links-widget.design-2.type-tiles .quick-links-widget__item:not([style*="background-color"]) {
-          background-color: ${o.primary} !important;
+          background-color: ${options.primary} !important;
       }
       .quick-links-widget.design-2.type-tiles .quick-links-widget__item:not([style*="background-color"]) a,
       .quick-links-widget.design-2.type-tiles .quick-links-widget__item:not([style*="background-color"]) .we-icon {
@@ -250,7 +237,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
 
       /* Tiled Layout-3 Quick Links */
       .quick-links-widget.type-tiles .quick-links-widget__list--layout-3 .quick-links-widget__item:not([style*="background-color"]) {
-          background-color: ${o.primary} !important;
+          background-color: ${options.primary} !important;
       }
       .quick-links-widget.type-tiles .quick-links-widget__list--layout-3 .quick-links-widget__item:not([style*="background-color"]) a,
       .quick-links-widget.type-tiles .quick-links-widget__list--layout-3 .quick-links-widget__item:not([style*="background-color"]) .we-icon {
@@ -267,7 +254,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
 
       /* first static-content card (no .counter) — */
       .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border:not(.counter) .news-articles-plain .news-feed-post {
-        background-color: ${o.background} !important;
+        background-color: ${options.background} !important;
       }
 
       .static-content-wrapper.widget-on-card.no-shadow-border
@@ -295,7 +282,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
 
       .full-width-bg:not(.page-footer)
         > .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border {
-        background-color: ${o.background} !important;
+        background-color: ${options.background} !important;
       }
 
       .full-width-bg:not(.page-footer)
@@ -306,7 +293,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
 
       .full-width-bg.page-footer
         > .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border {
-        background-color: ${o.primary} !important;
+        background-color: ${options.primary} !important;
         color: ${primaryInverse} !important;
       }
 
@@ -395,7 +382,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
         color: ${primaryInverse} !important;
       }
 
-      /* ✨ MODIFIED: 3 — the subscribe / register button */
+      /* 3 — the subscribe / register button */
       .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
         .group-subscription-block-button{
         background-color: ${buttonBgColor} !important;
@@ -403,19 +390,19 @@ export default function buildPreviewCss(o, multiBrandings = []) {
         color           : ${buttonTextColor} !important;
       }
 
-      /* ✨ MODIFIED: 4 — SVG icon inside the button needs its own fill */
+      /* 4 — SVG icon inside the button needs its own fill */
       .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
         .group-subscription-block-button svg path{
         fill: ${buttonTextColor} !important;
       }
 
-      /* ✨ MODIFIED: 5 — “button-text” span inside the button */
+      /* 5 — “button-text” span inside the button */
       .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
         .group-subscription-block-button .button-text{
         color: ${buttonTextColor} !important;
       }
 
-      /* ✨ MODIFIED: standalone button‐wrapper ================= */
+      /* standalone button‐wrapper ================= */
       .content-widget-wrapper.button-wrapper
         .button-block-link {
         background-color: ${buttonBgColor} !important;
@@ -442,85 +429,40 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       .mobile .header-container .header-button {
         color: var(--color-client-text) !important;
       }
-
+      
     `;
   };
 
-    /* --------------------------------------------------
-    Persist the prospect name so we can read it later
-    -------------------------------------------------- */
-    const prospectComment = o.prospectName
+  /* ════════════════════════════════════════════
+     ASSEMBLE THE FINAL CSS STRING
+     ════════════════════════════════════════════ */
+     
+  const prospectComment = o.prospectName
     ? `/* prospect:${o.prospectName.trim()} */\n`
     : "";
 
-  /* ════════════════════════════════════════════
-     Generate the MAIN branding CSS
-     ════════════════════════════════════════════ */
-  let mainCss = buildCssBlock(o);
+  // 1. Generate the MAIN branding CSS
+  let finalCss = buildCssBlock(o);
 
-  // Conditionally add the logo styles to the main CSS block
-  if (o.logo) {
-    mainCss += `
-      /* ================= logo/header ================= */
-        /* ---- DESKTOP LOGO (WOW HEADER) ---- */
-        .desktop.wow-header-activated .header-left-container img.header-logo{
-          opacity: 0 !important;                                /* keep layout, hide pixels */
-        }
-        .desktop.wow-header-activated .header-left-container::after{
-          content: "" !important;
-          position: absolute;
-          inset: 0;
-          background-image   : var(--logo-url);
-          background-repeat  : no-repeat;
-          background-size    : contain;
-          background-position: left center;
-          pointer-events     : none;                            /* logo stays decorative */
-        }
-
-        /* ---- MOBILE HEADER LOGO ---- */
-        .header-container.with-logo .header-logo.css-v852x2-LogoImage {
-            content: var(--logo-url) !important;
-        }
-    `;
-  } else {
-    mainCss += `
-        .desktop.wow-header-activated .header-left-container img.header-logo{
-          opacity: 1 !important;
-        }
-    `;
-  }
-
-  /* ════════════════════════════════════════════
-     Generate MULTI-BRANDING CSS
-     ════════════════════════════════════════════ */
-  let multiBrandCss = "";
+  // 2. Generate and append MULTI-BRANDING CSS
   if (multiBrandings && multiBrandings.length > 0) {
-    
-    multiBrandCss += "\n\n/* -> REPLIFY MULTIBRANDING START <- */\n";
+    let multiBrandCss = `\n\n/* ✨ REPLIFY MULTIBRANDING START ✨ */\n`;
 
     multiBrandings.forEach(brandConfig => {
       if (!brandConfig.groupId) return;
 
-      // Create a specific options object for this brand.
-      // It inherits from the main brand `o` and overrides with its own values.
       const brandOptions = { ...o, ...brandConfig };
-      
-      // Generate the standard block of CSS for this specific brand
       let singleBrandBlock = buildCssBlock(brandOptions);
-
-      // Prepend every selector with the group ID class.
-      // This regex finds CSS selectors and prefixes them.
       const prefix = `.group-${brandConfig.groupId} `;
+      
       const prefixedCssBlock = singleBrandBlock.replace(
-        // This regex looks for selectors outside of media query blocks.
-        // It's a robust way to add a prefix.
         /([^\r\n,{}]+)(,(?=[^}]*{)|\s*{)/g,
         (match, selector, suffix) => {
-            // Avoid prefixing @-rules, comments, or the :root pseudo-class
-            if (selector.trim().startsWith('@') || selector.trim().startsWith('/*') || selector.trim() === ':root') {
-                return match; 
+            const trimmedSelector = selector.trim();
+            if (trimmedSelector.startsWith('@') || trimmedSelector.startsWith('/*') || trimmedSelector === ':root') {
+                return match;
             }
-            return prefix + selector.trim() + suffix;
+            return prefix + trimmedSelector + suffix;
         }
       );
       
@@ -528,9 +470,33 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       multiBrandCss += prefixedCssBlock;
     });
 
-    multiBrandCss += "\n/* -> REPLIFY MULTIBRANDING END <- */\n";
+    multiBrandCss += `\n/* ✨ REPLIFY MULTIBRANDING END ✨ */\n`;
+    finalCss += multiBrandCss; // Append to the main CSS string
   }
 
-  // Combine everything and return the final CSS string
-  return prospectComment + mainCss + multiBrandCss;
+  // 3. Conditionally add the logo styles at the end
+  if (o.logo) {
+    finalCss += `
+      /* ================= logo/header ================= */
+      .desktop.wow-header-activated .header-left-container img.header-logo{ opacity: 0 !important; }
+      .desktop.wow-header-activated .header-left-container::after{
+        content: "" !important;
+        position: absolute;
+        inset: 0;
+        background-image: var(--logo-url);
+        background-repeat: no-repeat;
+        background-size: contain;
+        background-position: left center;
+        pointer-events: none;
+      }
+      .header-container.with-logo .header-logo.css-v852x2-LogoImage { content: var(--logo-url) !important; }
+    `;
+  } else {
+    finalCss += `
+      .desktop.wow-header-activated .header-left-container img.header-logo{ opacity: 1 !important; }
+    `;
+  }
+
+  // 4. Return the complete string wrapped in the main Replify comments
+  return prospectComment + finalCss;
 }
