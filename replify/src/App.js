@@ -1037,6 +1037,8 @@ function App() {
       },
       multiBrandings
     );
+
+    console.log(css);
       setPreviewActive(true);
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },

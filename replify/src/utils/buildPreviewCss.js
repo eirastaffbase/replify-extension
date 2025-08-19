@@ -1,25 +1,25 @@
 /* utils/buildPreviewCss.js
-    ------------------------------------------------------------
-    Generate a **single giant CSS string** that can be injected
-    into a Staffbase page for live-preview or permanent branding.
-    ------------------------------------------------------------
-            @param {Object} o  “options” object
-      {
-        primary        : "#RRGGBB",     // main brand colour
-        text           : "#RRGGBB",     // text colour for nav / icons
-        background     : "#RRGGBB",     // neutral card-background colour
-        floatingNavBg  : "#RRGGBB",     // floating nav background colour
-        floatingNavText: "#RRGGBB",     // floating nav text colour
-        bg             : "url|string",  // hero/cover photo (optional)
-        logo           : "url|string",  // custom logo        (optional)
-        padW, padH     : Number (px)    // logo padding
-        bgVert         : Number (0-100) // bg vertical %
-        changeLogoSize : Boolean,       // flag for custom logo size
-        logoHeight     : Number (px)    // custom logo container height
-        logoMarginTop  : Number (px)    // custom logo container margin
-        logoH          : Number (px)    // logo height (rarely used)
-      }
-    @returns {String} – fully-formed CSS ready for <style> injection
+   ------------------------------------------------------------
+   Generate a **single giant CSS string** that can be injected
+   into a Staffbase page for live-preview or permanent branding.
+   ------------------------------------------------------------
+       @param {Object} o  “options” object
+     {
+       primary         : "#RRGGBB",     // main brand colour
+       text            : "#RRGGBB",     // text colour for nav / icons
+       background      : "#RRGGBB",     // neutral card-background colour
+       floatingNavBg   : "#RRGGBB",     // floating nav background colour
+       floatingNavText : "#RRGGBB",     // floating nav text colour
+       bg              : "url|string",  // hero/cover photo (optional)
+       logo            : "url|string",  // custom logo         (optional)
+       padW, padH      : Number (px)    // logo padding
+       bgVert          : Number (0-100) // bg vertical %
+       changeLogoSize  : Boolean,       // flag for custom logo size
+       logoHeight      : Number (px)    // custom logo container height
+       logoMarginTop   : Number (px)    // custom logo container margin
+       logoH           : Number (px)    // logo height (rarely used)
+     }
+   @returns {String} – fully-formed CSS ready for <style> injection
 
 */
 export default function buildPreviewCss(o, multiBrandings = []) {
@@ -69,10 +69,11 @@ export default function buildPreviewCss(o, multiBrandings = []) {
     const primaryInverse = isDarkColor(options.primary) ? "#fff" : "rgba(0,0,0,.7)";
     const widgetTextColor = isDarkColor(options.background) ? "#fff" : "#000";
     const headerBgTranslucent = hexToRgba(options.primary, 0.7);
+    const textOpposite = isDarkColor(options.text) ? "#fff" : "#000";
     const metaTextColor = isDarkColor(options.background)
       ? "rgba(255,255,255,0.7)"
       : "rgba(0,0,0,0.7)";
-    
+
     const getSurveyColor = () => {
       const primaryIsDark = isDarkColor(options.primary);
       const textIsDark = isDarkColor(options.text);
@@ -82,12 +83,15 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       const textHsl = hexToHsl(options.text);
       return (primaryHsl.s >= textHsl.s) ? options.primary : options.text;
     };
-    
+
     const surveyColor = getSurveyColor();
     const surveyColorInverse = isDarkColor(surveyColor) ? '#fff' : 'rgba(0,0,0,0.7)';
     const textColorHsl = hexToHsl(options.text);
     const buttonBgColor = textColorHsl.l > 95 ? options.primary : options.text;
     const buttonTextColor = isDarkColor(buttonBgColor) ? "#fff" : "rgba(0,0,0,.7)";
+
+    // Selector for the static content card to avoid repetition
+    const staticContentCardSelector = '.static-content-wrapper.widget-on-card.no-shadow-border:not(.counter):not(.full-width-bg.page-footer)';
 
     return `
       /* ================= root tokens ================= */
@@ -103,7 +107,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
         --padding-logo-size   : ${options.padH || 0}px ${options.padW || 0}px;
         --bg-image-position   : 25% ${options.bgVert || 50}%;
       }
-      
+
       /* ================= header ================= */
       .desktop.wow-header-activated .header-left-container{
         position   : relative;
@@ -113,12 +117,16 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       }
 
       /* logo sizing */
-      ${options.changeLogoSize && `
+      ${/* FIX 1: Use a ternary operator to output an empty string instead of "false" */
+      options.changeLogoSize
+        ? `
         .header-left-container {
           height: ${options.logoHeight}px !important;
           margin-top: ${options.logoMarginTop}px !important;
         }
-      `}
+      `
+        : ''
+      }
       /* hide the title text and its divider */
       .desktop.wow-header-activated .header-title,
       .desktop.wow-header-activated .header-title::before,
@@ -129,7 +137,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       /* translucent coloured bar behind the header */
       .desktop.wow-header-activated .app-header{
         --desktop-app-header-bg-color: ${headerBgTranslucent} !important;
-        background-color             : ${headerBgTranslucent} !important;
+        background-color              : ${headerBgTranslucent} !important;
       }
 
       /* Override for newer envs to ensure primary color is used */
@@ -146,7 +154,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       .text-header-appintranet {
         color: ${primaryInverse} !important;
       }
-      
+
       /* ================= mobile ================= */
       static-content-block[background-color="#d3e6ec"] {
         background-color: ${options.background} !important;
@@ -184,7 +192,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       [data-testid="mega-menu-list"] > li > a .item-text,
       [data-testid="mega-menu-list"] > li > a .we-icon {
           color: var(--color-floating-nav-text) !important;
-      }          
+      }
       /* Older env nav container background */
       .desktop.wow-header-activated .css-sps0ey-MegaMenuContainer {
         background-color: var(--color-floating-nav-bg) !important;
@@ -263,27 +271,23 @@ export default function buildPreviewCss(o, multiBrandings = []) {
         background-color: ${options.background} !important;
       }
 
-      .static-content-wrapper.widget-on-card.no-shadow-border
-        :not(.counter):not(.full-width-bg.page-footer) {
-        /* headline */
-        .news-articles-plain .news-feed-post-headline,
-        /* teaser text */
-        .news-articles-plain .news-feed-post-teaser span,
-        /* “read more” link */
-        .news-articles-plain .read-more {
-          color: ${widgetTextColor} !important;
-        }
-        .content-widget-wrapper:has(a[href*="6813d9141acf7c2a0cf77cb3"]) > h2.content-widget-title span {
-          color: ${widgetTextColor} !important;
-        }
+      ${/* FIX 2: Rewrite the nested block into separate, valid CSS rules */''}
+      /* headline, teaser, and "read more" */
+      ${staticContentCardSelector} .news-articles-plain .news-feed-post-headline,
+      ${staticContentCardSelector} .news-articles-plain .news-feed-post-teaser span,
+      ${staticContentCardSelector} .news-articles-plain .read-more {
+        color: ${widgetTextColor} !important;
+      }
 
+      ${staticContentCardSelector} .content-widget-wrapper:has(a[href*="6813d9141acf7c2a0cf77cb3"]) > h2.content-widget-title span {
+        color: ${widgetTextColor} !important;
+      }
 
-        /* publish‐date & channel link */
-        .news-articles-plain .news-feed-post-meta,
-        .news-articles-plain .news-feed-post-meta a,
-        .news-articles-plain .news-feed-post-meta .separator {
-          color: ${metaTextColor} !important;
-        }
+      /* publish-date & channel link */
+      ${staticContentCardSelector} .news-articles-plain .news-feed-post-meta,
+      ${staticContentCardSelector} .news-articles-plain .news-feed-post-meta a,
+      ${staticContentCardSelector} .news-articles-plain .news-feed-post-meta .separator {
+        color: ${metaTextColor} !important;
       }
 
       .full-width-bg:not(.page-footer)
@@ -337,7 +341,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
 
       div.audio-player:has(audio[src*="/api/media/"]) .audio-player__meta .audio-player__title,
       div.audio-player:has(audio[src*="/api/media/"]) .audio-player__meta .audio-player__duration,
-      div.audio-player:has(audio[src*="/api/media/"]) .audio-player__file-size {
+      div.audio-player:has(audio[src*="/api/media/"]) .audio-player__meta .audio-player__file-size {
         color: ${primaryInverse} !important;
       }
 
@@ -347,7 +351,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
         background-repeat    : no-repeat !important;
         background-size      : cover       !important;
         background-position  : var(--bg-image-position) !important;
-        background-color     : #f4f9fb     !important;
+        background-color     : #f4f9fb      !important;
       }
 
       /* ================= jobs widget buttons ================= */
@@ -388,25 +392,27 @@ export default function buildPreviewCss(o, multiBrandings = []) {
         color: ${primaryInverse} !important;
       }
 
+      /* Make the button have an inverted color scheme to stand out */
       /* 3 — the subscribe / register button */
       .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
         .group-subscription-block-button{
-        background-color: ${buttonBgColor} !important;
-        border-color    : ${buttonBgColor} !important;
-        color           : ${buttonTextColor} !important;
+            background-color: var(--color-client-text) !important;
+            border-color     : var(--color-client-text) !important;
+            /* label + icon → inverse of text colour */
+            color            : ${textOpposite} !important;
       }
 
-      /* 4 — SVG icon inside the button needs its own fill */
-      .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
-        .group-subscription-block-button svg path{
-        fill: ${buttonTextColor} !important;
-      }
+        /* 4 — SVG icon inside the button needs its own fill */
+        .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
+          .group-subscription-block-button svg path{
+          fill: ${textOpposite} !important;
+        }
 
-      /* 5 — “button-text” span inside the button */
-      .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
-        .group-subscription-block-button .button-text{
-        color: ${buttonTextColor} !important;
-      }
+        /* 5 — “button-text” span inside the button */
+        .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
+          .group-subscription-block-button .button-text{
+          color: ${textOpposite} !important;
+        }
 
       /* standalone button‐wrapper ================= */
       .content-widget-wrapper.button-wrapper
@@ -416,7 +422,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
         border-color: ${buttonBgColor} !important;
       }
 
-    /* ================= specific header ================= */
+      /* ================= specific header ================= */
       .desktop.wow-header-activated .css-1brf39v-HeaderBody {
         background-color: var(--color-client-primary) !important;
         color: var(--color-client-text) !important;
@@ -439,13 +445,13 @@ export default function buildPreviewCss(o, multiBrandings = []) {
   };
 
   /**
-   * ♡ NEW: Helper specifically for generating logo CSS.
+   * Helper specifically for generating logo CSS.
    * This is called for both the main brand and each multi-brand.
    */
   const buildLogoCss = (options) => {
     if (options.logo) {
       return `
-        /* ================= logo/header ================= */
+        /* ================= logo/header (Desktop) ================= */
         .desktop.wow-header-activated .header-left-container img.header-logo{ opacity: 0 !important; }
         .desktop.wow-header-activated .header-left-container::after{
           content: "" !important;
@@ -457,26 +463,37 @@ export default function buildPreviewCss(o, multiBrandings = []) {
           background-position: left center;
           pointer-events: none;
         }
-        .header-container.with-logo .header-logo.css-v852x2-LogoImage { content: var(--logo-url) !important; }
+
+        /* ================= logo/header (Mobile) ================= */
+        /* Targets the specific mobile logo image tag and replaces its content */
+        .mobile .header-container.with-logo .header-logo.css-v852x2-LogoImage {
+          content: var(--logo-url) !important;
+          /* Add some sizing to prevent distortion */
+          height: 40px !important;
+          width: auto !important;
+          object-fit: contain !important;
+        }
       `;
     }
-    // If no logo, ensure the default is visible.
+    // If no logo, ensure the default is visible on all platforms.
     return `
+        /* Restore default logos if no custom one is provided */
         .desktop.wow-header-activated .header-left-container img.header-logo{ opacity: 1 !important; }
+        .mobile .header-container.with-logo .header-logo.css-v852x2-LogoImage { content: normal !important; }
     `;
   };
 
   /* ════════════════════════════════════════════
      ASSEMBLE THE FINAL CSS STRING
      ════════════════════════════════════════════ */
-     
+
   const prospectComment = o.prospectName
     ? `/* prospect:${o.prospectName.trim()} */\n`
     : "";
 
   // 1. Generate the MAIN branding CSS (colors, etc.)
   let finalCss = buildCssBlock(o);
-  
+
   // 2. Add the MAIN logo CSS
   finalCss += buildLogoCss(o);
 
@@ -487,27 +504,57 @@ export default function buildPreviewCss(o, multiBrandings = []) {
     multiBrandings.forEach(brandConfig => {
       if (!brandConfig.groupId) return;
 
-      const brandOptions = { ...o, ...brandConfig };
-      
+      // Map React state keys (e.g., primaryColor) to the keys this function expects (e.g., primary)
+      const mappedBrandConfig = {
+        primary: brandConfig.primaryColor,
+        text: brandConfig.textColor,
+        background: brandConfig.backgroundColor,
+        floatingNavBg: brandConfig.floatingNavBgColor,
+        floatingNavText: brandConfig.floatingNavTextColor,
+        bg: brandConfig.bgUrl,
+        logo: brandConfig.logoUrl,
+        padW: brandConfig.logoPadWidth,
+        padH: brandConfig.logoPadHeight,
+        bgVert: brandConfig.bgVertical,
+        changeLogoSize: brandConfig.changeLogoSize,
+        logoHeight: brandConfig.logoHeight,
+        logoMarginTop: brandConfig.logoMarginTop,
+      };
+
+      // Remove any undefined keys so they don't overwrite valid defaults from the main brand
+      Object.keys(mappedBrandConfig).forEach(key => {
+        if (mappedBrandConfig[key] === undefined) {
+          delete mappedBrandConfig[key];
+        }
+      });
+
+      const brandOptions = { ...o, ...mappedBrandConfig };
+
       // Generate color/background styles for this group
       let singleBrandBlock = buildCssBlock(brandOptions);
-      
+
       // ♡ NEW: Generate logo styles for this group
       singleBrandBlock += buildLogoCss(brandOptions);
 
-      const prefix = `.group-${brandConfig.groupId} `;
+      // Scope CSS variables by replacing ':root' with the group class
+      const prefix = `.group-${brandConfig.groupId}`; // Prefix without trailing space
       const prefixedCssBlock = singleBrandBlock.replace(
         /([^\r\n,{}]+)(,(?=[^}]*{)|\s*{)/g,
         (match, selector, suffix) => {
-            const trimmedSelector = selector.trim();
-            // Avoid prefixing things that shouldn't be prefixed
-            if (trimmedSelector.startsWith('@') || trimmedSelector.startsWith('/*') || trimmedSelector === ':root') {
-                return match;
-            }
-            return prefix + trimmedSelector + suffix;
+          const trimmedSelector = selector.trim();
+          // Avoid prefixing @-rules or comments
+          if (trimmedSelector.startsWith('@') || trimmedSelector.startsWith('/*')) {
+            return match;
+          }
+          // Specifically handle the :root selector to scope variables
+          if (trimmedSelector === ':root') {
+            return prefix + suffix; // Replaces ':root {' with '.group-12345 {'
+          }
+          // For all other selectors, prepend the prefix and a space
+          return `${prefix} ${trimmedSelector}${suffix}`;
         }
       );
-      
+
       multiBrandCss += `\n/* Branding for Group ID: ${brandConfig.groupId} */\n`;
       multiBrandCss += prefixedCssBlock;
     });
@@ -515,7 +562,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
     multiBrandCss += `\n/* ♡ REPLIFY MULTIBRANDING END ♡ */\n`;
     finalCss += multiBrandCss;
   }
-  
+
   // 4. Return the complete string with the prospect comment
   return prospectComment + finalCss;
 }
