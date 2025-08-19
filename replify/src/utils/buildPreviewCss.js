@@ -429,7 +429,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
   };
 
   /**
-   * ✨ NEW: Helper specifically for generating logo CSS.
+   * ♡ NEW: Helper specifically for generating logo CSS.
    * This is called for both the main brand and each multi-brand.
    */
   const buildLogoCss = (options) => {
@@ -472,7 +472,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
 
   // 3. Generate and append MULTI-BRANDING CSS
   if (multiBrandings && multiBrandings.length > 0) {
-    let multiBrandCss = `\n\n/* ✨ REPLIFY MULTIBRANDING START ✨ */\n`;
+    let multiBrandCss = `\n\n/* ♡ REPLIFY MULTIBRANDING START ♡ */\n`;
 
     multiBrandings.forEach(brandConfig => {
       if (!brandConfig.groupId) return;
@@ -482,7 +482,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       // Generate color/background styles for this group
       let singleBrandBlock = buildCssBlock(brandOptions);
       
-      // ✨ NEW: Generate logo styles for this group
+      // ♡ NEW: Generate logo styles for this group
       singleBrandBlock += buildLogoCss(brandOptions);
 
       const prefix = `.group-${brandConfig.groupId} `;
@@ -502,7 +502,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       multiBrandCss += prefixedCssBlock;
     });
 
-    multiBrandCss += `\n/* ✨ REPLIFY MULTIBRANDING END ✨ */\n`;
+    multiBrandCss += `\n/* ♡ REPLIFY MULTIBRANDING END ♡ */\n`;
     finalCss += multiBrandCss;
   }
   

@@ -22,7 +22,7 @@ const BrandingConfigForm = ({ group, onSave, onCancel, existingBrandings = [] })
   const handleSave = () => {
     onSave({
       groupId: group.groupId,
-      groupName: group.groupName, // Keep name for display purposes
+      groupName: group.groupName,
       primaryColor,
       textColor,
       backgroundColor,
@@ -36,14 +36,22 @@ const BrandingConfigForm = ({ group, onSave, onCancel, existingBrandings = [] })
     });
   };
 
-  // Helper component for a compact color input row
-  const ColorInput = ({ label, color, setColor }) => (
-    <div style={{ flex: '1 1 45%', minWidth: '200px' }}>
-      <label style={labelStyle}>{label}:</label>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <input type="color" style={{ ...inputStyle, padding: 0, width: 30, height: 30, flexShrink: 0 }} value={color} onChange={(e) => setColor(e.target.value)} />
-        <input type="text" style={{ ...inputStyle, width: '100%' }} value={color} onChange={(e) => setColor(e.target.value)} />
-      </div>
+  // ✅ NEW: Helper component for a compact, stacked color input
+  const ColorGridItem = ({ label, color, setColor }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+      <label style={{ ...labelStyle, marginBottom: '4px', fontWeight: 'normal' }}>{label}</label>
+      <input
+        type="color"
+        style={{ ...inputStyle, padding: 0, width: '40px', height: '40px', border: 'none', marginBottom: '4px' }}
+        value={color}
+        onChange={(e) => setColor(e.target.value)}
+      />
+      <input
+        type="text"
+        style={{ ...inputStyle, width: '80px', textAlign: 'center' }}
+        value={color}
+        onChange={(e) => setColor(e.target.value)}
+      />
     </div>
   );
 
@@ -51,13 +59,22 @@ const BrandingConfigForm = ({ group, onSave, onCancel, existingBrandings = [] })
     <div style={{ border: `1px solid ${colors.border}`, padding: '15px', borderRadius: '4px', marginTop: '10px', background: '#fcfcfc' }}>
       <h4 style={{ margin: '0 0 15px 0' }}>{existingBrandings.some(b => b.groupId === group.groupId) ? 'Editing' : 'Adding'} Branding for: <strong>{group.groupName || group.groupId}</strong></h4>
       
-      {/* Compact Color Pickers */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px' }}>
-        <ColorInput label="Primary" color={primaryColor} setColor={setPrimaryColor} />
-        <ColorInput label="Text" color={textColor} setColor={setTextColor} />
-        <ColorInput label="Background" color={backgroundColor} setColor={setBackgroundColor} />
-        <ColorInput label="Floating Nav BG" color={floatingNavBgColor} setColor={setFloatingNavBgColor} />
-        <ColorInput label="Floating Nav Text" color={floatingNavTextColor} setColor={setFloatingNavTextColor} />
+      {/* ✅ NEW: Grid layout for color pickers */}
+      <div style={formGroupStyle}>
+        <h5 style={{ textAlign: 'center', margin: '0 0 10px 0', color: '#555', fontWeight: 'bold' }}>Main Branding</h5>
+        <div style={{ display: 'flex', justifyContent: 'space-around' }}>
+          <ColorGridItem label="Primary" color={primaryColor} setColor={setPrimaryColor} />
+          <ColorGridItem label="Text" color={textColor} setColor={setTextColor} />
+          <ColorGridItem label="Background" color={backgroundColor} setColor={setBackgroundColor} />
+        </div>
+      </div>
+      
+      <div style={formGroupStyle}>
+        <h5 style={{ textAlign: 'center', margin: '10px 0 10px 0', color: '#555', fontWeight: 'bold' }}>Floating Navigation</h5>
+        <div style={{ display: 'flex', justifyContent: 'space-around', padding: '0 20%' }}>
+          <ColorGridItem label="Background" color={floatingNavBgColor} setColor={setFloatingNavBgColor} />
+          <ColorGridItem label="Text" color={floatingNavTextColor} setColor={setFloatingNavTextColor} />
+        </div>
       </div>
 
       {/* URL Inputs */}
@@ -102,18 +119,10 @@ export default function MultiBranding({ allGroups, brandings, onAdd, onUpdate, o
   const [searchTerm, setSearchTerm] = useState("");
 
   const handleSave = (config) => {
-    // Ensure groupName is set, defaulting to groupId if not present
-    const configToSave = {
-      ...config,
-      groupName: config.groupName || config.groupId,
-    };
-
+    const configToSave = { ...config, groupName: config.groupName || config.groupId };
     const isEditing = brandings.some(b => b.groupId === configToSave.groupId);
-    if (isEditing) {
-      onUpdate(configToSave);
-    } else {
-      onAdd(configToSave);
-    }
+    if (isEditing) { onUpdate(configToSave); } 
+    else { onAdd(configToSave); }
     setShowForm(false);
     setEditingGroup(null);
   };
@@ -146,7 +155,6 @@ export default function MultiBranding({ allGroups, brandings, onAdd, onUpdate, o
           {brandings.map(branding => (
             <li key={branding.groupId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${colors.borderLight}` }}>
               <div>
-                {/* ✅ Display groupName, which defaults to groupId if not available */}
                 <strong style={{ color: colors.primary }}>{branding.groupName}</strong>
                 <div style={{ fontSize: '12px', color: '#666', display: 'flex', alignItems: 'center', gap: '10px', marginTop: '5px' }}>
                   <span>Primary: <span style={{display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: branding.primaryColor || 'transparent', verticalAlign: 'middle', border: '1px solid #ccc' }}></span> {branding.primaryColor}</span>

@@ -886,7 +886,7 @@ function App() {
           bgVert: bgVertical,
           prospectName,
         },
-        
+        multiBrandings
       );
 
         const newBlock = `/* ⇢ REPLIFY START ⇠ */\n${newCssBody}\n/* ⇢ REPLIFY END ⇠ */`;
@@ -1024,7 +1024,9 @@ function App() {
         padW: logoPadWidth,
         padH: logoPadHeight,
         bgVert: bgVertical,
-      });
+      }
+      multiBrandings
+    );
       setPreviewActive(true);
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },

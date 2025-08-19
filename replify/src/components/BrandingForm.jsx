@@ -347,7 +347,7 @@ export default function BrandingForm({
                 alignItems: "center",
                 gap: "6px",
                 padding: "5px",
-                marginLeft: 'auto', // Pushes it to the right
+                marginLeft: 'auto',
               }}
               onClick={() => setMultiBrandingEnabled((prev) => !prev)}
             >
