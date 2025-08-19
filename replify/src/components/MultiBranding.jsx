@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import { LuCirclePlus, LuTrash2, LuSearch } from "react-icons/lu";
-import { formGroupStyle, inputStyle, labelStyle, brandingButtonStyle } from "../styles";
+import { formGroupStyle, inputStyle, labelStyle, brandingButtonStyle, checkboxLabelStyle, checkboxStyle } from "../styles";
 import { colors } from "../styles/colors";
 
 // --- Sub-component for the full Branding Form ---
@@ -18,6 +18,9 @@ const BrandingConfigForm = ({ group, onSave, onCancel, existingBrandings = [] })
   const [logoPadWidth, setLogoPadWidth] = useState(group.logoPadWidth || 0);
   const [logoPadHeight, setLogoPadHeight] = useState(group.logoPadHeight || 0);
   const [bgVertical, setBgVertical] = useState(group.bgVertical || 0);
+  const [changeLogoSize, setChangeLogoSize] = useState(group.changeLogoSize || false);
+  const [logoHeight, setLogoHeight] = useState(group.logoHeight || 100);
+  const [logoMarginTop, setLogoMarginTop] = useState(group.logoMarginTop || 0);
 
   const handleSave = () => {
     onSave({
@@ -33,6 +36,9 @@ const BrandingConfigForm = ({ group, onSave, onCancel, existingBrandings = [] })
       logoPadWidth,
       logoPadHeight,
       bgVertical,
+      changeLogoSize,
+      logoHeight,
+      logoMarginTop,
     });
   };
 
@@ -101,6 +107,31 @@ const BrandingConfigForm = ({ group, onSave, onCancel, existingBrandings = [] })
           <input type="number" min="-50" max="50" style={{ ...inputStyle, width: '100%' }} value={bgVertical} onChange={(e) => setBgVertical(Number(e.target.value))} />
         </div>
       </div>
+      +      {/* NEW: Logo Sizing */}
+      <div style={{ ...formGroupStyle, marginTop: '15px' }}>
+        <label style={{ ...checkboxLabelStyle, justifyContent: 'flex-start' }}>
+          <input
+            type="checkbox"
+            style={{...checkboxStyle, marginRight: '8px'}}
+            checked={changeLogoSize}
+            onChange={(e) => setChangeLogoSize(e.target.checked)}
+          />
+          Customize logo size/position
+        </label>
+      </div>
+
+      {changeLogoSize && (
+        <div style={{ display: 'flex', gap: '15px', paddingLeft: '20px' }}>
+          <div style={{flex: 1}}>
+            <label style={labelStyle}>Logo Height (px)</label>
+            <input type="number" style={{ ...inputStyle, width: '100%' }} value={logoHeight} onChange={(e) => setLogoHeight(Number(e.target.value))} />
+          </div>
+          <div style={{flex: 1}}>
+            <label style={labelStyle}>Logo Margin Top (px)</label>
+            <input type="number" style={{ ...inputStyle, width: '100%' }} value={logoMarginTop} onChange={(e) => setLogoMarginTop(Number(e.target.value))} />
+          </div>
+        </div>
+      )}
 
       {/* Action Buttons */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>

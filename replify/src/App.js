@@ -73,6 +73,9 @@ function App() {
   const [previewActive, setPreviewActive] = useState(false);
   const [brandingExists, setBrandingExists] = useState(false); // Replify block already in CSS?
   const [resetThemeOnDelete, setResetThemeOnDelete] = useState(false);
+  const [changeLogoSize, setChangeLogoSize] = useState(false);
+  const [logoHeight, setLogoHeight] = useState(100);
+  const [logoMarginTop, setLogoMarginTop] = useState(0);
 
   /* 🎨 Prospect saving --------------------------------------------------- */
   const [savedProspects, setSavedProspects] = useSavedProspects();
@@ -584,6 +587,9 @@ function App() {
         setLogoPadHeight(brandingData.logoPadHeight || logoPadHeight);
         setLogoPadWidth(brandingData.logoPadWidth || logoPadWidth);
         setBgVertical(brandingData.bgVertical || bgVertical);
+        setChangeLogoSize(brandingData.changeLogoSize || false);
+        setLogoHeight(brandingData.logoHeight || 100);
+        setLogoMarginTop(brandingData.logoMarginTop || 0);
         setResponse("✅ Pulled current branding into the form.");
       } catch (err) {
         setResponse(`❌ ${err.message}`);
@@ -869,10 +875,10 @@ function App() {
       /* ---------- 1️⃣  CSS block & Theme Colors -------------------------- */
       if (includeBranding) {
         setResponse("Processing branding request…");
-
+  
         const existingCss = await fetchCurrentCSS(apiToken);
         const trimmedCss = existingCss ? existingCss.trim() : "";
-
+  
         const newCssBody = buildPreviewCss({
           primary: primaryColor,
           text: textColor,
@@ -884,11 +890,12 @@ function App() {
           padW: logoPadWidth,
           padH: logoPadHeight,
           bgVert: bgVertical,
+          changeLogoSize,
+          logoHeight,
+          logoMarginTop,
           prospectName,
-        },
-        multiBrandings
-      );
-
+        }, multiBrandings);
+  
         const newBlock = `/* ⇢ REPLIFY START ⇠ */\n${newCssBody}\n/* ⇢ REPLIFY END ⇠ */`;
         const finalCss = blockRegex.test(trimmedCss)
           ? trimmedCss.replace(blockRegex, newBlock)
@@ -1024,7 +1031,10 @@ function App() {
         padW: logoPadWidth,
         padH: logoPadHeight,
         bgVert: bgVertical,
-      }
+        changeLogoSize,
+        logoHeight,
+        logoMarginTop,        
+      },
       multiBrandings
     );
       setPreviewActive(true);
@@ -1408,6 +1418,9 @@ function App() {
       logoPadWidth,
       logoPadHeight,
       bgVertical,
+      changeLogoSize,
+      logoHeight,
+      logoMarginTop,
     };
 
     setSavedProspects((prev) => {
@@ -1437,6 +1450,9 @@ function App() {
     setLogoPadWidth(prospect.logoPadWidth);
     setLogoPadHeight(prospect.logoPadHeight);
     setBgVertical(prospect.bgVertical);
+    setChangeLogoSize(prospect.changeLogoSize || false);
+    setLogoHeight(prospect.logoHeight || 100);
+    setLogoMarginTop(prospect.logoMarginTop || 0);
     setResponse(`🎨 Loaded branding for "${prospect.prospectName}".`);
   };
 
@@ -1618,6 +1634,12 @@ function App() {
       setLogoPadHeight={setLogoPadHeight}
       bgVertical={bgVertical}
       setBgVertical={setBgVertical}
+      changeLogoSize={changeLogoSize}
+      setChangeLogoSize={setChangeLogoSize}
+      logoHeight={logoHeight}
+      setLogoHeight={setLogoHeight}
+      logoMarginTop={logoMarginTop}
+      setLogoMarginTop={setLogoMarginTop}
       prospectLinkedInUrl={prospectLinkedInUrl}
       setProspectLinkedInUrl={setProspectLinkedInUrl}
       /* action */

@@ -84,6 +84,12 @@ export default function BrandingForm({
   setLogoPadHeight,
   bgVertical,
   setBgVertical,
+  changeLogoSize,
+  setChangeLogoSize,
+  logoHeight,
+  setLogoHeight,
+  logoMarginTop,
+  setLogoMarginTop,
   prospectLinkedInUrl,
   setProspectLinkedInUrl,
 
@@ -297,7 +303,43 @@ export default function BrandingForm({
               ))}
             </div>
           </div>
+          {/*  logo sizing checkbox */}
+          <div style={formGroupStyle}>
+            <label style={checkboxLabelStyle}>
+              <input
+                type="checkbox"
+                style={checkboxStyle}
+                checked={changeLogoSize}
+                onChange={(e) => setChangeLogoSize(e.target.checked)}
+              />
+              Customize logo size/position
+            </label>
+          </div>
 
+          {/* logo sizing inputs (conditional) */}
+          {changeLogoSize && (
+            <div style={{...formGroupStyle, paddingLeft: '20px'}}>
+              <label style={labelStyle}>Logo height & margin-top (px)</label>
+              <div style={{ display: "flex", gap: 6 }}>
+                <input
+                  type="number"
+                  style={{ ...inputStyle, width: 80 }}
+                  value={logoHeight}
+                  onChange={(e) => withPreview(setLogoHeight)(Number(e.target.value))}
+                  onBlur={ isStaffbaseTab && previewActive ? onPreview : undefined }
+                  placeholder="Height"
+                />
+                <input
+                  type="number"
+                  style={{ ...inputStyle, width: 80 }}
+                  value={logoMarginTop}
+                  onChange={(e) => withPreview(setLogoMarginTop)(Number(e.target.value))}
+                  onBlur={ isStaffbaseTab && previewActive ? onPreview : undefined }
+                  placeholder="Margin Top"
+                />
+              </div>
+            </div>
+          )}
           {/* background vertical offset  */}
           <div style={formGroupStyle}>
             <label style={labelStyle}>Background image vertical %</label>

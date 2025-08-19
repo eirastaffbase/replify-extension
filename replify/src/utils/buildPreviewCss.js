@@ -14,6 +14,9 @@
         logo           : "url|string",  // custom logo        (optional)
         padW, padH     : Number (px)    // logo padding
         bgVert         : Number (0-100) // bg vertical %
+        changeLogoSize : Boolean,       // flag for custom logo size
+        logoHeight     : Number (px)    // custom logo container height
+        logoMarginTop  : Number (px)    // custom logo container margin
         logoH          : Number (px)    // logo height (rarely used)
       }
     @returns {String} – fully-formed CSS ready for <style> injection
@@ -52,6 +55,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
         case r: h = (g - b) / d + (g < b ? 6 : 0); break;
         case g: h = (b - r) / d + 2; break;
         case b: h = (r - g) / d + 4; break;
+        default: h = 0; // Default case to handle unexpected values
       }
       h /= 6;
     }
@@ -98,7 +102,6 @@ export default function buildPreviewCss(o, multiBrandings = []) {
         --logo-url            : url("${options.logo || ""}");
         --padding-logo-size   : ${options.padH || 0}px ${options.padW || 0}px;
         --bg-image-position   : 25% ${options.bgVert || 50}%;
-        --logo-height         : ${options.logoH || 32}px;
       }
       
       /* ================= header ================= */
@@ -109,6 +112,13 @@ export default function buildPreviewCss(o, multiBrandings = []) {
         padding    : var(--padding-logo-size) !important;
       }
 
+      /* logo sizing */
+      ${options.changeLogoSize && `
+        .header-left-container {
+          height: ${options.logoHeight}px !important;
+          margin-top: ${options.logoMarginTop}px !important;
+        }
+      `}
       /* hide the title text and its divider */
       .desktop.wow-header-activated .header-title,
       .desktop.wow-header-activated .header-title::before,
