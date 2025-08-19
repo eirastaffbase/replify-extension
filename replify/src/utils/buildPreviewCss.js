@@ -18,12 +18,11 @@
       }
     @returns {String} – fully-formed CSS ready for <style> injection
 */
-
-export default function buildPreviewCss(o) {
-  /* ════════════════════════════════════════════
-     1.  Helper functions
-     ════════════════════════════════════════════ */
-  const hexToRgba = (hex, alpha) =>
+export default function buildPreviewCss(o, multiBrandings = []) {
+/* ════════════════════════════════════════════
+    1.  Helper functions
+    ════════════════════════════════════════════ */
+    const hexToRgba = (hex, alpha) =>
     `rgba(${parseInt(hex.slice(1, 3), 16)},` +
     `${parseInt(hex.slice(3, 5), 16)},` +
     `${parseInt(hex.slice(5, 7), 16)},${alpha})`;
@@ -59,51 +58,50 @@ export default function buildPreviewCss(o) {
     return { h: h * 360, s: s * 100, l: l * 100 };
   };
 
-  /* --------------------------------------------------
+  
+  /* Helper function to generate the raw CSS rules for a given set of options.
+    This prevents code duplication. We'll call this for the main brand
+    and then for each multi-brand configuration.
+  */
+  const buildCssBlock = (options) => {
+      /* --------------------------------------------------
     Persist the prospect name so we can read it later
     -------------------------------------------------- */
-  const prospectComment = o.prospectName
-    ? `/* prospect:${o.prospectName.trim()} */\n`
-    : "";
 
   /* ════════════════════════════════════════════
      2.  Derived colours
      ════════════════════════════════════════════ */
-  const primaryInverse = isDarkColor(o.primary) ? "#fff" : "rgba(0,0,0,.7)";
-  const widgetTextColor = isDarkColor(o.background) ? "#fff" : "#000";
-  const headerBgTranslucent = hexToRgba(o.primary, 0.7);
-  const metaTextColor = isDarkColor(o.background)
-    ? "rgba(255,255,255,0.7)"
-    : "rgba(0,0,0,0.7)";
+     const primaryInverse = isDarkColor(o.primary) ? "#fff" : "rgba(0,0,0,.7)";
+     const widgetTextColor = isDarkColor(o.background) ? "#fff" : "#000";
+     const headerBgTranslucent = hexToRgba(o.primary, 0.7);
+     const metaTextColor = isDarkColor(o.background)
+       ? "rgba(255,255,255,0.7)"
+       : "rgba(0,0,0,0.7)";
+   
+     // A "safe" color for surveys/buttons that prioritizes darkness, then saturation.
+     const getSurveyColor = () => {
+       const primaryIsDark = isDarkColor(o.primary);
+       const textIsDark = isDarkColor(o.text);
+   
+       if (primaryIsDark) return o.primary;
+       if (textIsDark) return o.text;
+   
+       // If both are light, compare saturation and pick the higher one.
+       const primaryHsl = hexToHsl(o.primary);
+       const textHsl = hexToHsl(o.text);
+       return (primaryHsl.s >= textHsl.s) ? o.primary : o.text;
+     };
+   
+     const surveyColor = getSurveyColor();
+     const surveyColorInverse = isDarkColor(surveyColor) ? '#fff' : 'rgba(0,0,0,0.7)';
+   
+     // If the desired text color is too light (like white), fall back to the primary color.
+     const textColorHsl = hexToHsl(o.text);
+     const buttonBgColor = textColorHsl.l > 95 ? o.primary : o.text;
+     const buttonTextColor = isDarkColor(buttonBgColor) ? "#fff" : "rgba(0,0,0,.7)";
 
-  // A "safe" color for surveys/buttons that prioritizes darkness, then saturation.
-  const getSurveyColor = () => {
-    const primaryIsDark = isDarkColor(o.primary);
-    const textIsDark = isDarkColor(o.text);
+     return `
 
-    if (primaryIsDark) return o.primary;
-    if (textIsDark) return o.text;
-
-    // If both are light, compare saturation and pick the higher one.
-    const primaryHsl = hexToHsl(o.primary);
-    const textHsl = hexToHsl(o.text);
-    return (primaryHsl.s >= textHsl.s) ? o.primary : o.text;
-  };
-
-  const surveyColor = getSurveyColor();
-  const surveyColorInverse = isDarkColor(surveyColor) ? '#fff' : 'rgba(0,0,0,0.7)';
-
-  // If the desired text color is too light (like white), fall back to the primary color.
-  const textColorHsl = hexToHsl(o.text);
-  const buttonBgColor = textColorHsl.l > 95 ? o.primary : o.text;
-  const buttonTextColor = isDarkColor(buttonBgColor) ? "#fff" : "rgba(0,0,0,.7)";
-
-
-  /* ════════════════════════════════════════════
-     3.  Base CSS (root tokens, header, widgets…)
-     ════════════════════════════════════════════ */
-  let css = `
-      ${prospectComment}
       /* ================= root tokens ================= */
       :root{
         --color-client-primary : ${o.primary} !important;
@@ -425,34 +423,44 @@ export default function buildPreviewCss(o) {
         border-color: ${buttonBgColor} !important;
       }
 
-    `;
-
-  // Add specific header styles
-  css += `
     /* ================= specific header ================= */
-    .desktop.wow-header-activated .css-1brf39v-HeaderBody {
-      background-color: var(--color-client-primary) !important;
-      color: var(--color-client-text) !important;
-    }
+      .desktop.wow-header-activated .css-1brf39v-HeaderBody {
+        background-color: var(--color-client-primary) !important;
+        color: var(--color-client-text) !important;
+      }
 
-    .desktop.wow-header-activated .css-8a35lc-Title {
-      color: var(--color-client-text) !important;
-      display: none !important; /* Hide the title text */
-    }
+      .desktop.wow-header-activated .css-8a35lc-Title {
+        color: var(--color-client-text) !important;
+        display: none !important; /* Hide the title text */
+      }
 
-    .mobile .header-container {
-      background-color: var(--color-client-primary) !important;
-      color: var(--color-client-text) !important;
-    }
+      .mobile .header-container {
+        background-color: var(--color-client-primary) !important;
+        color: var(--color-client-text) !important;
+      }
 
-    .mobile .header-container .header-button {
-      color: var(--color-client-text) !important;
-    }
+      .mobile .header-container .header-button {
+        color: var(--color-client-text) !important;
+      }
+
     `;
+  };
 
-  // Conditionally replace logo
+    /* --------------------------------------------------
+    Persist the prospect name so we can read it later
+    -------------------------------------------------- */
+    const prospectComment = o.prospectName
+    ? `/* prospect:${o.prospectName.trim()} */\n`
+    : "";
+
+  /* ════════════════════════════════════════════
+     Generate the MAIN branding CSS
+     ════════════════════════════════════════════ */
+  let mainCss = buildCssBlock(o);
+
+  // Conditionally add the logo styles to the main CSS block
   if (o.logo) {
-    css += `
+    mainCss += `
       /* ================= logo/header ================= */
         /* ---- DESKTOP LOGO (WOW HEADER) ---- */
         .desktop.wow-header-activated .header-left-container img.header-logo{
@@ -473,14 +481,56 @@ export default function buildPreviewCss(o) {
         .header-container.with-logo .header-logo.css-v852x2-LogoImage {
             content: var(--logo-url) !important;
         }
-        `;
+    `;
   } else {
-    // If no logo is provided, ensure the original logo is visible (though it should be by default)
-    css += `
+    mainCss += `
         .desktop.wow-header-activated .header-left-container img.header-logo{
           opacity: 1 !important;
         }
-        `;
+    `;
   }
-  return css;
+
+  /* ════════════════════════════════════════════
+     Generate MULTI-BRANDING CSS
+     ════════════════════════════════════════════ */
+  let multiBrandCss = "";
+  if (multiBrandings && multiBrandings.length > 0) {
+    
+    multiBrandCss += "\n\n/* -> REPLIFY MULTIBRANDING START <- */\n";
+
+    multiBrandings.forEach(brandConfig => {
+      if (!brandConfig.groupId) return;
+
+      // Create a specific options object for this brand.
+      // It inherits from the main brand `o` and overrides with its own values.
+      const brandOptions = { ...o, ...brandConfig };
+      
+      // Generate the standard block of CSS for this specific brand
+      let singleBrandBlock = buildCssBlock(brandOptions);
+
+      // Prepend every selector with the group ID class.
+      // This regex finds CSS selectors and prefixes them.
+      const prefix = `.group-${brandConfig.groupId} `;
+      const prefixedCssBlock = singleBrandBlock.replace(
+        // This regex looks for selectors outside of media query blocks.
+        // It's a robust way to add a prefix.
+        /([^\r\n,{}]+)(,(?=[^}]*{)|\s*{)/g,
+        (match, selector, suffix) => {
+            // Avoid prefixing @-rules, comments, or the :root pseudo-class
+            if (selector.trim().startsWith('@') || selector.trim().startsWith('/*') || selector.trim() === ':root') {
+                return match; 
+            }
+            return prefix + selector.trim() + suffix;
+        }
+      );
+      
+      multiBrandCss += `\n/* Branding for Group ID: ${brandConfig.groupId} */\n`;
+      multiBrandCss += prefixedCssBlock;
+    });
+
+    multiBrandCss += "\n/* -> REPLIFY MULTIBRANDING END <- */\n";
+  }
+
+  // Combine everything and return the final CSS string
+  return prospectComment + mainCss + multiBrandCss;
 }

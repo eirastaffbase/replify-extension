@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { BsSave2 } from "react-icons/bs";
-
+import { AiOutlineFormatPainter } from "react-icons/ai";
 import {
   formGroupStyle,
   inputStyle,
@@ -12,27 +12,35 @@ import {
   labelStyle,
 } from "../styles";
 import { colors } from "../styles/colors";
-import SavedProspects from "./SavedProspects"; // ✨ New Component
+import SavedProspects from "./SavedProspects";
+import MultiBranding from "./MultiBranding";
 
 export default function BrandingForm({
+  apiToken,
+  branchId,
+
   /* ✨ Prospect saving */
   savedProspects,
   onSaveProspect,
   onLoadProspect,
   onDeleteProspect,
 
+  /* ✨ Multi-branding */
+  multiBrandingEnabled,
+  setMultiBrandingEnabled,
+  onTargetChange,
+
   /* flags & handlers */
   isStaffbaseTab,
   includeBranding,
   setIncludeBranding,
-  updateThemeColors,      
-  setUpdateThemeColors,   
+  updateThemeColors,
+  setUpdateThemeColors,
   includeArticles,
   setIncludeArticles,
   brandingExists,
-  resetThemeOnDelete,      
-  setResetThemeOnDelete,   
-
+  resetThemeOnDelete,
+  setResetThemeOnDelete,
 
   /* live preview */
   previewActive,
@@ -49,24 +57,36 @@ export default function BrandingForm({
   onPullBranding,
 
   /* state + setters (prospect / colours / padding / bg) */
-  prospectName, setProspectName,
-  logoUrl, setLogoUrl,
-  bgUrl, setBgURL,
-  primaryColor, setPrimaryColor,
-  textColor, setTextColor,
-  backgroundColor, setBackgroundColor,
-  floatingNavBgColor, setFloatingNavBgColor,
-  floatingNavTextColor, setFloatingNavTextColor,
-  logoPadWidth, setLogoPadWidth,
-  logoPadHeight, setLogoPadHeight,
-  bgVertical, setBgVertical,
-  prospectLinkedInUrl, setProspectLinkedInUrl,
+  prospectName,
+  setProspectName,
+  logoUrl,
+  setLogoUrl,
+  bgUrl,
+  setBgURL,
+  primaryColor,
+  setPrimaryColor,
+  textColor,
+  setTextColor,
+  backgroundColor,
+  setBackgroundColor,
+  floatingNavBgColor,
+  setFloatingNavBgColor,
+  floatingNavTextColor,
+  setFloatingNavTextColor,
+  logoPadWidth,
+  setLogoPadWidth,
+  logoPadHeight,
+  setLogoPadHeight,
+  bgVertical,
+  setBgVertical,
+  prospectLinkedInUrl,
+  setProspectLinkedInUrl,
 
   /* submit */
   onCreateDemo,
 }) {
   const [hoveredButton, setHoveredButton] = useState(null);
-  /* helper so we don’t repeat the preview-kick logic everywhere */
+
   const withPreview = (setter) => (value) => {
     setter(value);
     if (isStaffbaseTab && previewActive) onPreview();
@@ -88,24 +108,14 @@ export default function BrandingForm({
           This environment is already branded with Replify.
           <br />
           <strong>Adding branding will replace the existing branding.</strong>
-{/*           
-          <div style={{...formGroupStyle, marginTop: '12px', marginBottom: '4px'}}>
-            <label style={checkboxLabelStyle}>
-              <input
-                type="checkbox"
-                style={checkboxStyle}
-                checked={resetThemeOnDelete}
-                onChange={(e) => setResetThemeOnDelete(e.target.checked)}
-              />
-              Reset app/intranet branding as well
-            </label>
-          </div>
-           */}
           <div style={{ margin: "10px 0", display: "flex", gap: 12 }}>
             <button
               style={{
                 ...brandingButtonStyle,
-                background: hoveredButton === 'delete' ? colors.dangerLight : colors.danger,
+                background:
+                  hoveredButton === "delete"
+                    ? colors.dangerLight
+                    : colors.danger,
                 color: colors.textOnPrimary,
                 fontSize: "12px",
                 display: "flex",
@@ -113,7 +123,7 @@ export default function BrandingForm({
                 justifyContent: "center",
               }}
               onClick={onDeleteBranding}
-              onMouseEnter={() => setHoveredButton('delete')}
+              onMouseEnter={() => setHoveredButton("delete")}
               onMouseLeave={() => setHoveredButton(null)}
             >
               <span style={{ fontSize: "24px", marginRight: 6 }}>✖︎</span>
@@ -127,9 +137,12 @@ export default function BrandingForm({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: hoveredButton === 'pull' ? colors.primaryLight : colors.primary,
+                backgroundColor:
+                  hoveredButton === "pull"
+                    ? colors.primaryLight
+                    : colors.primary,
               }}
-              onMouseEnter={() => setHoveredButton('pull')}
+              onMouseEnter={() => setHoveredButton("pull")}
               onMouseLeave={() => setHoveredButton(null)}
             >
               <span style={{ fontSize: "24px", marginRight: 6 }}>⟳</span>
@@ -138,7 +151,6 @@ export default function BrandingForm({
           </div>
         </div>
       )}
-
 
       {/* ───────── Add-branding toggle ───────── */}
       <div style={formGroupStyle}>
@@ -156,13 +168,13 @@ export default function BrandingForm({
       {/* ───────── Branding details ───────── */}
       {includeBranding && (
         <>
-        <SavedProspects
-          prospects={savedProspects}
-          onSelect={onLoadProspect}
-          onDelete={onDeleteProspect}
-        />
+          <SavedProspects
+            prospects={savedProspects}
+            onSelect={onLoadProspect}
+            onDelete={onDeleteProspect}
+          />
           {/* CHECKBOX FOR THEME COLORS */}
-          <div style={{...formGroupStyle, paddingLeft: '20px'}}>
+          <div style={{ ...formGroupStyle, paddingLeft: "20px" }}>
             <label style={checkboxLabelStyle}>
               <input
                 type="checkbox"
@@ -199,11 +211,10 @@ export default function BrandingForm({
           ].map(([lbl, val, onChange]) => (
             <div key={lbl} style={formGroupStyle}>
               <label style={labelStyle}>{lbl}:</label>
-              {/* Flex container to hold both inputs side-by-side */}
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <input
                   type="color"
-                  style={{ ...inputStyle, padding: 0, width: 50, height: 50, border: 'none' }}
+                  style={{ ...inputStyle, padding: 0, width: 50, height: 50, border: "none" }}
                   value={val}
                   onChange={(e) => onChange(e.target.value)}
                 />
@@ -219,14 +230,13 @@ export default function BrandingForm({
           ))}
 
           {/* floating nav colours */}
-          <div style={{...formGroupStyle, display: 'flex', alignItems: 'flex-end', gap: '16px' }}>
-            {/* Background Color Picker */}
+          <div style={{ ...formGroupStyle, display: "flex", alignItems: "flex-end", gap: "16px" }}>
             <div>
               <label style={labelStyle}>Floating Nav BG:</label>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <input
                   type="color"
-                  style={{ ...inputStyle, padding: 0, width: 50, height: 50, border: 'none' }}
+                  style={{ ...inputStyle, padding: 0, width: 50, height: 50, border: "none" }}
                   value={floatingNavBgColor}
                   onChange={(e) => withPreview(setFloatingNavBgColor)(e.target.value)}
                 />
@@ -239,14 +249,12 @@ export default function BrandingForm({
                 />
               </div>
             </div>
-
-            {/* Text Color Picker */}
             <div>
               <label style={labelStyle}>Floating Nav Text:</label>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <input
                   type="color"
-                  style={{ ...inputStyle, padding: 0, width: 50, height: 50, border: 'none' }}
+                  style={{ ...inputStyle, padding: 0, width: 50, height: 50, border: "none" }}
                   value={floatingNavTextColor}
                   onChange={(e) => withPreview(setFloatingNavTextColor)(e.target.value)}
                 />
@@ -260,7 +268,6 @@ export default function BrandingForm({
               </div>
             </div>
           </div>
-
 
           {/* logo padding  */}
           <div style={formGroupStyle}>
@@ -299,25 +306,58 @@ export default function BrandingForm({
               }
             />
           </div>
-          {prospectName && (
-            <div style={{ ...formGroupStyle }}>
+
+          {/* --- Action Buttons within Branding --- */}
+          <div style={{ ...formGroupStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {/* Save Prospect Button */}
+            {prospectName && (
               <button
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
                   color: colors.primary,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '5px',
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "5px",
                 }}
                 onClick={onSaveProspect}
               >
                 <BsSave2 size={18} />
                 Save this prospect
               </button>
-            </div>
+            )}
+            
+            {/* ✨ Multi-Branding Toggle Button */}
+            <button
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: colors.primary,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "5px",
+                marginLeft: 'auto', // Pushes it to the right
+              }}
+              onClick={() => setMultiBrandingEnabled((prev) => !prev)}
+            >
+              <AiOutlineFormatPainter size={18} />
+              {multiBrandingEnabled
+                ? "Hide multi branding"
+                : "Add multi branding"}
+            </button>
+          </div>
+          
+          {/* ✨ Conditionally render MultiBranding component */}
+          {multiBrandingEnabled && (
+            <MultiBranding
+              apiToken={apiToken}
+              branchId={branchId}
+              onTargetChange={onTargetChange}
+            />
           )}
         </>
       )}
@@ -355,14 +395,16 @@ export default function BrandingForm({
           <button
             style={{
               ...brandingButtonStyle,
-              backgroundColor: isStaffbaseTab 
-                ? (hoveredButton === 'preview' ? colors.primaryLight : colors.primary) 
+              backgroundColor: isStaffbaseTab
+                ? hoveredButton === "preview"
+                  ? colors.primaryLight
+                  : colors.primary
                 : "grey",
               cursor: isStaffbaseTab ? "pointer" : "not-allowed",
             }}
             onClick={previewActive ? onCancelPreview : onPreview}
             disabled={!isStaffbaseTab}
-            onMouseEnter={() => setHoveredButton('preview')}
+            onMouseEnter={() => setHoveredButton("preview")}
             onMouseLeave={() => setHoveredButton(null)}
           >
             {previewActive ? "✖︎ Cancel Preview" : "Preview Branding"}
@@ -372,11 +414,12 @@ export default function BrandingForm({
         <button
           style={{
             ...brandingButtonStyle,
-            backgroundColor: hoveredButton === 'create' ? colors.primaryLight : colors.primary,
+            backgroundColor:
+              hoveredButton === "create" ? colors.primaryLight : colors.primary,
           }}
           disabled={!includeBranding && !includeArticles}
           onClick={onCreateDemo}
-          onMouseEnter={() => setHoveredButton('create')}
+          onMouseEnter={() => setHoveredButton("create")}
           onMouseLeave={() => setHoveredButton(null)}
         >
           {getCreateLabel()}

@@ -74,8 +74,29 @@ function App() {
   const [brandingExists, setBrandingExists] = useState(false); // Replify block already in CSS?
   const [resetThemeOnDelete, setResetThemeOnDelete] = useState(false);
 
-  /* ✨ Prospect saving --------------------------------------------------- */
+  /* 🎨 Prospect saving --------------------------------------------------- */
   const [savedProspects, setSavedProspects] = useSavedProspects();
+  
+  /* 🎨 Multi-branding state --------------------------------------------------- */
+  const [multiBrandings, setMultiBrandings] = useState([]);
+  const [multiBrandingEnabled, setMultiBrandingEnabled] = useState(false);
+  const [multiBrandingTarget, setMultiBrandingTarget] = useState({ type: null, id: null });
+  const handleAddMultiBranding = (newBrandingConfig) => {
+    // Adds a new group's branding config
+    setMultiBrandings(prev => [...prev, newBrandingConfig]);
+  };
+  const handleUpdateMultiBranding = (updatedConfig) => {
+    // Updates an existing group's config
+    setMultiBrandings(prev => 
+      prev.map(mb => mb.groupId === updatedConfig.groupId ? updatedConfig : mb)
+    );
+  };
+  const handleRemoveMultiBranding = (groupIdToRemove) => {
+    // Removes a group's config
+    setMultiBrandings(prev => prev.filter(mb => mb.groupId !== groupIdToRemove));
+  };
+
+  
 
   /* 📰  News scraping (LinkedIn) ------------------------------------------ */
   const [includeArticles, setIncludeArticles] = useState(false);
@@ -811,6 +832,16 @@ function App() {
    */
 
   async function handleCreateDemo() {
+    if (multiBrandingEnabled) {
+      if (!multiBrandingTarget.id) {
+        setResponse("⚠️ Please select a page or group for multi-branding.");
+        return;
+      }
+      console.log("Multibranding Target:", multiBrandingTarget);
+      // NOTE: The actual API call for applying scoped CSS will go here.
+      // For now, we'll proceed with the standard branding call for demonstration.
+    }
+
     try {
       /* ---------- 1️⃣  CSS block & Theme Colors -------------------------- */
       if (includeBranding) {
@@ -831,7 +862,9 @@ function App() {
           padH: logoPadHeight,
           bgVert: bgVertical,
           prospectName,
-        });
+        },
+        
+      );
 
         const newBlock = `/* ⇢ REPLIFY START ⇠ */\n${newCssBody}\n/* ⇢ REPLIFY END ⇠ */`;
         const finalCss = blockRegex.test(trimmedCss)
@@ -1509,6 +1542,16 @@ function App() {
       onSaveProspect={handleSaveProspect}
       onLoadProspect={handleLoadProspect}
       onDeleteProspect={handleDeleteProspect}
+
+      /* Multi-branding */
+      multiBrandingEnabled={multiBrandingEnabled}
+      setMultiBrandingEnabled={setMultiBrandingEnabled}
+      onTargetChange={setMultiBrandingTarget}
+      multiBrandings={multiBrandings}
+      onAddMultiBranding={handleAddMultiBranding}
+      onUpdateMultiBranding={handleUpdateMultiBranding}
+      onRemoveMultiBranding={handleRemoveMultiBranding}
+
 
       /* flags & handlers */
       isStaffbaseTab={isStaffbaseTab}
