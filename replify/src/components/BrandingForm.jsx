@@ -410,6 +410,7 @@ export default function BrandingForm({
               onUpdate={onUpdateMultiBranding}
               onRemove={onRemoveMultiBranding}
               allGroups={allGroups}
+              savedProspects={savedProspects}
             />
           )}
         </>

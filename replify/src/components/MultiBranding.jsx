@@ -1,12 +1,13 @@
 // components/MultiBranding.jsx
 
 import React, { useState, useMemo } from "react";
-import { LuCirclePlus, LuTrash2, LuSearch } from "react-icons/lu";
+import { LuCirclePlus, LuTrash2, LuSearch, LuChevronDown, LuChevronUp } from "react-icons/lu";
 import { formGroupStyle, inputStyle, labelStyle, brandingButtonStyle, checkboxLabelStyle, checkboxStyle } from "../styles";
 import { colors } from "../styles/colors";
+import SavedProspects from "./SavedProspects";
 
 // --- Sub-component for the full Branding Form ---
-const BrandingConfigForm = ({ group, onSave, onCancel, existingBrandings = [] }) => {
+const BrandingConfigForm = ({ group, onSave, onCancel, existingBrandings = [], savedProspects }) => {
   // State for all branding options
   const [primaryColor, setPrimaryColor] = useState(group.primaryColor || "#000000");
   const [textColor, setTextColor] = useState(group.textColor || "#ffffff");
@@ -21,6 +22,22 @@ const BrandingConfigForm = ({ group, onSave, onCancel, existingBrandings = [] })
   const [changeLogoSize, setChangeLogoSize] = useState(group.changeLogoSize || false);
   const [logoHeight, setLogoHeight] = useState(group.logoHeight || 100);
   const [logoMarginTop, setLogoMarginTop] = useState(group.logoMarginTop || 0);
+
+  const handleLoadProspect = (prospect) => {
+    setPrimaryColor(prospect.primaryColor || "#000000");
+    setTextColor(prospect.textColor || "#ffffff");
+    setBackgroundColor(prospect.backgroundColor || "#F3F3F3");
+    setFloatingNavBgColor(prospect.floatingNavBgColor || "#FFFFFF");
+    setFloatingNavTextColor(prospect.floatingNavTextColor || "#000000");
+    setLogoUrl(prospect.logoUrl || "");
+    setBgUrl(prospect.bgUrl || "");
+    setLogoPadWidth(prospect.logoPadWidth || 0);
+    setLogoPadHeight(prospect.logoPadHeight || 0);
+    setBgVertical(prospect.bgVertical || 0);
+    setChangeLogoSize(prospect.changeLogoSize || false);
+    setLogoHeight(prospect.logoHeight || 100);
+    setLogoMarginTop(prospect.logoMarginTop || 0);
+  };
 
   const handleSave = () => {
     onSave({
@@ -64,6 +81,9 @@ const BrandingConfigForm = ({ group, onSave, onCancel, existingBrandings = [] })
   return (
     <div style={{ border: `1px solid ${colors.border}`, padding: '15px', borderRadius: '4px', marginTop: '10px', background: '#fcfcfc' }}>
       <h4 style={{ margin: '0 0 15px 0' }}>{existingBrandings.some(b => b.groupId === group.groupId) ? 'Editing' : 'Adding'} Branding for: <strong>{group.groupName || group.groupId}</strong></h4>
+      
+      {/* Load from saved prospect */}
+      <SavedProspects prospects={savedProspects} onSelect={handleLoadProspect} />
       
       {/* ✅ NEW: Grid layout for color pickers */}
       <div style={formGroupStyle}>
@@ -143,7 +163,7 @@ const BrandingConfigForm = ({ group, onSave, onCancel, existingBrandings = [] })
 };
 
 // --- Main MultiBranding Component ---
-export default function MultiBranding({ allGroups, brandings, onAdd, onUpdate, onRemove }) {
+export default function MultiBranding({ allGroups, brandings, onAdd, onUpdate, onRemove, savedProspects }) {
   const [showForm, setShowForm] = useState(false);
   const [editingGroup, setEditingGroup] = useState(null);
   const [manualId, setManualId] = useState("");
@@ -206,7 +226,7 @@ export default function MultiBranding({ allGroups, brandings, onAdd, onUpdate, o
 
       {showForm ? (
         editingGroup ? (
-          <BrandingConfigForm group={editingGroup} onSave={handleSave} onCancel={() => { setShowForm(false); setEditingGroup(null); }} existingBrandings={brandings} />
+          <BrandingConfigForm group={editingGroup} onSave={handleSave} onCancel={() => { setShowForm(false); setEditingGroup(null); }} existingBrandings={brandings} savedProspects={savedProspects} />
         ) : (
           <div style={{ marginTop: '20px' }}>
             <div>
