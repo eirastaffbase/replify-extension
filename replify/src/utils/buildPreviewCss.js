@@ -535,11 +535,10 @@ export default function buildPreviewCss(o, multiBrandings = []) {
             return match;
           }
 
-          if (trimmedSelector.startsWith('html') || trimmedSelector.startsWith('.mobile') || trimmedSelector.startsWith('.desktop')) {
+          if (trimmedSelector.startsWith('html') || trimmedSelector.startsWith('.mobile') || trimmedSelector.startsWith('.desktop') || trimmedSelector.startsWith('.wow-header-activated')) {
             if (trimmedSelector.startsWith('html')) return `html${prefix}${trimmedSelector.substring(4)}${suffix}`;
             return `${prefix}${trimmedSelector}${suffix}`;
-          }
-          // For all other selectors, prepend the prefix and a space
+          }          
           return `${prefix} ${trimmedSelector}${suffix}`;
         }
       );
