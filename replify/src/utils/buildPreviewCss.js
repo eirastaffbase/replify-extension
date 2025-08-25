@@ -92,16 +92,16 @@ export default function buildPreviewCss(o, multiBrandings = []) {
 
     // Selector for the static content card to avoid repetition
     const staticContentCardSelector = '.static-content-wrapper.widget-on-card.no-shadow-border:not(.counter):not(.full-width-bg.page-footer)';
+    
 
-    // Conditionally define values to be either a CSS variable or a direct value
-    const primary = useVariables ? 'var(--color-client-primary)' : options.primary;
-    const text = useVariables ? 'var(--color-client-text)' : options.text;
-    const background = useVariables ? 'var(--color-client-background)' : options.background;
-    const floatingNavBg = useVariables ? 'var(--color-floating-nav-bg)' : (options.floatingNavBg || '#FFFFFF');
-    const floatingNavText = useVariables ? 'var(--color-floating-nav-text)' : (options.floatingNavText || '#000000');
-    const bgImage = useVariables ? 'var(--bg-image)' : `url("${options.bg || ""}")`;
-    const logoPadding = useVariables ? 'var(--padding-logo-size)' : `${options.padH || 0}px ${options.padW || 0}px`;
-    const bgImagePosition = useVariables ? 'var(--bg-image-position)' : `25% ${options.bgVert || 50}%`;
+    const primary = options.primary;
+    const text = options.text;
+    const background = options.background;
+    const floatingNavBg = (options.floatingNavBg || '#FFFFFF');
+    const floatingNavText = (options.floatingNavText || '#000000');
+    const bgImage = `url("${options.bg || ""}")`;
+    const logoPadding = `${options.padH || 0}px ${options.padW || 0}px`;
+    const bgImagePosition = `25% ${options.bgVert || 50}%`;
     
 
     // Only generate the :root block if we are using variables (i.e., for the main branding)
@@ -131,7 +131,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       }
 
       /* logo sizing */
-      ${/* Use a ternary operator to output an empty string */
+      ${
       options.changeLogoSize
         ? `
         .header-left-container {
@@ -184,7 +184,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       .desktop.wow-header-activated .header-title .css-1wac6i9-TitleWrapper{
         color:${text}!important;
       }
-      .desktop.wow-header-activated .wow-app-header .css-8jz3c5-UserSettingsContainer > .user-menu-btn::after { /* Added this line */
+      .desktop.wow-header-activated .wow-app-header .css-8jz3c5-UserSettingsContainer > .user-menu-btn::after { 
         color:${text}!important;
       }
       .wow-header-activated .css-4557aa-StyledMegaMenuItem>a::before,
@@ -194,7 +194,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       .wow-header-activated #menu  .we-icon,
       .desktop.wow-header-activated .wow-app-header .css-dgi6rr-Link::after,
       .wow-header-activated #menu .css-1ccn5tk-IconStyled,
-      .desktop.wow-header-activated .wow-app-header .css-ol0i66-StyledLaunchpadIcon .we-icon::after { /* Added this line */
+      .desktop.wow-header-activated .wow-app-header .css-ol0i66-StyledLaunchpadIcon .we-icon::after { 
         color: ${options.text}!important;
       }
 
@@ -285,7 +285,6 @@ export default function buildPreviewCss(o, multiBrandings = []) {
         background-color: ${background} !important;
       }
 
-      ${/* FIX 2: Rewrite the nested block into separate, valid CSS rules */''}
       /* headline, teaser, and "read more" */
       ${staticContentCardSelector} .news-articles-plain .news-feed-post-headline,
       ${staticContentCardSelector} .news-articles-plain .news-feed-post-teaser span,
@@ -312,22 +311,15 @@ export default function buildPreviewCss(o, multiBrandings = []) {
         color: ${widgetTextColor} !important;
       }
       
-      .full-width-bg.page-footer
-        > .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border {
+      .full-width-bg.page-footer > .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border {
         background-color: ${primary} !important;
         color: ${primaryInverse} !important;
       }
 
       /* only the real text spans/headings inside the footer card */
-      .full-width-bg.page-footer
-        .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border
-        h3 span,
-      .full-width-bg.page-footer
-        .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border
-        p span,
-      .full-width-bg.page-footer
-        .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border
-        strong span {
+      .full-width-bg.page-footer .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border h3 span,
+      .full-width-bg.page-footer .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border p span,
+      .full-width-bg.page-footer .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border strong span {
         color: ${primaryInverse} !important;
       }
 
@@ -366,9 +358,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       }
 
       /* ================= jobs widget buttons ================= */
-
-      .content-widget-wrapper.static-content-wrapper.widget-on-card.jobs
-        a.clickable.external-link {
+      .content-widget-wrapper.static-content-wrapper.widget-on-card.jobs a.clickable.external-link {
         background-color: ${buttonBgColor} !important;
         color: ${buttonTextColor} !important;
         border-color: ${buttonBgColor} !important;
@@ -381,14 +371,13 @@ export default function buildPreviewCss(o, multiBrandings = []) {
 
 
       /* ================= counter widget ================= */
-
-      /* 1 — the card itself */
+      /* the card itself */
       .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter{
         /* primary background */
         background-color: ${primary} !important;
       }
 
-      /* 2 — every “real” text bit that lives in the widget card */
+      /* every text bit that lives in the widget card */
       .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter h1 span,
       .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter h2 span,
       .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter h3 span,
@@ -399,30 +388,26 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       }
       
       /* Make the button have an inverted color scheme to stand out */
-      /* 3 — the subscribe / register button */
-      .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
-        .group-subscription-block-button{
+      /* the subscribe / register button */
+      .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter .group-subscription-block-button{
             background-color: ${text} !important;
             border-color     : ${text} !important;
             /* label + icon → inverse of text colour */
             color            : ${textOpposite} !important;
       }
 
-        /* 4 — SVG icon inside the button needs its own fill */
-        .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
-          .group-subscription-block-button svg path{
+        /* SVG icon inside the button needs its own fill */
+        .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter .group-subscription-block-button svg path{
           fill: ${textOpposite} !important;
         }
 
-        /* 5 — “button-text” span inside the button */
-        .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
-          .group-subscription-block-button .button-text{
+        /* “button-text” span inside the button */
+        .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter .group-subscription-block-button .button-text{
           color: ${textOpposite} !important;
         }
 
       /* standalone button‐wrapper ================= */
-      .content-widget-wrapper.button-wrapper
-        .button-block-link {
+      .content-widget-wrapper.button-wrapper .button-block-link {
         background-color: ${buttonBgColor} !important;
         color: ${buttonTextColor} !important;
         border-color: ${buttonBgColor} !important;
@@ -475,10 +460,6 @@ export default function buildPreviewCss(o, multiBrandings = []) {
         /* Targets the specific mobile logo image tag and replaces its content */
         .mobile .header-container.with-logo .header-logo.css-v852x2-LogoImage {
           content: ${logoUrl} !important;
-          /* Add some sizing to prevent distortion */
-          height: 40px !important;
-          width: auto !important;
-          object-fit: contain !important;
         }
       `;
     }
