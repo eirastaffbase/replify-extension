@@ -94,24 +94,15 @@ export default function buildPreviewCss(o, multiBrandings = []) {
     const staticContentCardSelector = '.static-content-wrapper.widget-on-card.no-shadow-border:not(.counter):not(.full-width-bg.page-footer)';
 
     // Conditionally define values to be either a CSS variable or a direct value
-    // const primary = useVariables ? 'var(--color-client-primary)' : options.primary;
-    // const text = useVariables ? 'var(--color-client-text)' : options.text;
-    // const background = useVariables ? 'var(--color-client-background)' : options.background;
-    // const floatingNavBg = useVariables ? 'var(--color-floating-nav-bg)' : (options.floatingNavBg || '#FFFFFF');
-    // const floatingNavText = useVariables ? 'var(--color-floating-nav-text)' : (options.floatingNavText || '#000000');
-    // const bgImage = useVariables ? 'var(--bg-image)' : `url("${options.bg || ""}")`;
-    // const logoPadding = useVariables ? 'var(--padding-logo-size)' : `${options.padH || 0}px ${options.padW || 0}px`;
-    // const bgImagePosition = useVariables ? 'var(--bg-image-position)' : `25% ${options.bgVert || 50}%`;
+    const primary = useVariables ? 'var(--color-client-primary)' : options.primary;
+    const text = useVariables ? 'var(--color-client-text)' : options.text;
+    const background = useVariables ? 'var(--color-client-background)' : options.background;
+    const floatingNavBg = useVariables ? 'var(--color-floating-nav-bg)' : (options.floatingNavBg || '#FFFFFF');
+    const floatingNavText = useVariables ? 'var(--color-floating-nav-text)' : (options.floatingNavText || '#000000');
+    const bgImage = useVariables ? 'var(--bg-image)' : `url("${options.bg || ""}")`;
+    const logoPadding = useVariables ? 'var(--padding-logo-size)' : `${options.padH || 0}px ${options.padW || 0}px`;
+    const bgImagePosition = useVariables ? 'var(--bg-image-position)' : `25% ${options.bgVert || 50}%`;
     
-    const primary = options.primary;
-    const text = options.text;
-    const background = options.background;
-    const floatingNavBg = (options.floatingNavBg || '#FFFFFF');
-    const floatingNavText = (options.floatingNavText || '#000000');
-    const bgImage = `url("${options.bg || ""}")`;
-    const logoPadding = `${options.padH || 0}px ${options.padW || 0}px`;
-    const bgImagePosition = `25% ${options.bgVert || 50}%`;
-
 
     // Only generate the :root block if we are using variables (i.e., for the main branding)
     const rootBlock = useVariables ? `
@@ -313,17 +304,14 @@ export default function buildPreviewCss(o, multiBrandings = []) {
         color: ${metaTextColor} !important;
       }
 
-      .full-width-bg:not(.page-footer)
-        > .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border {
+      .full-width-bg:not(.page-footer) > .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border {
         background-color: ${background} !important;
       }
-
-      .full-width-bg:not(.page-footer)
-        > .static-content-wrapper.widget-on-card.no-shadow-border
-        .ui-commons__section__column > h2 {
+      
+      .full-width-bg:not(.page-footer) > .static-content-wrapper.widget-on-card.no-shadow-border .ui-commons__section__column > h2 {
         color: ${widgetTextColor} !important;
       }
-
+      
       .full-width-bg.page-footer
         > .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border {
         background-color: ${primary} !important;
@@ -401,20 +389,15 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       }
 
       /* 2 — every “real” text bit that lives in the widget card */
-      .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
-        h1 span,
-      .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
-        h2 span,
-      .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
-        h3 span,
-      .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
-        p  span,
-      .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
-        strong span{
+      .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter h1 span,
+      .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter h2 span,
+      .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter h3 span,
+      .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter p  span,
+      .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter strong span {
         /* inverse of primary */
         color: ${primaryInverse} !important;
       }
-
+      
       /* Make the button have an inverted color scheme to stand out */
       /* 3 — the subscribe / register button */
       .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
