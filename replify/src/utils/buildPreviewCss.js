@@ -64,7 +64,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
 
   /* Helper for generating color, background, and general branding CSS.
    */
-  const buildCssBlock = (options) => {
+  const buildCssBlock = (options, useVariables = true) => {
     // Derived colours
     const primaryInverse = isDarkColor(options.primary) ? "#fff" : "rgba(0,0,0,.7)";
     const widgetTextColor = isDarkColor(options.background) ? "#fff" : "#000";
@@ -93,31 +93,54 @@ export default function buildPreviewCss(o, multiBrandings = []) {
     // Selector for the static content card to avoid repetition
     const staticContentCardSelector = '.static-content-wrapper.widget-on-card.no-shadow-border:not(.counter):not(.full-width-bg.page-footer)';
 
-    return `
-      /* ================= root tokens ================= */
-      :root{
-        --color-client-primary : ${options.primary} !important;
-        --color-client-text    : ${options.text}    !important;
-        --sb-text-nav-appintranet : ${options.text} !important;
-        --color-client-background : ${options.background} !important;
-        --color-floating-nav-bg   : ${options.floatingNavBg || '#FFFFFF'} !important;
-        --color-floating-nav-text : ${options.floatingNavText || '#000000'} !important;
-        --bg-image            : url("${options.bg || ""}");
-        --logo-url            : url("${options.logo || ""}");
-        --padding-logo-size   : ${options.padH || 0}px ${options.padW || 0}px;
-        --bg-image-position   : 25% ${options.bgVert || 50}%;
-      }
+    // Conditionally define values to be either a CSS variable or a direct value
+    // const primary = useVariables ? 'var(--color-client-primary)' : options.primary;
+    // const text = useVariables ? 'var(--color-client-text)' : options.text;
+    // const background = useVariables ? 'var(--color-client-background)' : options.background;
+    // const floatingNavBg = useVariables ? 'var(--color-floating-nav-bg)' : (options.floatingNavBg || '#FFFFFF');
+    // const floatingNavText = useVariables ? 'var(--color-floating-nav-text)' : (options.floatingNavText || '#000000');
+    // const bgImage = useVariables ? 'var(--bg-image)' : `url("${options.bg || ""}")`;
+    // const logoPadding = useVariables ? 'var(--padding-logo-size)' : `${options.padH || 0}px ${options.padW || 0}px`;
+    // const bgImagePosition = useVariables ? 'var(--bg-image-position)' : `25% ${options.bgVert || 50}%`;
+    
+    const primary = options.primary;
+    const text = options.text;
+    const background = options.background;
+    const floatingNavBg = (options.floatingNavBg || '#FFFFFF');
+    const floatingNavText = (options.floatingNavText || '#000000');
+    const bgImage = `url("${options.bg || ""}")`;
+    const logoPadding = `${options.padH || 0}px ${options.padW || 0}px`;
+    const bgImagePosition = `25% ${options.bgVert || 50}%`;
 
+
+    // Only generate the :root block if we are using variables (i.e., for the main branding)
+    const rootBlock = useVariables ? `
+    /* ================= root tokens ================= */
+    :root{
+      --color-client-primary : ${options.primary} !important;
+      --color-client-text    : ${options.text}    !important;
+      --sb-text-nav-appintranet : ${options.text} !important;
+      --color-client-background : ${options.background} !important;
+      --color-floating-nav-bg   : ${options.floatingNavBg || '#FFFFFF'} !important;
+      --color-floating-nav-text : ${options.floatingNavText || '#000000'} !important;
+      --bg-image            : url("${options.bg || ""}");
+      --logo-url            : url("${options.logo || ""}");
+      --padding-logo-size   : ${options.padH || 0}px ${options.padW || 0}px;
+      --bg-image-position   : 25% ${options.bgVert || 50}%;
+    }
+    ` : '';
+
+    return rootBlock + `
       /* ================= header ================= */
       .desktop.wow-header-activated .header-left-container{
         position   : relative;
         display    : flex;
         align-items: center;
-        padding    : var(--padding-logo-size) !important;
+        padding    : ${logoPadding} !important;
       }
 
       /* logo sizing */
-      ${/* FIX 1: Use a ternary operator to output an empty string instead of "false" */
+      ${/* Use a ternary operator to output an empty string */
       options.changeLogoSize
         ? `
         .header-left-container {
@@ -157,7 +180,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
 
       /* ================= mobile ================= */
       static-content-block[background-color="#d3e6ec"] {
-        background-color: ${options.background} !important;
+        background-color: ${background} !important;
       }
 
       static-content-block[background-color="#d3e6ec"] p {
@@ -168,14 +191,14 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       /* ================= menu / icons ================= */
       .desktop.wow-header-activated .header-title,
       .desktop.wow-header-activated .header-title .css-1wac6i9-TitleWrapper{
-        color:${options.text}!important;
+        color:${text}!important;
       }
       .desktop.wow-header-activated .wow-app-header .css-8jz3c5-UserSettingsContainer > .user-menu-btn::after { /* Added this line */
-        color:${options.text}!important;
+        color:${text}!important;
       }
       .wow-header-activated .css-4557aa-StyledMegaMenuItem>a::before,
       .desktop.wow-header-activated #mega-menu li>a.item:before{
-        background-color:${hexToRgba(options.primary, 0.3)}!important;
+        background-color:${hexToRgba(primary, 0.3)}!important;
       }
       .wow-header-activated #menu  .we-icon,
       .desktop.wow-header-activated .wow-app-header .css-dgi6rr-Link::after,
@@ -191,15 +214,15 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       /* Text color for TOP-LEVEL items only in older envs */
       [data-testid="mega-menu-list"] > li > a .item-text,
       [data-testid="mega-menu-list"] > li > a .we-icon {
-          color: var(--color-floating-nav-text) !important;
+          color: ${floatingNavText} !important;
       }
       /* Older env nav container background */
       .desktop.wow-header-activated .css-sps0ey-MegaMenuContainer {
-        background-color: var(--color-floating-nav-bg) !important;
+        background-color: ${floatingNavBg} !important;
       }
       /* Newer env nav container background */
       .bg-menubar-intranet {
-        background-color: var(--color-floating-nav-bg) !important;
+        background-color: ${floatingNavBg} !important;
       }
 
       /* Text color for TOP-LEVEL items only in older envs */
@@ -207,7 +230,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       .wow-header-activated .css-1kyaah4-StyledMegaMenuItem > div > a,
       .wow-header-activated .css-6pdc2t-StyledMegaMenuItem > a,
       .wow-header-activated .css-6pdc2t-StyledMegaMenuItem > div > a {
-        color: var(--color-floating-nav-text) !important;
+        color: ${floatingNavText} !important;
       }
 
       /* Force text color for TOP-LEVEL items in newer envs */
@@ -242,7 +265,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       /* ================= Quick Links & Specific Buttons ================= */
       /* "Design 2" Tiled Quick Links */
       .quick-links-widget.design-2.type-tiles .quick-links-widget__item:not([style*="background-color"]) {
-          background-color: ${options.primary} !important;
+          background-color: ${primary} !important;
       }
       .quick-links-widget.design-2.type-tiles .quick-links-widget__item:not([style*="background-color"]) a,
       .quick-links-widget.design-2.type-tiles .quick-links-widget__item:not([style*="background-color"]) .we-icon {
@@ -251,7 +274,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
 
       /* Tiled Layout-3 Quick Links */
       .quick-links-widget.type-tiles .quick-links-widget__list--layout-3 .quick-links-widget__item:not([style*="background-color"]) {
-          background-color: ${options.primary} !important;
+          background-color: ${primary} !important;
       }
       .quick-links-widget.type-tiles .quick-links-widget__list--layout-3 .quick-links-widget__item:not([style*="background-color"]) a,
       .quick-links-widget.type-tiles .quick-links-widget__list--layout-3 .quick-links-widget__item:not([style*="background-color"]) .we-icon {
@@ -268,7 +291,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
 
       /* first static-content card (no .counter) — */
       .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border:not(.counter) .news-articles-plain .news-feed-post {
-        background-color: ${options.background} !important;
+        background-color: ${background} !important;
       }
 
       ${/* FIX 2: Rewrite the nested block into separate, valid CSS rules */''}
@@ -292,7 +315,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
 
       .full-width-bg:not(.page-footer)
         > .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border {
-        background-color: ${options.background} !important;
+        background-color: ${background} !important;
       }
 
       .full-width-bg:not(.page-footer)
@@ -303,7 +326,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
 
       .full-width-bg.page-footer
         > .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border {
-        background-color: ${options.primary} !important;
+        background-color: ${primary} !important;
         color: ${primaryInverse} !important;
       }
 
@@ -323,20 +346,20 @@ export default function buildPreviewCss(o, multiBrandings = []) {
 
       /* ================= audio player (API-hosted only) ================= */
       div.audio-player:has(audio[src*="/api/media/"]) .audio-player__play-button.audio-player__play-button {
-        background-color: var(--color-client-primary) !important;
+        background-color: ${primary} !important;
       }
 
       div.audio-player:has(audio[src*="/api/media/"]) .audio-player__meta {
-        background-color: var(--color-client-primary) !important;
+        background-color: ${primary} !important;
         border-radius: 9px;
       }
 
       div.audio-player:has(audio[src*="/api/media/"]) {
-        background-color: var(--color-client-primary) !important;
+        background-color: ${primary} !important;
       }
 
       div.audio-player:has(audio[src*="/api/media/"]) .audio-player__play-button.audio-player__play-button > svg {
-        fill: var(--color-client-text) !important;
+        fill: ${text} !important;
       }
 
       div.audio-player:has(audio[src*="/api/media/"]) .audio-player__meta .audio-player__title,
@@ -347,10 +370,10 @@ export default function buildPreviewCss(o, multiBrandings = []) {
 
       /* ================= homepage hero / .home-social ================= */
         html[data-plugin-id="page"].desktop:not(.without-page-background):has(.home-social)::before{
-        background-image     : var(--bg-image) !important;
+        background-image     : ${bgImage} !important;
         background-repeat    : no-repeat !important;
         background-size      : cover       !important;
-        background-position  : var(--bg-image-position) !important;
+        background-position  : ${bgImagePosition} !important;
         background-color     : #f4f9fb      !important;
       }
 
@@ -374,7 +397,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       /* 1 — the card itself */
       .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter{
         /* primary background */
-        background-color: var(--color-client-primary) !important;
+        background-color: ${primary} !important;
       }
 
       /* 2 — every “real” text bit that lives in the widget card */
@@ -396,8 +419,8 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       /* 3 — the subscribe / register button */
       .content-widget-wrapper.static-content-wrapper.widget-on-card.no-shadow-border.counter
         .group-subscription-block-button{
-            background-color: var(--color-client-text) !important;
-            border-color     : var(--color-client-text) !important;
+            background-color: ${text} !important;
+            border-color     : ${text} !important;
             /* label + icon → inverse of text colour */
             color            : ${textOpposite} !important;
       }
@@ -424,22 +447,22 @@ export default function buildPreviewCss(o, multiBrandings = []) {
 
       /* ================= specific header ================= */
       .desktop.wow-header-activated .css-1brf39v-HeaderBody {
-        background-color: var(--color-client-primary) !important;
-        color: var(--color-client-text) !important;
+        background-color: ${primary} !important;
+        color: ${text} !important;
       }
 
       .desktop.wow-header-activated .css-8a35lc-Title {
-        color: var(--color-client-text) !important;
+        color: ${text} !important;
         display: none !important; /* Hide the title text */
       }
 
       .mobile .header-container {
-        background-color: var(--color-client-primary) !important;
-        color: var(--color-client-text) !important;
+        background-color: ${primary} !important;
+        color: ${text} !important;
       }
 
       .mobile .header-container .header-button {
-        color: var(--color-client-text) !important;
+        color: ${text} !important;
       }
     `;
   };
@@ -448,7 +471,8 @@ export default function buildPreviewCss(o, multiBrandings = []) {
    * Helper specifically for generating logo CSS.
    * This is called for both the main brand and each multi-brand.
    */
-  const buildLogoCss = (options) => {
+  const buildLogoCss = (options, useVariables = true) => {
+    const logoUrl = useVariables ? 'var(--logo-url)' : `url("${options.logo || ""}")`;
     if (options.logo) {
       return `
         /* ================= logo/header (Desktop) ================= */
@@ -457,7 +481,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
           content: "" !important;
           position: absolute;
           inset: 0;
-          background-image: var(--logo-url);
+          background-image: ${logoUrl};
           background-repeat: no-repeat;
           background-size: contain;
           background-position: left center;
@@ -467,7 +491,7 @@ export default function buildPreviewCss(o, multiBrandings = []) {
         /* ================= logo/header (Mobile) ================= */
         /* Targets the specific mobile logo image tag and replaces its content */
         .mobile .header-container.with-logo .header-logo.css-v852x2-LogoImage {
-          content: var(--logo-url) !important;
+          content: ${logoUrl} !important;
           /* Add some sizing to prevent distortion */
           height: 40px !important;
           width: auto !important;
@@ -492,10 +516,10 @@ export default function buildPreviewCss(o, multiBrandings = []) {
     : "";
 
   // 1. Generate the MAIN branding CSS (colors, etc.)
-  let finalCss = buildCssBlock(o);
+  let finalCss = buildCssBlock(o, true);
 
   // 2. Add the MAIN logo CSS
-  finalCss += buildLogoCss(o);
+  finalCss += buildLogoCss(o, true);
 
   // 3. Generate and append MULTI-BRANDING CSS
   if (multiBrandings && multiBrandings.length > 0) {
@@ -531,24 +555,25 @@ export default function buildPreviewCss(o, multiBrandings = []) {
       const brandOptions = { ...o, ...mappedBrandConfig };
 
       // Generate color/background styles for this group
-      let singleBrandBlock = buildCssBlock(brandOptions);
+      let singleBrandBlock = buildCssBlock(brandOptions, false);
 
       // ♡ NEW: Generate logo styles for this group
-      singleBrandBlock += buildLogoCss(brandOptions);
+      singleBrandBlock += buildLogoCss(brandOptions, false);
 
       // Scope CSS variables by replacing ':root' with the group class
-      const prefix = `.group-${brandConfig.groupId}`; // Prefix without trailing space
+      const prefix = `.group-${brandConfig.groupId}`;
       const prefixedCssBlock = singleBrandBlock.replace(
         /([^\r\n,{}]+)(,(?=[^}]*{)|\s*{)/g,
         (match, selector, suffix) => {
           const trimmedSelector = selector.trim();
           // Avoid prefixing @-rules or comments
-          if (trimmedSelector.startsWith('@') || trimmedSelector.startsWith('/*')) {
+          if (trimmedSelector.startsWith('@') || trimmedSelector.startsWith('/*') || trimmedSelector === ':root') {
             return match;
           }
-          // Specifically handle the :root selector to scope variables
-          if (trimmedSelector === ':root') {
-            return prefix + suffix; // Replaces ':root {' with '.group-12345 {'
+
+          if (trimmedSelector.startsWith('html') || trimmedSelector.startsWith('.mobile') || trimmedSelector.startsWith('.desktop')) {
+            if (trimmedSelector.startsWith('html')) return `html${prefix}${trimmedSelector.substring(4)}${suffix}`;
+            return `${prefix}${trimmedSelector}${suffix}`;
           }
           // For all other selectors, prepend the prefix and a space
           return `${prefix} ${trimmedSelector}${suffix}`;

@@ -105,7 +105,7 @@ const FeedbackBanner = () => {
     saveBannerState(newState);
   };
 
-  const versionNumber = "2.2.1";
+  const versionNumber = "2.2.2";
   const releaseNotesUrl = 'https://docs.google.com/document/d/14iV4lUkYHuHv5VY3MPiIXDdRx_8SOY5Ml1M-gSPqvRY/edit?usp=sharing';
 
   // --- MINIMIZED VIEW ---
