@@ -88,13 +88,15 @@ export default function SavedProspects({ prospects, onSelect, onDelete }) {
                 >
                   <LuArrowRight size={18} color={colors.primary} />
                 </button>
-                <button
-                  onClick={() => onDelete(prospect.id)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '5px' }}
-                  title="Delete this prospect"
-                >
-                  <LuTrash size={16} color={colors.danger} />
-                </button>
+                {onDelete && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDelete(prospect.id); }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '5px' }}
+                    title="Delete this prospect"
+                  >
+                    <LuTrash size={16} color={colors.danger} />
+                  </button>
+                )}
               </li>
             ))
           )}

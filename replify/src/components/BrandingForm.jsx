@@ -119,6 +119,9 @@ export default function BrandingForm({
           This environment is already branded with Replify.
           <br />
           <strong>Adding branding will replace the existing branding.</strong>
+          <p style={{fontSize: '12px', fontStyle: 'italic', margin: '8px 0 0 0', opacity: 0.8}}>
+            Please note: multi-branding configurations cannot be pulled at this time.
+          </p>
           <div style={{ margin: "10px 0", display: "flex", gap: 12 }}>
             <button
               style={{
@@ -410,6 +413,7 @@ export default function BrandingForm({
               onUpdate={onUpdateMultiBranding}
               onRemove={onRemoveMultiBranding}
               allGroups={allGroups}
+              savedProspects={savedProspects}
             />
           )}
         </>
